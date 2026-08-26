@@ -1,0 +1,57 @@
+"""Pydantic contracts for merchant and branch administration."""
+
+from __future__ import annotations
+
+import uuid
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+
+class MerchantCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    legal_name: str | None = Field(default=None, max_length=255)
+    registration_number: str | None = Field(default=None, max_length=100)
+    contact_email: EmailStr
+    contact_phone: str = Field(min_length=1, max_length=32)
+
+
+class MerchantUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    legal_name: str | None = Field(default=None, max_length=255)
+    registration_number: str | None = Field(default=None, max_length=100)
+    contact_email: EmailStr | None = None
+    contact_phone: str | None = Field(default=None, min_length=1, max_length=32)
+    is_active: bool | None = None
+
+
+class MerchantResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    legal_name: str | None
+    registration_number: str | None
+    contact_email: EmailStr
+    contact_phone: str
+    is_active: bool
+
+
+class BranchCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    address: str | None = Field(default=None, max_length=500)
+
+
+class BranchUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    address: str | None = Field(default=None, max_length=500)
+    is_active: bool | None = None
+
+
+class BranchResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    merchant_id: uuid.UUID
+    name: str
+    address: str | None
+    is_active: bool
