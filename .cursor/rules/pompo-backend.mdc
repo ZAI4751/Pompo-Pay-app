@@ -1,0 +1,41 @@
+---
+description: POMPO backend engineering conventions
+globs:
+  - "pompo-backend/**/*.py"
+  - "pompo-backend/**/*.sql"
+alwaysApply: false
+---
+
+# POMPO Backend
+
+Use:
+
+- FastAPI
+- async SQLAlchemy
+- PostgreSQL
+- Pydantic v2
+- Alembic
+- repository/service architecture
+
+Routes should remain thin.
+
+Business logic belongs in services.
+
+Persistence/query logic belongs in repositories.
+
+Reuse existing dependencies, services, repositories and models.
+
+Do not access PostgreSQL directly from API handlers.
+
+For financial amounts:
+
+- never use floating point
+- use appropriate decimal/database types
+- never silently round monetary values
+
+For payment operations:
+
+- idempotency is mandatory
+- state transitions must be explicit
+- previous payment attempts must not be destroyed
+- database integrity is authoritative

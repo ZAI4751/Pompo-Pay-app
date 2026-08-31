@@ -1,0 +1,43 @@
+---
+description: POMPO testing and verification policy
+globs:
+  - "**/*test*.py"
+  - "**/tests/**"
+  - "**/*.spec.*"
+  - "**/*.test.*"
+alwaysApply: true
+---
+
+# POMPO Testing
+
+Tests must validate real behavior.
+
+When a failure occurs:
+
+1. Reproduce it.
+2. Inspect the failure.
+3. Identify the root cause.
+4. Classify it.
+5. Fix it if it belongs to current work.
+6. Retest.
+7. Run relevant regressions.
+
+Failure classifications:
+
+- implementation defect
+- regression
+- test defect
+- configuration/environment issue
+- unrelated pre-existing issue
+
+Do not:
+
+- delete tests
+- skip tests to make them green
+- weaken assertions
+- mock away the behavior being tested
+
+For database integration tests, prefer the supported Docker/PostgreSQL
+environment.
+
+Never claim success without actual test output.

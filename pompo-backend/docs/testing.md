@@ -79,6 +79,27 @@ DATABASE_URL=postgresql+asyncpg://pompo:pompo_secret@localhost:5432/pompo_test \
 pytest -v
 ```
 
+## Creating an admin account for manual/frontend testing
+
+The automated suite creates and tears down its own users, so nothing below is
+needed to run tests. It is needed to sign in through the admin frontend, since
+the development database ships with no known credentials.
+
+```bash
+# the role catalog must exist first (idempotent)
+docker compose exec backend python scripts/seed_rbac.py
+
+# then create or reset the platform administrator
+docker compose exec \
+    -e POMPO_ADMIN_EMAIL=you@example.com \
+    -e POMPO_ADMIN_PASSWORD='<a strong password>' \
+    backend python scripts/seed_admin.py
+```
+
+Credentials are read from the environment and never written to source, printed
+or logged. The script refuses to run when `APP_ENV=production`. Note this
+writes to the **development** database (`pompo`), not `pompo_test`.
+
 ## How `conftest.py` picks the right DATABASE_URL
 
 `tests/conftest.py` uses `os.environ.setdefault(...)`, not a forced

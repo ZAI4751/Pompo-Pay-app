@@ -47,7 +47,27 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
-      ALLOWED_HOSTS: localhost,127.0.0.1,backend
+      ALLOWED_HOSTS: localhost,127.0.0.1,[::1],backend
+      # The admin frontend is opened as either host name locally, and the two
+      # are distinct origins to a browser. Set here rather than in .env so the
+      # development contract is version-controlled; `environment` also takes
+      # precedence over `env_file`, which is what makes this authoritative.
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      # One dashboard screen issues many calls, and inside Docker every request
+      # from the host shares the gateway's IP — so a single bucket covers the
+      # whole development session. Production keeps the restrictive default.
+      RATE_LIMIT_REQUESTS: "1000"
+    volumes:
+      # docker/Dockerfile bakes the source in with `COPY . .`, so without these
+      # mounts `docker compose exec backend pytest` silently runs whatever was
+      # in the image at build time. Since the Docker environment is the
+      # acceptance environment for PostgreSQL integration tests, it has to see
+      # the working tree. Specific subtrees, not the whole context, so the
+      # image's installed dependencies are never shadowed.
+      - ./app:/app/app
+      - ./tests:/app/tests
+      - ./migrations:/app/migrations
+      - ./alembic.ini:/app/alembic.ini
     depends_on:
       postgres:
         condition: service_healthy

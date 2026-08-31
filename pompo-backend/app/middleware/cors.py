@@ -14,5 +14,13 @@ def configure_cors(app: FastAPI, settings: BaseAppSettings) -> None:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=["X-Request-ID"],
+        # Cross-origin JS can only read these if they are explicitly exposed;
+        # the rate-limit trio is what lets a client back off instead of
+        # misreporting a 429 as an unreachable backend.
+        expose_headers=[
+            "X-Request-ID",
+            "X-RateLimit-Limit",
+            "X-RateLimit-Remaining",
+            "Retry-After",
+        ],
     )

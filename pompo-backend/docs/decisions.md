@@ -191,3 +191,76 @@ including for non-HTTP callers.
 Merchant and branch deletion sets both `is_active = false` and `deleted_at`.
 Normal repository reads require both active state and no soft-delete timestamp,
 while mutations create immutable audit records.
+
+---
+
+## 2026-08-31 — Admin frontend integration: cross-origin error surfacing
+
+### CORS is the outermost middleware
+
+**Decision:** Register `CORSMiddleware` last in `create_app()` so it becomes the
+outermost layer, and handle unhandled exceptions in
+`UnhandledExceptionMiddleware` from inside the stack rather than through
+`@app.exception_handler(Exception)`.
+
+**Why:** The admin frontend reported "Could not reach the Pompo backend" for
+failures where the backend had in fact answered. `RateLimitMiddleware` and
+`TrustedHostMiddleware` were registered *after* CORS, which — given Starlette
+applies middleware in reverse registration order — placed them *outside* the
+CORS layer. Their responses carried no `access-control-allow-origin`, so the
+browser blocked them and `fetch()` rejected exactly as it does for an
+unreachable host. A 429 was therefore indistinguishable from a dead backend.
+Reproduced directly: the 101st request in a window returned
+`HTTP 429` with no CORS headers.
+
+The same applies to a FastAPI `Exception` handler, which Starlette installs on
+`ServerErrorMiddleware` — outside all user middleware, including CORS. Genuine
+500s were unreadable to the browser for the same reason.
+
+`tests/test_middleware_cors.py` asserts the ordering invariant and that 429,
+500 and trusted-host 400 responses all carry CORS headers. Security is
+unchanged: a disallowed origin is still rejected without being granted
+`access-control-allow-origin`.
+
+### Validation errors never echo submitted values
+
+**Decision:** Handle `RequestValidationError` explicitly and expose only
+`loc`, `msg` and `type` per error.
+
+**Why:** Pydantic includes the offending `input` in every error it raises. On
+`/auth/login` a validation failure on the password field would place the
+plaintext secret into both the response body and the structured logs. The
+handler also replaces FastAPI's default shape, where `detail` is an array of
+objects — a client rendering `String(detail)` on that produces
+"[object Object]".
+
+### Development CORS origins and rate limit live in docker-compose.yml
+
+**Decision:** Set `CORS_ORIGINS` and `RATE_LIMIT_REQUESTS` in the `backend`
+service's `environment:` block rather than relying on `.env` or code defaults.
+
+**Why:** `.env` is untracked, so the values that make local development work
+were invisible and drifted from the code defaults — `.env` pinned
+`CORS_ORIGINS` to origins that excluded `http://127.0.0.1:3000`, silently
+overriding the `DevelopmentSettings` default. Compose `environment:` takes
+precedence over `env_file:`, which makes the development contract explicit and
+version-controlled. Production inherits the restrictive base defaults and must
+set both explicitly.
+
+`http://localhost:3000` and `http://127.0.0.1:3000` are distinct origins to a
+browser, so both are allowed in development. The rate limit is raised for
+development only: inside Docker every request from the host arrives with the
+gateway's IP, so a single bucket covers the whole development session.
+
+### The backend container mounts the working tree
+
+**Decision:** Bind-mount `./app`, `./tests`, `./migrations` and `./alembic.ini`
+into the `backend` container.
+
+**Why:** `docker/Dockerfile` bakes source in with `COPY . .`, so
+`docker compose exec backend pytest` ran whatever was in the image at build
+time. Since the Docker environment is the acceptance environment for
+PostgreSQL integration tests, silently testing stale code undermines the whole
+point. Specific subtrees are mounted rather than the whole context so the
+image's installed dependencies are never shadowed.
+

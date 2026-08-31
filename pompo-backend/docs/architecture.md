@@ -92,6 +92,45 @@ sequenceDiagram
     Middleware-->>Client: HTTP Response
 ```
 
+## Middleware Order
+
+Registered in `create_app()` (`app/main.py`). Starlette applies middleware in
+reverse registration order, so the **last** registration is the **outermost**
+layer. The effective stack, outermost first:
+
+```
+CORS -> TrustedHost -> RequestID -> RequestLogging -> RateLimit -> UnhandledException -> router
+```
+
+**CORS must stay outermost.** Any layer outside it produces responses without
+CORS headers, which a browser blocks — so the client sees an opaque network
+failure instead of the real status. That defect made rate-limit (429),
+trusted-host (400) and unhandled-error (500) responses indistinguishable from
+"backend unreachable" in the admin frontend. `RequestID` sits outside
+`RateLimit` so a 429 still carries the request ID that appears in the logs.
+`tests/test_middleware_cors.py` asserts this ordering directly.
+
+Note that an `Exception` handler registered via `@app.exception_handler` is
+installed on Starlette's `ServerErrorMiddleware`, which wraps the *entire*
+stack including CORS. `UnhandledExceptionMiddleware`
+(`app/middleware/exception_handler.py`) therefore converts unhandled
+exceptions into a 500 from *inside* the stack instead.
+
+## Error Response Contract
+
+Every error response uses one shape, so clients can branch on status code and
+render `detail` directly:
+
+```json
+{ "detail": "Human-readable message", "request_id": "uuid" }
+```
+
+Validation failures (422) add an `errors` array of `{loc, msg, type}`. Pydantic's
+raw errors also include the offending `input`, which on a credential endpoint
+would place a plaintext password into the response body and the logs — so only
+`loc`, `msg` and `type` are ever exposed. See
+`tests/test_error_responses.py`.
+
 ## Dependency Injection
 
 All dependencies flow through FastAPI's `Depends()` system:
@@ -140,9 +179,10 @@ area rather than one giant file:
   `AuditLog` deliberately does **not** get soft delete or `updated_at` —
   audit rows must never be mutated or hidden.
 - **No provider-specific logic lives in these models.** `PaymentProvider`
-  and `PaymentAttempt` are storage shape only; the adapter pattern that
-  turns "call Airtel Money" into a real HTTP call is a later milestone
-  (M008+).
+  and `PaymentAttempt` are storage shape only. M007 has since added the
+  adapter layer (`app/payments/providers.py`, `adapters.py`, `registry.py`),
+  but every registered adapter is a deterministic sandbox mock — turning
+  "call Airtel Money" into a real HTTP call remains a later milestone (M008+).
 - **RolePermission is a full entity**, not a bare association table, so
   grants can carry `granted_at` and future audit metadata.
 
@@ -166,9 +206,12 @@ area rather than one giant file:
 - Merchant and branch repositories, services, schemas, routes, tenant checks,
   soft-delete behavior, and audit records are implemented in M005.
 - Till/Cashier management remains a later milestone.
-- No seed data yet (M016 area) and no transaction *state machine*
-  enforcement yet (M011) — the DB will currently accept any status value in
-  the enum regardless of what state preceded it.
+- No seed data yet (M016 area).
+- Transaction *state machine* enforcement was still outstanding as of M005;
+  M006 has since added it in `app/payments/state_machine.py`, so status
+  changes now go through an explicit transition map rather than arbitrary
+  mutation. The database column itself still accepts any enum value, so the
+  service layer remains the enforcement point.
 
 ---
 

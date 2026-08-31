@@ -1,0 +1,50 @@
+---
+description: POMPO security and secret-management requirements
+globs:
+  - "**/*.py"
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.js"
+  - "**/*.env*"
+  - "**/*.yaml"
+  - "**/*.yml"
+alwaysApply: true
+---
+
+# POMPO Security
+
+Never hardcode secrets.
+
+Never log:
+
+- passwords
+- JWTs
+- refresh tokens
+- API keys
+- provider credentials
+- PINs
+- private keys
+
+Authentication and authorization are separate concerns.
+
+401 = unauthenticated.
+403 = authenticated but unauthorized.
+
+All authorization must be enforced server-side.
+
+Never trust:
+
+- frontend permission checks
+- hidden UI controls
+- client-provided tenant IDs
+- client-provided roles
+- client-provided authorization claims without server validation
+
+Protect against:
+
+- privilege escalation
+- IDOR
+- cross-tenant access
+- replay
+- duplicate financial operations
+- unauthorized role/permission changes

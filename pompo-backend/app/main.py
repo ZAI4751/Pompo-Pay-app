@@ -12,7 +12,10 @@ from app.core.security.secrets import SecretValidator
 from app.database.engine import create_engine, dispose_engine
 from app.database.session import create_session_factory
 from app.middleware.cors import configure_cors
-from app.middleware.exception_handler import register_exception_handlers
+from app.middleware.exception_handler import (
+    UnhandledExceptionMiddleware,
+    register_exception_handlers,
+)
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.request_id import RequestIDMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware
@@ -68,12 +71,23 @@ def create_app() -> FastAPI:
 
     register_exception_handlers(app)
 
+    # Starlette applies middleware in reverse registration order: the LAST
+    # registration becomes the OUTERMOST layer. CORS must therefore be registered
+    # last, so that rate-limit (429), trusted-host (400) and unhandled-exception
+    # (500) responses still carry CORS headers. Without this a browser blocks
+    # those responses outright and the client cannot tell a real HTTP status from
+    # an unreachable backend.
+    #
+    # Resulting stack, outermost first:
+    #   CORS -> TrustedHost -> RequestID -> RequestLogging -> RateLimit -> app
+    # RequestID sits outside RateLimit so the limiter can stamp its 429 with the
+    # same request ID that appears in the logs.
+    app.add_middleware(UnhandledExceptionMiddleware)
+    app.add_middleware(RateLimitMiddleware, settings=settings, redis_service=redis_service)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestIDMiddleware)
-
-    configure_cors(app, settings)
     configure_trusted_hosts(app, settings)
-    app.add_middleware(RateLimitMiddleware, settings=settings, redis_service=redis_service)
+    configure_cors(app, settings)
 
     app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
 

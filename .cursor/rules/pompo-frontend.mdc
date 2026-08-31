@@ -1,0 +1,47 @@
+---
+description: POMPO frontend engineering rules
+globs:
+  - "pompo-admin/**/*"
+  - "pompo-frontend/**/*"
+alwaysApply: false
+---
+
+# POMPO Frontend
+
+The frontend is a client of the POMPO API.
+
+Never connect the browser directly to:
+
+- PostgreSQL
+- Redis
+- internal services
+
+Use:
+
+Frontend → FastAPI → backend services
+
+Keep API calls behind the frontend API/service abstraction.
+
+Do not invent backend endpoints.
+
+Use current OpenAPI/API contracts where available.
+
+Mock data may be used only for functionality whose backend does not yet
+exist.
+
+Mocks must be replaceable without rewriting UI components.
+
+Never place secrets in frontend code.
+
+Frontend permission checks are for UX only; backend authorization remains
+authoritative.
+
+Support:
+
+- loading
+- empty
+- error
+- 401
+- 403
+- 404
+- network failure states

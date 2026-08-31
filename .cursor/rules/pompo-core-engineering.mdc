@@ -1,0 +1,134 @@
+---
+description: Core engineering rules for the POMPO production platform
+alwaysApply: true
+---
+
+# POMPO Core Engineering Rules
+
+POMPO is a real production fintech/payment platform.
+
+This repository is the canonical source of truth.
+
+## Before changing anything
+
+- Inspect the repository and relevant files first.
+- Read applicable skills and project documentation.
+- Check git status and existing diffs.
+- Verify whether the requested functionality already exists.
+- Never duplicate an existing model, service, repository, API, or subsystem.
+- Never discard existing user work.
+
+## Architecture
+
+Preserve the established architecture unless a concrete technical reason
+requires changing it.
+
+Backend:
+
+```text
+Routes → Dependencies → Services → Repositories → SQLAlchemy → PostgreSQL
+```
+
+Use the existing:
+
+- FastAPI
+- async SQLAlchemy
+- Pydantic
+- repository pattern
+- service layer
+- dependency injection
+- Alembic
+- PostgreSQL
+- Redis/Celery where appropriate
+
+Do not introduce competing architectural patterns without justification.
+
+## Milestones
+
+Milestones are architectural boundaries.
+
+Before implementing a milestone:
+
+- determine the actual current repository state
+- identify what already exists
+- implement only what belongs to the current milestone
+- preserve completed milestones
+
+Do not rebuild completed milestones.
+
+Do not automatically start the next milestone after completion.
+
+## Failure recovery
+
+Implementation is not complete when code has merely been generated.
+
+Always:
+
+```text
+implement → test → diagnose failures → fix legitimate failures → retest → verify → inspect diff
+```
+
+Do not:
+
+- hide failures
+- skip tests to obtain green results
+- weaken assertions
+- delete tests
+- classify failures as pre-existing without investigation
+
+## Security
+
+Never hardcode:
+
+- API keys
+- passwords
+- JWT secrets
+- authentication tokens
+- provider credentials
+- webhook secrets
+- private keys
+- encryption keys
+
+Use environment configuration and secure secret management.
+
+Never expose secrets in:
+
+- source code
+- logs
+- tests
+- documentation
+- commits
+- frontend bundles
+
+Frontend authorization is UX only.
+Backend authorization is authoritative.
+
+## Database
+
+Never rewrite historical Alembic migrations.
+
+Create new migrations for schema changes.
+
+Database constraints must enforce important invariants.
+
+## Git
+
+Before major changes:
+
+- inspect git status
+- inspect git diff
+
+Never perform destructive Git operations without explicit authorization.
+
+## Completion
+
+Never claim something passed unless it was actually executed.
+
+Final verification should include relevant:
+
+- tests
+- migrations
+- static checks
+- application health
+- security review
+- git diff/status

@@ -8,10 +8,9 @@ verify HTTP status codes, response schemas, and header handling that the
 service-layer tests can't reach (those live in app/api/v1/auth.py and
 app/api/deps.py, not in AuthService).
 
-NOTE: these were written against the running application but could not be
-executed in the sandbox this milestone was built in — there is no reachable
-PostgreSQL/Redis instance here. Run them with `docker compose up -d && pytest
-tests/test_auth_api.py -v` before relying on this file.
+Run them with `docker compose up -d` and either of the two invocations in
+docs/testing.md (in-container is authoritative; a locally installed
+PostgreSQL on host port 5432 will shadow the container's published port).
 """
 
 from __future__ import annotations
@@ -125,6 +124,61 @@ async def test_me_with_valid_token_returns_user(client: AsyncClient, seeded_user
     )
     assert response.status_code == 200
     assert response.json()["email"] == seeded_user.email
+
+
+@pytest.mark.asyncio
+async def test_browser_login_flow_carries_cors_headers(
+    client: AsyncClient, seeded_user: User
+) -> None:
+    """Reproduce the admin frontend's exact cross-origin sign-in sequence.
+
+    Regression guard for the defect where the browser could not read the
+    backend's responses and the UI reported every failure as "could not reach
+    the Pompo backend". Each step must both succeed AND be readable
+    cross-origin, so `access-control-allow-origin` is asserted throughout.
+    """
+    origin = "http://localhost:3000"
+
+    preflight = await client.options(
+        "/api/v1/auth/login",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+    assert preflight.status_code == 200
+    assert preflight.headers["access-control-allow-origin"] == origin
+
+    login = await client.post(
+        "/api/v1/auth/login",
+        headers={"Origin": origin},
+        json={"email": seeded_user.email, "password": "correct-horse-battery-staple"},
+    )
+    assert login.status_code == 200
+    assert login.headers["access-control-allow-origin"] == origin
+    access_token = login.json()["access_token"]
+
+    # A browser preflights /auth/me too, because Authorization is not a
+    # CORS-safelisted request header.
+    me_preflight = await client.options(
+        "/api/v1/auth/me",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization",
+        },
+    )
+    assert me_preflight.status_code == 200
+    assert me_preflight.headers["access-control-allow-origin"] == origin
+
+    me = await client.get(
+        "/api/v1/auth/me",
+        headers={"Origin": origin, "Authorization": f"Bearer {access_token}"},
+    )
+    assert me.status_code == 200
+    assert me.headers["access-control-allow-origin"] == origin
+    assert me.json()["email"] == seeded_user.email
 
 
 @pytest.mark.asyncio

@@ -114,6 +114,19 @@ class DevelopmentSettings(BaseAppSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "DEBUG"
     log_json: bool = False
 
+    # The admin frontend is reached as either host name during local work, and
+    # they are distinct origins to the browser. Listing both here avoids the
+    # failure where the app loads but every API call is blocked by CORS.
+    # Production inherits the restrictive base default and must set
+    # CORS_ORIGINS explicitly.
+    allowed_hosts: str = "localhost,127.0.0.1,[::1],backend"
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+
+    # An admin dashboard issues many calls per screen, and inside Docker every
+    # request from the host arrives with the gateway's IP — so one shared bucket
+    # covers the whole development session. The production default stays at 100.
+    rate_limit_requests: int = Field(default=1000, ge=1)
+
 
 class TestingSettings(BaseAppSettings):
     """Testing environment overrides."""
