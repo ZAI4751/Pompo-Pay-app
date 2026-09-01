@@ -1,0 +1,20 @@
+# Railway project configuration for the POMPO FastAPI API service.
+# Create sibling services (PostgreSQL, Redis, Celery worker) in the Railway
+# dashboard. See docs/railway-deployment.md for the full topology.
+#
+# Root directory for this service: pompo-backend
+# GitHub autodeploy: connect the existing Railway service to
+# ZAI4751/Pompo-Pay-app on branch Main-Pompo-branch and set
+# source.rootDirectory = /pompo-backend in the Railway dashboard/CLI.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "docker/Dockerfile"
+watchPatterns = ["app/**", "migrations/**", "docker/**", "requirements.txt", "alembic.ini"]
+
+[deploy]
+healthcheckPath = "/api/v1/health/live"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
+numReplicas = 1

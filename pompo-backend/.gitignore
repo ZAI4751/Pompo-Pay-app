@@ -45,3 +45,6 @@ htmlcov/
 Thumbs.db
 
 docker/data/
+
+.tmp-login.json
+railway-config.json

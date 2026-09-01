@@ -18,12 +18,17 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY . .
 
-RUN adduser --disabled-password --gecos "" appuser && chown -R appuser:appuser /app
+RUN chmod +x /app/docker/entrypoint.sh \
+    && sed -i 's/\r$//' /app/docker/entrypoint.sh \
+    && adduser --disabled-password --gecos "" appuser \
+    && chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 8000
 
+# Railway and other platforms inject PORT at runtime; default 8000 for local Docker.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/api/v1/health/live || exit 1
+    CMD sh -c 'curl -f "http://localhost:${PORT:-8000}/api/v1/health/live" || exit 1'
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["/app/docker/entrypoint.sh"]
+CMD ["api"]

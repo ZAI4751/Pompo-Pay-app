@@ -15,3 +15,6 @@ tsconfig.tsbuildinfo
 # here, so it should not be committed.
 AGENTS.md
 CLAUDE.md
+
+.vercel
+.env*

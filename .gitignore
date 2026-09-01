@@ -1,0 +1,4 @@
+.vercel
+.env*
+**/.tmp-login.json
+**/railway-config.json
