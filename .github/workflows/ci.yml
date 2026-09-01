@@ -16,9 +16,6 @@ jobs:
   backend:
     name: Backend
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: pompo-backend
 
     services:
       postgres:
@@ -67,22 +64,30 @@ jobs:
           cache-dependency-path: pompo-backend/pyproject.toml
 
       - name: Install dependencies
+        working-directory: pompo-backend
         run: pip install -e ".[dev]"
 
       - name: Create test database
+        working-directory: pompo-backend
         run: |
           python scripts/create_test_db.py \
             --url postgresql://pompo:pompo_secret@localhost:5432/postgres \
             --database pompo_test
 
       - name: Apply migrations
+        working-directory: pompo-backend
         run: alembic upgrade head
 
       - name: Run tests
+        working-directory: pompo-backend
         run: pytest -v
 
-      - name: Build Docker image
+      - name: Build Docker image (backend package)
+        working-directory: pompo-backend
         run: docker build -f docker/Dockerfile .
+
+      - name: Build Docker image (monorepo root for Railway Git)
+        run: docker build -f Dockerfile .
 
   frontend:
     name: Frontend

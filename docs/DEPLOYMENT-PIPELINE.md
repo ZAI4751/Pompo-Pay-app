@@ -25,8 +25,11 @@ push/merge to Main-Pompo-branch
 
 ## Backend container roles
 
-Both Railway services build from `pompo-backend/docker/Dockerfile` and
-`pompo-backend/docker/entrypoint.sh`.
+Both Railway services build from the monorepo root `Dockerfile` for GitHub
+autodeploy (repository root is the Railway build context). The canonical
+backend image for local compose remains `pompo-backend/docker/Dockerfile`.
+
+Both services use `pompo-backend/docker/entrypoint.sh` inside the image.
 
 | Service | `POMPO_CONTAINER_ROLE` | `RUN_MIGRATIONS` |
 |---------|------------------------|------------------|
