@@ -1,15 +1,11 @@
 /**
- * Thin fetch wrapper for the ONE real backend integration in this app:
- * authentication (see src/lib/api/services/auth.ts). Every other service
- * currently reads from src/mocks -- see docs/admin-ui-architecture.md.
- *
- * Deliberately does not implement automatic refresh-on-401 retry here;
- * that logic lives in AuthContext (src/lib/auth/AuthContext.tsx) where the
- * session state actually lives, so there is exactly one place that decides
- * "the session is over, redirect to /login" instead of two.
+ * Typed fetch wrapper for /api/v1. AuthContext owns session expiry;
+ * this client only reports status and optionally notifies a 401 handler
+ * when a Bearer token was sent.
  */
 
 import { API_BASE_URL } from "./config";
+import { getAccessToken, notifyUnauthorized } from "./session";
 import type {
   ApiError,
   ApiErrorKind,
@@ -18,9 +14,13 @@ import type {
 } from "@/lib/types/common";
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   accessToken?: string;
+  /** Status codes that still carry a usable JSON body (e.g. health 503). */
+  acceptStatuses?: number[];
+  /** Auth bootstrap calls handle 401 themselves (refresh-then-clear). */
+  skipUnauthorizedHandler?: boolean;
 }
 
 const KIND_BY_STATUS: Record<number, ApiErrorKind> = {
@@ -139,7 +139,8 @@ export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<ApiResult<T>> {
-  const { method = "GET", body, accessToken } = options;
+  const { method = "GET", body, acceptStatuses = [], skipUnauthorizedHandler } = options;
+  const accessToken = options.accessToken ?? getAccessToken() ?? undefined;
 
   let response: Response;
   try {
@@ -168,8 +169,12 @@ export async function apiRequest<T>(
 
   const payload = await readPayload(response);
 
-  if (!response.ok) {
+  const accepted = acceptStatuses.includes(response.status);
+  if (!response.ok && !accepted) {
     const kind = kindForStatus(response.status);
+    if (kind === "unauthorized" && accessToken && !skipUnauthorizedHandler) {
+      notifyUnauthorized();
+    }
     const fieldErrors = kind === "validation" ? readFieldErrors(payload) : undefined;
     const error: ApiError = {
       status: "error",

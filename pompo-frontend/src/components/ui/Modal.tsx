@@ -37,7 +37,7 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
         aria-labelledby="modal-title"
         tabIndex={-1}
         className={cn(
-          "w-full max-w-md rounded-lg border border-border bg-surface shadow-md",
+          "w-full max-w-md rounded-md border border-border bg-surface shadow-md animate-fade-up",
           "focus:outline-none",
         )}
       >

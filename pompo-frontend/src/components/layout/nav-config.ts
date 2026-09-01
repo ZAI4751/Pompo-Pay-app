@@ -41,25 +41,25 @@ export interface NavGroup {
 
 export const navGroups: NavGroup[] = [
   {
-    label: "",
+    label: "Overview",
     items: [{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard }],
   },
   {
     label: "Operations",
     items: [
       { label: "Transactions", href: "/transactions", icon: ArrowLeftRight, comingSoon: true },
-      { label: "Payments", href: "/payments", icon: CreditCard, comingSoon: true },
-      { label: "Payment Providers", href: "/providers", icon: Plug, comingSoon: true },
+      { label: "Payments", href: "/payments", icon: CreditCard, permission: "transactions:read" },
+      { label: "Providers", href: "/providers", icon: Plug, permission: "providers:read" },
       { label: "Webhooks", href: "/webhooks", icon: Webhook, comingSoon: true },
-      { label: "Failed / Exceptions", href: "/exceptions", icon: AlertOctagon, comingSoon: true },
+      { label: "Exceptions", href: "/exceptions", icon: AlertOctagon, comingSoon: true },
     ],
   },
   {
-    label: "Merchants",
+    label: "Business",
     items: [
       { label: "Merchants", href: "/merchants", icon: Store, permission: "merchants:read" },
-      { label: "Branches", href: "/branches", icon: GitBranch, comingSoon: true },
-      { label: "Tills", href: "/tills", icon: MonitorSmartphone, comingSoon: true },
+      { label: "Branches", href: "/branches", icon: GitBranch, permission: "branches:read" },
+      { label: "Tills", href: "/tills", icon: MonitorSmartphone, permission: "tills:read" },
     ],
   },
   {
@@ -67,21 +67,15 @@ export const navGroups: NavGroup[] = [
     items: [
       { label: "Users", href: "/users", icon: Users, permission: "users:read" },
       { label: "Roles", href: "/roles", icon: ShieldCheck, permission: "roles:read" },
-      { label: "Permissions", href: "/permissions", icon: KeyRound, permission: "roles:read" },
+      { label: "Permissions", href: "/permissions", icon: KeyRound, permission: "permissions:read" },
     ],
   },
   {
     label: "Platform",
     items: [
       { label: "API Keys", href: "/api-keys", icon: KeySquare, comingSoon: true },
-      { label: "Audit Logs", href: "/audit-logs", icon: ScrollText, permission: "audit_logs:read" },
+      { label: "Audit Logs", href: "/audit-logs", icon: ScrollText, comingSoon: true },
       { label: "Security", href: "/security", icon: Lock, comingSoon: true },
-      { label: "System Settings", href: "/settings", icon: Settings, comingSoon: true },
-    ],
-  },
-  {
-    label: "Reporting",
-    items: [
       { label: "Reports", href: "/reports", icon: FileBarChart, comingSoon: true },
       { label: "Analytics", href: "/analytics", icon: BarChart3, comingSoon: true },
       { label: "Exports", href: "/exports", icon: Download, comingSoon: true },
@@ -90,9 +84,10 @@ export const navGroups: NavGroup[] = [
   {
     label: "System",
     items: [
-      { label: "Health", href: "/system/health", icon: HeartPulse, comingSoon: true },
+      { label: "Health", href: "/system/health", icon: HeartPulse },
       { label: "Services", href: "/system/services", icon: Server, comingSoon: true },
       { label: "Monitoring", href: "/system/monitoring", icon: Activity, comingSoon: true },
+      { label: "Settings", href: "/settings", icon: Settings, comingSoon: true },
     ],
   },
 ];

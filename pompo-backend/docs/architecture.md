@@ -205,7 +205,8 @@ area rather than one giant file:
 
 - Merchant and branch repositories, services, schemas, routes, tenant checks,
   soft-delete behavior, and audit records are implemented in M005.
-- Till/Cashier management remains a later milestone.
+- Till administration is implemented (repository, service, `/organization`
+  till routes, `tills:*` permissions). Cashier/staff user CRUD remains deferred.
 - No seed data yet (M016 area).
 - Transaction *state machine* enforcement was still outstanding as of M005;
   M006 has since added it in `app/payments/state_machine.py`, so status
@@ -349,7 +350,20 @@ leaking provider-specific exceptions into the payment core. Mock adapters cover
 success, pending, rejection, and timeout outcomes. Provider request/response
 metadata and normalized status are retained on payment attempts. Live Airtel,
 TNM, and bank integrations remain deferred until approved credentials and
-provider contracts exist.
+provider contracts exist. The default registry contains only the `simulated`
+sandbox adapter. Database catalog rows for planned rails are seeded as inactive
+simulated placeholders and cannot be enabled without a registered adapter.
+
+## Operational payment chain (tills + provider catalog)
+
+Till administration is exposed under `/api/v1/organization` with dedicated
+`tills:*` permissions. A till is bound to one branch; `code` and `branch_id`
+cannot be changed after creation so transaction history stays coherent.
+
+The provider catalog is database-backed (`payment_providers`) and listed by
+`GET /api/v1/payments/providers`. Catalog codes are `ProviderCode` values.
+Development provisioning is `scripts/seed_providers.py`: idempotent, secret-free,
+and refused when `APP_ENV=production`.
 
 ## M005 — Merchant and Branch Administration
 

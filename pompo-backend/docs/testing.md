@@ -42,7 +42,8 @@ docker compose exec backend env \
     DATABASE_URL=postgresql+asyncpg://pompo:pompo_secret@postgres:5432/pompo_test \
     alembic upgrade head
 
-# run the suite
+# run the suite — MUST override DATABASE_URL. The container .env points at
+# the development database (`pompo`); conftest refuses to run against it.
 docker compose exec backend env \
     DATABASE_URL=postgresql+asyncpg://pompo:pompo_secret@postgres:5432/pompo_test \
     pytest -v

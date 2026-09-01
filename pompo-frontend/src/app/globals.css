@@ -3,10 +3,8 @@
  * Single source of truth for the Pompo brand palette. Every token
  * referenced from tailwind.config.ts lives here, split into a
  * `:root` (light) block and a `.dark` (dark) block — dark mode is
- * a deliberate pitch-black theme, not an inverted light theme, per
- * the brand spec. Components should never hardcode a hex value;
- * they use the Tailwind color classes (bg-surface, text-muted,
- * etc.) which resolve through these variables.
+ * a deliberate pitch-black theme, not an inverted light theme.
+ * Components use Tailwind token classes, never hardcoded hex.
  */
 
 @tailwind base;
@@ -15,27 +13,35 @@
 
 :root {
   /* Brand */
-  --color-primary: #2e90e5; /* Light Blue */
+  --color-primary: #2e90e5;
   --color-primary-hover: #1d7acc;
   --color-primary-light: #e8f3fd;
   --color-primary-foreground: #ffffff;
-  --color-dark-blue: #0b2545; /* Dark Blue */
+  --color-dark-blue: #0b2545;
   --color-dark-blue-hover: #14335c;
 
-  /* Surfaces -- base is White; background is a hair off-white so
-     white cards ("surface") still read as a distinct layer. */
-  --color-background: #f7f9fb;
+  /* Canvas / surfaces — white content on a cool off-white field */
+  --color-background: #f3f6fa;
   --color-surface: #ffffff;
-  --color-surface-raised: #ffffff;
-  --color-border: #e4e9f0;
-  --color-border-strong: #c7d1de;
+  --color-surface-raised: #f7f9fc;
+  --color-surface-inset: #eef2f7;
+  --color-border: #e1e8f0;
+  --color-border-strong: #c5d0de;
 
-  /* Text */
-  --color-text: #101828;
-  --color-text-muted: #4b5768;
-  --color-text-subtle: #8a94a6;
+  /* Control-plane rail stays dark blue in light mode */
+  --color-sidebar: #0b2545;
+  --color-sidebar-hover: #14335c;
+  --color-sidebar-text: #d7e3f0;
+  --color-sidebar-muted: #8aa0b8;
+  --color-sidebar-active: #2e90e5;
+  --color-sidebar-active-bg: rgb(46 144 229 / 0.16);
 
-  /* Status -- secondary to brand, used only where semantically necessary */
+  /* Text — dark blue, not generic gray-black */
+  --color-text: #0b2545;
+  --color-text-muted: #3d5168;
+  --color-text-subtle: #7a8ba0;
+
+  /* Semantic */
   --color-success: #12805c;
   --color-success-bg: #e6f6ef;
   --color-warning: #b45309;
@@ -45,24 +51,35 @@
   --color-info: #2e90e5;
   --color-info-bg: #e8f3fd;
 
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --shadow-glow: 0 0 0 1px rgb(46 144 229 / 0.18), 0 8px 28px -12px rgb(11 37 69 / 0.28);
+  --shadow-card: 0 1px 0 rgb(11 37 69 / 0.04), 0 8px 24px -16px rgb(11 37 69 / 0.18);
+  --grid-line: rgb(11 37 69 / 0.05);
+
+  --font-sans: var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "SF Mono", "JetBrains Mono", ui-monospace, monospace;
 }
 
 .dark {
   --color-primary: #4fa3f2;
   --color-primary-hover: #6fb6f5;
-  --color-primary-light: #0e2033;
-  --color-primary-foreground: #051019;
-  --color-dark-blue: #14335c;
-  --color-dark-blue-hover: #1c4478;
+  --color-primary-light: #0c1c2e;
+  --color-primary-foreground: #041018;
+  --color-dark-blue: #1a3a66;
+  --color-dark-blue-hover: #234a80;
 
-  /* Pitch black, not inverted-light-grey -- the defining dark-mode decision. */
   --color-background: #000000;
-  --color-surface: #0b0d10;
-  --color-surface-raised: #14171c;
-  --color-border: #22262c;
-  --color-border-strong: #33383f;
+  --color-surface: #0a0c10;
+  --color-surface-raised: #12151b;
+  --color-surface-inset: #050608;
+  --color-border: #1c2128;
+  --color-border-strong: #2c333d;
+
+  --color-sidebar: #05070a;
+  --color-sidebar-hover: #10151c;
+  --color-sidebar-text: #e8eef5;
+  --color-sidebar-muted: #7d8b9a;
+  --color-sidebar-active: #4fa3f2;
+  --color-sidebar-active-bg: rgb(79 163 242 / 0.12);
 
   --color-text: #f2f4f7;
   --color-text-muted: #a0a8b4;
@@ -76,6 +93,10 @@
   --color-error-bg: #2e1113;
   --color-info: #4fa3f2;
   --color-info-bg: #0e2033;
+
+  --shadow-glow: 0 0 0 1px rgb(79 163 242 / 0.22), 0 18px 40px -20px rgb(79 163 242 / 0.35);
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03), 0 16px 40px -24px rgb(0 0 0 / 0.8);
+  --grid-line: rgb(79 163 242 / 0.06);
 }
 
 @layer base {
@@ -88,14 +109,11 @@
   }
   body {
     @apply bg-background text-text font-sans;
-    font-feature-settings: "cv11", "ss01";
+    font-feature-settings: "cv11", "ss01", "tnum";
   }
   ::selection {
-    background-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
+    background-color: color-mix(in srgb, var(--color-primary) 22%, transparent);
   }
-  /* Visible, brand-consistent keyboard focus ring everywhere -- required
-     for the accessibility bar, and deliberately not suppressed anywhere
-     in this codebase (no blanket `outline: none`). */
   :focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
@@ -106,11 +124,37 @@
   }
 }
 
+@layer components {
+  .pompo-grid-bg {
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+  .pompo-aurora {
+    background:
+      radial-gradient(1200px 420px at 12% -10%, color-mix(in srgb, var(--color-primary) 18%, transparent), transparent 60%),
+      radial-gradient(800px 320px at 92% 0%, color-mix(in srgb, var(--color-dark-blue) 22%, transparent), transparent 55%);
+  }
+  .dark .pompo-aurora {
+    background:
+      radial-gradient(900px 380px at 8% -8%, rgb(79 163 242 / 0.16), transparent 58%),
+      radial-gradient(700px 280px at 100% 0%, rgb(26 58 102 / 0.35), transparent 50%);
+  }
+}
+
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
   }
   .skeleton {
     @apply bg-[linear-gradient(90deg,var(--color-border)_25%,var(--color-border-strong)_37%,var(--color-border)_63%)] bg-[length:1000px_100%] animate-shimmer;
+  }
+  .glow-ring {
+    box-shadow: var(--shadow-glow);
+  }
+  .card-depth {
+    box-shadow: var(--shadow-card);
   }
 }

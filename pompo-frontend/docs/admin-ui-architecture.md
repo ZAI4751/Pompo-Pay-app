@@ -120,28 +120,47 @@ directly shaped this design.
 
 ## Mock/API boundary
 
-**Real, calling the actual backend:** `src/lib/api/services/auth.ts` only
-— login, refresh, logout, me. This matches pompo-backend's confirmed,
-tested M003 endpoints exactly (field names taken directly from
-`app/schemas/auth.py`, not guessed).
+`NEXT_PUBLIC_USE_MOCKS` is **true only when set to the string `"true"`**. Unset or
+`false` means live `/api/v1` for every capability the backend already exposes.
 
-**Mocked, in `src/lib/api/services/{merchants,users,roles,transactions}.ts`:**
-everything else, because those backend endpoints don't exist yet (RBAC's
-admin API was still mid-implementation, and merchant/transaction APIs are
-future milestones entirely). Every mock service:
-- Returns the same `ApiResult<T>` shape the real client returns, with
-  artificial latency, so components can't tell the difference and swapping
-  the mock body for a real `apiRequest()` call is a same-shape edit.
-- Reads from `src/mocks/data.ts`, and every screen displaying that data
-  shows a visible `<MockDataBadge />` — demo data is never presented as
-  real.
+**REAL API INTEGRATED**
 
-`NEXT_PUBLIC_USE_MOCKS` (env var, default `true`) exists as the on/off
-switch for this boundary, but note it isn't wired into the service files
-yet — each mock service currently always returns mock data regardless of
-this flag. Wiring it is a mechanical next step once a second real backend
-endpoint exists to switch to (right now there's only one real service,
-auth, and it's already unconditionally real).
+| Capability | Contract |
+|---|---|
+| Auth | `POST /auth/login`, `/refresh`, `/logout`, `GET /auth/me` |
+| Effective permissions | `GET /rbac/roles/{role_id}` → `permission_codes` (not on `/me`) |
+| Merchants | `GET/POST /organization/merchants`, `GET/PATCH/DELETE /organization/merchants/{id}` (delete is soft) |
+| Branches | `GET/POST /organization/merchants/{id}/branches`, `PATCH/DELETE /organization/branches/{id}` |
+| Roles | `GET/POST /rbac/roles`, `GET/PATCH/DELETE /rbac/roles/{id}` |
+| Permissions catalog | `GET /rbac/permissions`, `GET /rbac/permissions/{id}` |
+| Role grants | `POST/DELETE /rbac/roles/{role_id}/permissions/{permission_id}` |
+| User role assign | `PUT /rbac/users/{user_id}/role` (service exists; no user directory UI) |
+| Payment by reference | `GET /payments/{reference}`, cancel, process |
+| Tills | `GET/POST /organization/branches/{branch_id}/tills`, `GET/PATCH/DELETE /organization/tills/{id}` |
+| Providers | `GET /payments/providers`, `GET/PATCH /payments/providers/{code}` (catalog; simulated only) |
+| Health | `GET /health`, `/health/ready`, `/health/live` (503 still carries the health body) |
+
+**MOCK / NOT YET AVAILABLE**
+
+| Surface | Why |
+|---|---|
+| User list / user CRUD | No user administration API |
+| Transaction/payment list | No `GET /payments` list |
+| Webhooks, audit logs, API keys, reports, QR, live Airtel/TNM | Future milestones |
+| Dashboard volume chart | No ledger aggregate API — labeled demo series |
+
+When mocks are on (`NEXT_PUBLIC_USE_MOCKS=true`), live capabilities still return
+labeled fixtures and login uses the demo session (no password sent). Mutations
+that would persist are refused in demo mode.
+
+Services never call `fetch` from page components. Pages consume
+`src/lib/api/services/*` which return `ApiResult<T>`. Bearer tokens are attached
+by `src/lib/api/session.ts`, written only by `AuthContext`.
+
+`usePermissions()` is UX only. If `GET /rbac/roles/{id}` is forbidden (for
+example a merchant owner without `roles:read`), `permissionCodes` is `null` and
+the UI does **not** invent grants — gated nav stays visible so we do not hide
+real capabilities, and the API still returns 403.
 
 ## Authentication architecture
 
@@ -166,25 +185,14 @@ backend contract, not a placeholder.
 
 ## RBAC-aware frontend
 
-`usePermissions()` (`src/lib/auth/usePermissions.ts`) exposes
-`hasPermission(code)`, used to hide sidebar entries and the "manage
-permissions" affordance on the Role Detail page.
+`usePermissions()` exposes `hasPermission(code)` for sidebar and mutation
+affordances. **UX only.** The backend remains the sole security boundary.
 
-**This is a UX convenience only.** The comment block at the top of that
-file says so explicitly, and it's worth repeating here: hiding a button
-does not make an action authorized. The backend remains the sole security
-boundary — nothing in this codebase treats a client-side permission check
-as a substitute for server-side enforcement.
-
-**Known limitation, disclosed rather than hidden:** the backend's M003
-`/auth/me` response doesn't yet return effective permissions (M004's RBAC
-API was still mid-build as of this frontend work), so
-`resolveMockPermissions()` currently resolves permissions from the mock
-role catalog by the user's real `role_id`. This is flagged as a
-`TEMPORARY BRIDGE` in the source with an explicit note on what to replace
-it with once the backend exposes real effective-permission data — the
-`usePermissions()` call sites elsewhere don't need to change when that
-happens.
+`/auth/me` still does not return permission codes (schema comment is stale
+relative to M004). After login the admin loads `GET /rbac/roles/{role_id}`
+and uses `permission_codes`. That call requires `roles:read`, which platform
+administrators have. Other roles may receive 403; the frontend then treats
+permissions as unknown rather than inventing a catalog.
 
 ## 401 vs 403 semantics
 
@@ -200,7 +208,7 @@ Mirrors the backend's own M003/M004 distinction:
 | Variable | Required | Purpose |
 |---|---|---|
 | `NEXT_PUBLIC_API_BASE_URL` | No (defaults to `http://localhost:8000/api/v1`) | Base URL of the FastAPI backend |
-| `NEXT_PUBLIC_USE_MOCKS` | No (defaults to `true`) | Reserved switch for the mock/API boundary (see limitation above) |
+| `NEXT_PUBLIC_USE_MOCKS` | No (default live API) | `"true"` enables labeled demo fixtures and demo login |
 
 No secrets belong in either variable or anywhere else in this codebase —
 both are `NEXT_PUBLIC_*`, meaning they're bundled into client-side JS by
@@ -242,27 +250,18 @@ These are the honest gaps — see "Known limitations."
 
 ## Known limitations
 
-- Effective-permission resolution is mock-backed pending the real backend
-  RBAC API (see "RBAC-aware frontend").
-- `NEXT_PUBLIC_USE_MOCKS` is defined but not yet wired into any service's
-  branching logic.
-- No automated tests (unit or e2e) yet — this milestone was UI foundation
-  + build/lint/typecheck verification, not test coverage.
-- No visual/manual QA pass (dark mode appearance, responsive collapse,
-  keyboard nav) — verified by code inspection and passing type/lint/build
-  checks only, not by rendering in an actual browser.
-- Component library covers what the built screens need, not the full ~30
-  listed in the original spec (see "Component system" for the explicit
-  list of what's deferred).
-- Sidebar/table "horizontal scroll on narrow width" behavior is written
-  (Tailwind responsive classes, `overflow-x-auto` on Table) but, per the
-  point above, not visually confirmed.
+- `/auth/me` does not return permission codes; the admin uses `GET /rbac/roles/{id}`.
+- No user directory, payment list, webhook, or audit-log APIs.
+- Dashboard volume series remain labeled mock data.
+- No automated frontend tests (unit or e2e) yet.
 
-## Recommended next frontend step
+## Recommended next backend milestone (not started)
 
-Wire a real dev/staging `NEXT_PUBLIC_API_BASE_URL` against a running
-`pompo-backend` and manually walk the login → dashboard → logout flow
-once — that exercises the one real integration end-to-end in a way no
-static check here can. After that, the RBAC API landing on the backend is
-the natural trigger to replace `usePermissions()`'s mock bridge with the
-real thing.
+Do not start M008 (live Airtel/TNM adapters) automatically.
+
+Highest-leverage gaps for the Master Admin:
+
+1. Include `permission_codes` on `GET /auth/me` so merchant-scoped users do not need `roles:read`.
+2. User directory (list/get) so role assignment has a real operator surface.
+3. Payment/transaction list and search.
+4. Live Airtel/TNM/bank adapters (M008) — not started.

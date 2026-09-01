@@ -4,8 +4,9 @@
  * data" indicator (see components/ui/MockDataBadge.tsx).
  */
 
+import type { AuthenticatedUser } from "@/lib/types/auth";
 import type { Permission, Role, RoleDetail } from "@/lib/types/rbac";
-import type { Merchant } from "@/lib/types/merchant";
+import type { Merchant, Branch, Till } from "@/lib/types/merchant";
 import type { StaffUser } from "@/lib/types/staff-user";
 import type { Transaction } from "@/lib/types/transaction";
 
@@ -29,9 +30,8 @@ export const mockRoles: Role[] = [
     name: "Platform Admin",
     description: "Full system access across all merchants.",
     is_system_role: true,
-    permission_count: mockPermissions.length,
-    user_count: 2,
-    created_at: "2026-06-01T09:00:00Z",
+    is_active: true,
+    permission_codes: mockPermissions.map((permission) => permission.code),
   },
   {
     id: "r2",
@@ -39,9 +39,8 @@ export const mockRoles: Role[] = [
     name: "Merchant Owner",
     description: "Full access within a single merchant.",
     is_system_role: true,
-    permission_count: 7,
-    user_count: 14,
-    created_at: "2026-06-01T09:00:00Z",
+    is_active: true,
+    permission_codes: mockPermissions.slice(0, 7).map((permission) => permission.code),
   },
   {
     id: "r3",
@@ -49,9 +48,8 @@ export const mockRoles: Role[] = [
     name: "Branch Manager",
     description: "Manages a branch's tills and staff.",
     is_system_role: true,
-    permission_count: 4,
-    user_count: 31,
-    created_at: "2026-06-01T09:00:00Z",
+    is_active: true,
+    permission_codes: mockPermissions.slice(0, 4).map((permission) => permission.code),
   },
   {
     id: "r4",
@@ -59,9 +57,8 @@ export const mockRoles: Role[] = [
     name: "Cashier",
     description: "Processes transactions at a till.",
     is_system_role: true,
-    permission_count: 2,
-    user_count: 122,
-    created_at: "2026-06-01T09:00:00Z",
+    is_active: true,
+    permission_codes: mockPermissions.slice(0, 2).map((permission) => permission.code),
   },
   {
     id: "r5",
@@ -69,16 +66,18 @@ export const mockRoles: Role[] = [
     name: "Regional Auditor",
     description: "Custom role: read-only access for compliance reviews.",
     is_system_role: false,
-    permission_count: 3,
-    user_count: 3,
-    created_at: "2026-07-14T11:30:00Z",
+    is_active: true,
+    permission_codes: mockPermissions.slice(0, 3).map((permission) => permission.code),
   },
 ];
 
 export const mockRoleDetails: Record<string, RoleDetail> = Object.fromEntries(
   mockRoles.map((role) => [
     role.id,
-    { ...role, permissions: mockPermissions.slice(0, role.permission_count) },
+    {
+      ...role,
+      permissions: mockPermissions.filter((permission) => role.permission_codes.includes(permission.code)),
+    },
   ]),
 );
 
@@ -87,31 +86,71 @@ export const mockMerchants: Merchant[] = [
     id: "m1",
     name: "Chikondi General Store",
     legal_name: "Chikondi Enterprises Ltd",
+    registration_number: "C123",
     contact_email: "owner@chikondi.mw",
     contact_phone: "+265 991 000 001",
     is_active: true,
-    branch_count: 3,
-    created_at: "2026-05-12T08:00:00Z",
   },
   {
     id: "m2",
     name: "Mzuzu Fresh Market",
     legal_name: "Mzuzu Fresh Market Ltd",
+    registration_number: null,
     contact_email: "admin@mzuzufresh.mw",
     contact_phone: "+265 991 222 333",
     is_active: true,
-    branch_count: 1,
-    created_at: "2026-06-02T08:00:00Z",
   },
   {
     id: "m3",
     name: "Lilongwe Pharmacy Group",
     legal_name: "LPG Holdings",
+    registration_number: null,
     contact_email: "finance@lpg.mw",
     contact_phone: "+265 888 444 555",
     is_active: false,
-    branch_count: 6,
-    created_at: "2026-04-20T08:00:00Z",
+  },
+];
+
+export const mockBranches: Branch[] = [
+  {
+    id: "b1",
+    merchant_id: "m1",
+    name: "Area 47 Branch",
+    address: "Area 47, Lilongwe",
+    is_active: true,
+  },
+  {
+    id: "b2",
+    merchant_id: "m1",
+    name: "Old Town Branch",
+    address: "Old Town, Lilongwe",
+    is_active: true,
+  },
+  {
+    id: "b3",
+    merchant_id: "m2",
+    name: "Mzuzu Central",
+    address: "Mzuzu City Centre",
+    is_active: true,
+  },
+];
+
+export const mockTills: Till[] = [
+  {
+    id: "t1",
+    branch_id: "b1",
+    merchant_id: "m1",
+    code: "POS-1",
+    name: "Front Counter",
+    is_active: true,
+  },
+  {
+    id: "t2",
+    branch_id: "b1",
+    merchant_id: "m1",
+    code: "POS-2",
+    name: "Till 2",
+    is_active: true,
   },
 ];
 
@@ -218,3 +257,125 @@ export const mockTransactions: Transaction[] = [
     completed_at: "2026-08-29T18:44:11Z",
   },
 ];
+
+export type OpsPeriod = "24h" | "7d" | "30d";
+
+export interface VolumePoint {
+  label: string;
+  volume: number;
+  count: number;
+  failed: number;
+}
+
+/** Illustrative series for dashboard visualization — not live ledger data. */
+export const mockVolumeSeries: Record<OpsPeriod, VolumePoint[]> = {
+  "24h": [
+    { label: "00", volume: 420_000, count: 18, failed: 1 },
+    { label: "02", volume: 180_000, count: 7, failed: 0 },
+    { label: "04", volume: 95_000, count: 4, failed: 0 },
+    { label: "06", volume: 260_000, count: 11, failed: 1 },
+    { label: "08", volume: 890_000, count: 34, failed: 2 },
+    { label: "10", volume: 1_240_000, count: 41, failed: 1 },
+    { label: "12", volume: 1_560_000, count: 52, failed: 3 },
+    { label: "14", volume: 1_310_000, count: 47, failed: 2 },
+    { label: "16", volume: 1_720_000, count: 58, failed: 2 },
+    { label: "18", volume: 1_050_000, count: 39, failed: 1 },
+    { label: "20", volume: 640_000, count: 22, failed: 1 },
+    { label: "22", volume: 410_000, count: 15, failed: 0 },
+  ],
+  "7d": [
+    { label: "Tue", volume: 6_200_000, count: 210, failed: 8 },
+    { label: "Wed", volume: 7_400_000, count: 248, failed: 9 },
+    { label: "Thu", volume: 6_900_000, count: 231, failed: 6 },
+    { label: "Fri", volume: 8_100_000, count: 276, failed: 11 },
+    { label: "Sat", volume: 5_400_000, count: 188, failed: 5 },
+    { label: "Sun", volume: 4_200_000, count: 142, failed: 4 },
+    { label: "Mon", volume: 7_800_000, count: 259, failed: 7 },
+  ],
+  "30d": [
+    { label: "W1", volume: 32_000_000, count: 1100, failed: 28 },
+    { label: "W2", volume: 36_500_000, count: 1240, failed: 31 },
+    { label: "W3", volume: 33_200_000, count: 1188, failed: 22 },
+    { label: "W4", volume: 41_800_000, count: 1410, failed: 34 },
+  ],
+};
+
+export interface NetworkProvider {
+  code: string;
+  name: string;
+  status: "operational" | "degraded" | "sandbox";
+  availability: string;
+  capabilities: string[];
+  lastActivity: string;
+}
+
+export const mockNetworkProviders: NetworkProvider[] = [
+  {
+    code: "airtel_money",
+    name: "Airtel Money",
+    status: "operational",
+    availability: "99.4%",
+    capabilities: ["Push", "Status"],
+    lastActivity: "2 min ago",
+  },
+  {
+    code: "tnm_mpamba",
+    name: "TNM Mpamba",
+    status: "degraded",
+    availability: "97.1%",
+    capabilities: ["Push", "Status"],
+    lastActivity: "11 min ago",
+  },
+  {
+    code: "national_bank",
+    name: "National Bank",
+    status: "sandbox",
+    availability: "—",
+    capabilities: ["Push"],
+    lastActivity: "No live traffic",
+  },
+  {
+    code: "simulated",
+    name: "Simulated rail",
+    status: "sandbox",
+    availability: "100%",
+    capabilities: ["Push", "Status", "Cancel"],
+    lastActivity: "Just now",
+  },
+];
+
+export interface SystemNode {
+  name: string;
+  state: "healthy" | "degraded" | "down" | "unknown";
+  detail: string;
+}
+
+export const mockSystemNodes: SystemNode[] = [
+  { name: "Backend", state: "healthy", detail: "API process" },
+  { name: "PostgreSQL", state: "healthy", detail: "Primary" },
+  { name: "Redis", state: "healthy", detail: "Broker / cache" },
+  { name: "Celery", state: "unknown", detail: "No live probe in preview" },
+  { name: "Providers", state: "degraded", detail: "Sandbox + one rail lag" },
+];
+
+
+/**
+ * Demo-mode identity for visual review. Uses the existing mock platform
+ * admin (`role_id: "r1"`) so `usePermissions()` resolves the mock catalog.
+ * Never used as a production credential.
+ */
+export function getDemoAdminUser(): AuthenticatedUser {
+  const admin = mockUsers.find((user) => user.role_id === "r1" && user.is_active);
+  if (!admin) {
+    throw new Error("Demo admin is missing from the mock catalog");
+  }
+  return {
+    id: admin.id,
+    email: admin.email,
+    full_name: admin.full_name,
+    merchant_id: admin.merchant_id,
+    branch_id: admin.branch_id,
+    role_id: admin.role_id,
+    is_active: admin.is_active,
+  };
+}

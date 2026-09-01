@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from datetime import UTC, datetime
+from pathlib import Path
+
+_ROOT = Path(__file__).resolve().parents[1]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker

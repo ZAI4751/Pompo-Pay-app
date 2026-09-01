@@ -7,6 +7,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from app.models.enums import ProviderCode
 from app.models.payment import PaymentAttempt, PaymentProvider, Transaction
 from app.repositories.base import BaseRepository
 
@@ -43,13 +44,33 @@ class PaymentProviderRepository(BaseRepository[PaymentProvider]):
     model = PaymentProvider
 
     async def get_active_by_code(self, code: str) -> PaymentProvider | None:
+        try:
+            provider_code = ProviderCode(code)
+        except ValueError:
+            return None
         result = await self._session.execute(
             select(PaymentProvider).where(
-                PaymentProvider.code == code,
+                PaymentProvider.code == provider_code,
                 PaymentProvider.is_active.is_(True),
             )
         )
         return result.scalar_one_or_none()
+
+    async def get_by_code(self, code: str) -> PaymentProvider | None:
+        try:
+            provider_code = ProviderCode(code)
+        except ValueError:
+            return None
+        result = await self._session.execute(
+            select(PaymentProvider).where(PaymentProvider.code == provider_code)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_catalog(self) -> list[PaymentProvider]:
+        result = await self._session.execute(
+            select(PaymentProvider).order_by(PaymentProvider.priority, PaymentProvider.code)
+        )
+        return list(result.scalars().all())
 
 
 class PaymentAttemptRepository(BaseRepository[PaymentAttempt]):

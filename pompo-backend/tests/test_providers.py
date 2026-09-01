@@ -66,18 +66,11 @@ async def test_mock_adapters_normalize_success_pending_failure_and_timeout() -> 
 
 def test_registry_is_deterministic_and_exposes_capabilities() -> None:
     registry = ProviderRegistry()
-    assert registry.get("mock_success").code == "mock_success"
     assert registry.get("simulated").code == "simulated"
-    assert registry.capabilities("mock_success").supports_status_query is True
-    assert [provider.code for provider in registry.list()] == [
-        "mock_success",
-        "mock_pending",
-        "mock_failure",
-        "mock_timeout",
-        "simulated",
-    ]
+    assert registry.capabilities("simulated").supports_status_query is True
+    assert [provider.code for provider in registry.list()] == ["simulated"]
     with pytest.raises(ProviderError) as missing:
-        registry.get("missing")
+        registry.get("airtel_money")
     assert missing.value.retryable is True
 
 

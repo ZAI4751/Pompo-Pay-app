@@ -1,7 +1,6 @@
 /**
- * REAL backend integration -- calls the actual pompo-backend M003 endpoints.
- * This is the one service in the app not behind USE_MOCKS, because it's the
- * one part of the backend that's confirmed built and stable.
+ * Live authentication against /api/v1/auth. Not gated by USE_MOCKS — demo
+ * login is handled in AuthContext so credentials are never sent in demo mode.
  */
 
 import { apiRequest } from "../client";
@@ -17,6 +16,7 @@ export const authService = {
     return apiRequest<TokenResponse>("/auth/refresh", {
       method: "POST",
       body: { refresh_token: refreshToken },
+      skipUnauthorizedHandler: true,
     });
   },
 
@@ -24,10 +24,14 @@ export const authService = {
     return apiRequest<undefined>("/auth/logout", {
       method: "POST",
       body: { refresh_token: refreshToken },
+      skipUnauthorizedHandler: true,
     });
   },
 
   me(accessToken: string): Promise<ApiResult<AuthenticatedUser>> {
-    return apiRequest<AuthenticatedUser>("/auth/me", { accessToken });
+    return apiRequest<AuthenticatedUser>("/auth/me", {
+      accessToken,
+      skipUnauthorizedHandler: true,
+    });
   },
 };

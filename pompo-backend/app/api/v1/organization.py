@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import CurrentUserDep, DbSessionDep
+from app.models.organization import Till
 from app.schemas.organization import (
     BranchCreate,
     BranchResponse,
@@ -15,6 +16,9 @@ from app.schemas.organization import (
     MerchantCreate,
     MerchantResponse,
     MerchantUpdate,
+    TillCreate,
+    TillResponse,
+    TillUpdate,
 )
 from app.services.organization import (
     OrganizationConflictError,
@@ -31,6 +35,17 @@ def get_organization_service(session: DbSessionDep) -> OrganizationService:
 
 
 OrganizationServiceDep = Annotated[OrganizationService, Depends(get_organization_service)]
+
+
+def _till_response(till: Till, merchant_id: uuid.UUID) -> TillResponse:
+    return TillResponse(
+        id=till.id,
+        branch_id=till.branch_id,
+        merchant_id=merchant_id,
+        code=till.code,
+        name=till.name,
+        is_active=till.is_active,
+    )
 
 
 def _error(exc: OrganizationError) -> HTTPException:
@@ -142,5 +157,71 @@ async def delete_branch(
 ) -> None:
     try:
         await service.delete_branch(current_user, branch_id)
+    except OrganizationError as exc:
+        raise _error(exc) from exc
+
+
+@router.get("/branches/{branch_id}/tills", response_model=list[TillResponse])
+async def list_tills(
+    branch_id: uuid.UUID, current_user: CurrentUserDep, service: OrganizationServiceDep
+) -> list[TillResponse]:
+    try:
+        tills = await service.list_tills(current_user, branch_id)
+        return [_till_response(till, till.branch.merchant_id) for till in tills]
+    except OrganizationError as exc:
+        raise _error(exc) from exc
+
+
+@router.post(
+    "/branches/{branch_id}/tills",
+    response_model=TillResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_till(
+    branch_id: uuid.UUID,
+    payload: TillCreate,
+    current_user: CurrentUserDep,
+    service: OrganizationServiceDep,
+) -> TillResponse:
+    try:
+        till = await service.create_till(current_user, branch_id, payload.model_dump())
+        return _till_response(till, till.branch.merchant_id)
+    except OrganizationError as exc:
+        raise _error(exc) from exc
+
+
+@router.get("/tills/{till_id}", response_model=TillResponse)
+async def get_till(
+    till_id: uuid.UUID, current_user: CurrentUserDep, service: OrganizationServiceDep
+) -> TillResponse:
+    try:
+        till = await service.get_till(current_user, till_id)
+        return _till_response(till, till.branch.merchant_id)
+    except OrganizationError as exc:
+        raise _error(exc) from exc
+
+
+@router.patch("/tills/{till_id}", response_model=TillResponse)
+async def update_till(
+    till_id: uuid.UUID,
+    payload: TillUpdate,
+    current_user: CurrentUserDep,
+    service: OrganizationServiceDep,
+) -> TillResponse:
+    try:
+        till = await service.update_till(
+            current_user, till_id, payload.model_dump(exclude_unset=True)
+        )
+        return _till_response(till, till.branch.merchant_id)
+    except OrganizationError as exc:
+        raise _error(exc) from exc
+
+
+@router.delete("/tills/{till_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_till(
+    till_id: uuid.UUID, current_user: CurrentUserDep, service: OrganizationServiceDep
+) -> None:
+    try:
+        await service.delete_till(current_user, till_id)
     except OrganizationError as exc:
         raise _error(exc) from exc

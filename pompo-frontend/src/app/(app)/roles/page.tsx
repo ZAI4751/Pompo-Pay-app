@@ -1,23 +1,41 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { ShieldCheck, Lock } from "lucide-react";
 import { PageShell } from "@/components/layout/PageShell";
 import { MockDataBadge } from "@/components/ui/MockDataBadge";
-import { Table, TableHead, Th, TableBody, Tr, Td } from "@/components/ui/Table";
+import { Table, TableHead, Th, TableBody, Tr, Td, MonoId } from "@/components/ui/Table";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
+import { ActiveBadge } from "@/components/ui/StatusBadge";
 import { rolesService } from "@/lib/api/services/roles";
+import { useAuth } from "@/lib/auth/AuthContext";
+import { usePermissions } from "@/lib/auth/usePermissions";
+import { useToast } from "@/components/ui/Toast";
 import type { Role } from "@/lib/types/rbac";
 import type { ApiResult } from "@/lib/types/common";
 
 export default function RolesPage() {
+  const { isDemoSession } = useAuth();
+  const { hasPermission } = usePermissions();
+  const { push } = useToast();
   const [result, setResult] = useState<ApiResult<Role[]> | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [removeRole, setRemoveRole] = useState<Role | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   const load = () => {
-    setResult(null);
     void rolesService.list().then(setResult);
   };
 
@@ -25,8 +43,57 @@ export default function RolesPage() {
     void rolesService.list().then(setResult);
   }, []);
 
+  async function onCreate(event?: FormEvent) {
+    event?.preventDefault();
+    setSaving(true);
+    setFormError(null);
+    const created = await rolesService.create({
+      code,
+      name,
+      description: description || null,
+    });
+    setSaving(false);
+    if (created.status === "error") {
+      setFormError(created.message);
+      return;
+    }
+    setFormOpen(false);
+    setCode("");
+    setName("");
+    setDescription("");
+    push("Role created", "success");
+    load();
+  }
+
+  async function onRemove() {
+    if (!removeRole) return;
+    setRemoving(true);
+    const removed = await rolesService.remove(removeRole.id);
+    setRemoving(false);
+    if (removed.status === "error") {
+      push(removed.message, "error");
+      return;
+    }
+    setRemoveRole(null);
+    push("Role deactivated", "success");
+    load();
+  }
+
   return (
-    <PageShell title="Roles" breadcrumb={[{ label: "Identity & Access" }, { label: "Roles" }]} actions={<MockDataBadge />}>
+    <PageShell
+      title="Roles"
+      breadcrumb={[{ label: "Identity & Access" }, { label: "Roles" }]}
+      actions={
+        <div className="flex items-center gap-2">
+          {isDemoSession && <MockDataBadge />}
+          {hasPermission("roles:create") && (
+            <Button size="sm" onClick={() => setFormOpen(true)}>
+              New custom role
+            </Button>
+          )}
+        </div>
+      }
+    >
       {result === null && <TableSkeleton cols={5} />}
 
       {result?.status === "error" && (
@@ -44,7 +111,7 @@ export default function RolesPage() {
             <Th>Role</Th>
             <Th>Type</Th>
             <Th>Permissions</Th>
-            <Th>Users</Th>
+            <Th>Status</Th>
             <Th />
           </TableHead>
           <TableBody>
@@ -56,6 +123,7 @@ export default function RolesPage() {
                     {role.name}
                   </p>
                   <p className="text-text-muted">{role.description}</p>
+                  <MonoId>{role.code}</MonoId>
                 </Td>
                 <Td>
                   {role.is_system_role ? (
@@ -66,18 +134,65 @@ export default function RolesPage() {
                     <Badge tone="neutral">Custom</Badge>
                   )}
                 </Td>
-                <Td>{role.permission_count}</Td>
-                <Td>{role.user_count}</Td>
+                <Td className="tabular-nums">{role.permission_codes.length}</Td>
                 <Td>
+                  <ActiveBadge isActive={role.is_active} />
+                </Td>
+                <Td className="text-right">
                   <Link href={`/roles/${role.id}`} className="text-sm font-medium text-primary hover:underline">
                     View
                   </Link>
+                  {hasPermission("roles:delete") && !role.is_system_role && (
+                    <Button variant="ghost" size="sm" className="ml-2" onClick={() => setRemoveRole(role)}>
+                      Deactivate
+                    </Button>
+                  )}
                 </Td>
               </Tr>
             ))}
           </TableBody>
         </Table>
       )}
+
+      <Modal
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        title="New custom role"
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setFormOpen(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" loading={saving} onClick={() => void onCreate()}>
+              Create
+            </Button>
+          </>
+        }
+      >
+        <form className="space-y-3" onSubmit={onCreate}>
+          <Input
+            label="Code"
+            hint="lowercase_with_underscores"
+            required
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+          <Input label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
+          <Input label="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
+          {formError && <p className="text-sm text-error">{formError}</p>}
+        </form>
+      </Modal>
+
+      <ConfirmationDialog
+        open={Boolean(removeRole)}
+        title="Deactivate custom role"
+        description="System roles cannot be deactivated. This deactivates a custom role only."
+        confirmLabel="Deactivate"
+        destructive
+        loading={removing}
+        onConfirm={() => void onRemove()}
+        onCancel={() => setRemoveRole(null)}
+      />
     </PageShell>
   );
 }

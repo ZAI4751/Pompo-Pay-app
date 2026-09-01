@@ -9,8 +9,8 @@ from typing import Any
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import AuditLog, Branch, Merchant, User
-from app.repositories.organization import BranchRepository, MerchantRepository
+from app.models import AuditLog, Branch, Merchant, Till, User
+from app.repositories.organization import BranchRepository, MerchantRepository, TillRepository
 from app.repositories.rbac import AuthorizationRepository
 from app.services.authorization import AuthorizationService
 
@@ -36,6 +36,7 @@ class OrganizationService:
         self._session = session
         self._merchants = MerchantRepository(session)
         self._branches = BranchRepository(session)
+        self._tills = TillRepository(session)
         self._authorization = AuthorizationService(AuthorizationRepository(session))
 
     async def list_merchants(self, actor: User) -> list[Merchant]:
@@ -149,6 +150,81 @@ class OrganizationService:
         )
         await self._session.commit()
 
+    async def list_tills(self, actor: User, branch_id: uuid.UUID) -> list[Till]:
+        await self._require(actor, "tills:read")
+        branch = await self._get_branch_in_scope(actor, branch_id)
+        tills = await self._tills.list_active(branch.id)
+        for till in tills:
+            till.branch = branch
+        return tills
+
+    async def get_till(self, actor: User, till_id: uuid.UUID) -> Till:
+        await self._require(actor, "tills:read")
+        return await self._get_till_in_scope(actor, till_id)
+
+    async def create_till(
+        self, actor: User, branch_id: uuid.UUID, values: dict[str, Any]
+    ) -> Till:
+        await self._require(actor, "tills:create")
+        branch = await self._get_branch_in_scope(actor, branch_id)
+        till = Till(branch_id=branch.id, **values)
+        self._session.add(till)
+        try:
+            await self._session.flush()
+        except IntegrityError as exc:
+            await self._session.rollback()
+            raise OrganizationConflictError("Till code already exists on this branch") from exc
+        await self._audit(
+            actor,
+            "till_created",
+            till.id,
+            None,
+            {
+                "branch_id": str(branch.id),
+                "merchant_id": str(branch.merchant_id),
+                "code": till.code,
+                "name": till.name,
+            },
+        )
+        await self._session.commit()
+        till.branch = branch
+        return till
+
+    async def update_till(
+        self, actor: User, till_id: uuid.UUID, values: dict[str, Any]
+    ) -> Till:
+        await self._require(actor, "tills:update")
+        if "branch_id" in values or "code" in values:
+            raise OrganizationForbiddenError("Till branch and code cannot be reassigned")
+        till = await self._get_till_in_scope(actor, till_id)
+        before = {key: getattr(till, key) for key in values}
+        for key, value in values.items():
+            setattr(till, key, value)
+        await self._audit(actor, "till_updated", till.id, before, values)
+        await self._session.commit()
+        return till
+
+    async def delete_till(self, actor: User, till_id: uuid.UUID) -> None:
+        await self._require(actor, "tills:delete")
+        till = await self._get_till_in_scope(actor, till_id)
+        till.is_active = False
+        await self._tills.soft_delete(till)
+        await self._audit(
+            actor, "till_deactivated", till.id, {"is_active": True}, {"is_active": False}
+        )
+        await self._session.commit()
+
+    async def _get_till_in_scope(self, actor: User, till_id: uuid.UUID) -> Till:
+        till = await self._tills.get_active(till_id)
+        if till is None:
+            raise OrganizationNotFoundError("Till not found")
+        branch = await self._branches.get_active(till.branch_id)
+        if branch is None:
+            raise OrganizationNotFoundError("Till not found")
+        await self._check_merchant_scope(actor, branch.merchant_id, branch.id)
+        till.branch = branch
+        return till
+
     async def _get_branch_in_scope(self, actor: User, branch_id: uuid.UUID) -> Branch:
         branch = await self._branches.get_active(branch_id)
         if branch is None:
@@ -161,9 +237,9 @@ class OrganizationService:
     ) -> None:
         if await self._is_platform_admin(actor):
             return
-        if actor.merchant_id != merchant_id or (
-            branch_id is not None and actor.branch_id != branch_id
-        ):
+        if actor.merchant_id != merchant_id:
+            raise OrganizationForbiddenError("Resource is outside actor scope")
+        if actor.branch_id is not None and branch_id is not None and actor.branch_id != branch_id:
             raise OrganizationForbiddenError("Resource is outside actor scope")
 
     async def _is_platform_admin(self, actor: User) -> bool:

@@ -1,10 +1,5 @@
 import type { Config } from "tailwindcss";
 
-// All colors are read from CSS variables (see src/app/globals.css) rather
-// than hardcoded here, so the same token name ("bg-surface", "text-primary",
-// etc.) resolves differently in light vs dark mode without any component
-// needing a dark: variant of its own. Dark mode is a real pitch-black theme
-// (see globals.css), not an inverted light theme.
 const config: Config = {
   darkMode: "class",
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
@@ -22,8 +17,19 @@ const config: Config = {
           hover: "var(--color-dark-blue-hover)",
         },
         background: "var(--color-background)",
-        surface: "var(--color-surface)",
-        "surface-raised": "var(--color-surface-raised)",
+        surface: {
+          DEFAULT: "var(--color-surface)",
+          raised: "var(--color-surface-raised)",
+          inset: "var(--color-surface-inset)",
+        },
+        sidebar: {
+          DEFAULT: "var(--color-sidebar)",
+          hover: "var(--color-sidebar-hover)",
+          text: "var(--color-sidebar-text)",
+          muted: "var(--color-sidebar-muted)",
+          active: "var(--color-sidebar-active)",
+          "active-bg": "var(--color-sidebar-active-bg)",
+        },
         border: {
           DEFAULT: "var(--color-border)",
           strong: "var(--color-border-strong)",
@@ -61,31 +67,50 @@ const config: Config = {
         mono: ["var(--font-mono)", "ui-monospace", "monospace"],
       },
       borderRadius: {
-        sm: "6px",
-        DEFAULT: "8px",
-        md: "10px",
-        lg: "12px",
+        sm: "4px",
+        DEFAULT: "6px",
+        md: "8px",
+        lg: "10px",
       },
       boxShadow: {
-        sm: "0 1px 2px 0 rgb(0 0 0 / 0.04)",
-        DEFAULT: "0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06)",
-        md: "0 4px 8px -2px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06)",
+        sm: "var(--shadow-card)",
+        DEFAULT: "var(--shadow-card)",
+        md: "var(--shadow-glow)",
+        glow: "var(--shadow-glow)",
+      },
+      letterSpacing: {
+        brand: "0.18em",
       },
       keyframes: {
         "fade-in": { from: { opacity: "0" }, to: { opacity: "1" } },
+        "fade-up": {
+          from: { opacity: "0", transform: "translateY(6px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
         "slide-in-right": {
           from: { transform: "translateX(100%)" },
           to: { transform: "translateX(0)" },
+        },
+        "slide-in-left": {
+          from: { transform: "translateX(-12px)", opacity: "0" },
+          to: { transform: "translateX(0)", opacity: "1" },
         },
         shimmer: {
           "0%": { backgroundPosition: "-1000px 0" },
           "100%": { backgroundPosition: "1000px 0" },
         },
+        pulseDot: {
+          "0%, 100%": { opacity: "1", transform: "scale(1)" },
+          "50%": { opacity: "0.45", transform: "scale(0.85)" },
+        },
       },
       animation: {
-        "fade-in": "fade-in 120ms ease-out",
+        "fade-in": "fade-in 140ms ease-out",
+        "fade-up": "fade-up 220ms ease-out",
         "slide-in-right": "slide-in-right 180ms ease-out",
+        "slide-in-left": "slide-in-left 180ms ease-out",
         shimmer: "shimmer 2s infinite linear",
+        "pulse-dot": "pulseDot 1.6s ease-in-out infinite",
       },
     },
   },

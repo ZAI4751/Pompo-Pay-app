@@ -25,9 +25,9 @@ export function UserMenu() {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface-raised"
+        className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-primary-light"
       >
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-dark-blue text-white text-xs font-semibold">
+        <div className="flex h-7 w-7 items-center justify-center rounded-sm bg-dark-blue text-xs font-semibold text-white">
           {user.full_name.charAt(0).toUpperCase()}
         </div>
         <span className="hidden text-text sm:inline">{user.full_name}</span>
@@ -36,7 +36,7 @@ export function UserMenu() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full mt-1 w-56 rounded-md border border-border bg-surface py-1 shadow-md animate-fade-in"
+          className="absolute right-0 top-full mt-1 w-56 rounded-sm border border-border bg-surface py-1 shadow-md animate-fade-in"
         >
           <div className="border-b border-border px-3 py-2">
             <p className="truncate text-sm font-medium text-text">{user.full_name}</p>

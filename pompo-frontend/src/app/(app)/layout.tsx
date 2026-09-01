@@ -8,9 +8,10 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Sidebar } from "@/components/layout/Sidebar";
-import { useAuth } from "@/lib/auth/AuthContext";
 import { Loader2 } from "lucide-react";
+import { Sidebar } from "@/components/layout/Sidebar";
+import { AppShellProvider } from "@/components/layout/AppShellContext";
+import { useAuth } from "@/lib/auth/AuthContext";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { status } = useAuth();
@@ -22,20 +23,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (status === "loading") {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
+      <div className="flex h-screen flex-col items-center justify-center gap-3 bg-background">
         <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+        <p className="text-xs font-medium uppercase tracking-[0.16em] text-text-subtle">Loading control plane</p>
       </div>
     );
   }
 
   if (status === "unauthenticated") {
-    return null; // redirect effect above is in flight
+    return null;
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">{children}</div>
-    </div>
+    <AppShellProvider>
+      <div className="flex h-screen overflow-hidden bg-background">
+        <Sidebar />
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
+      </div>
+    </AppShellProvider>
   );
 }

@@ -1,4 +1,4 @@
-"""Tenant-scoped queries for merchants and branches."""
+"""Tenant-scoped queries for merchants, branches, and tills."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import uuid
 
 from sqlalchemy import select
 
-from app.models.organization import Branch, Merchant
+from app.models.organization import Branch, Merchant, Till
 from app.repositories.base import BaseRepository
 
 
@@ -55,6 +55,29 @@ class BranchRepository(BaseRepository[Branch]):
                 Branch.id == branch_id,
                 Branch.deleted_at.is_(None),
                 Branch.is_active.is_(True),
+            )
+        )
+        return result.scalar_one_or_none()
+
+
+class TillRepository(BaseRepository[Till]):
+    model = Till
+
+    async def list_active(self, branch_id: uuid.UUID) -> list[Till]:
+        statement = select(Till).where(
+            Till.branch_id == branch_id,
+            Till.deleted_at.is_(None),
+            Till.is_active.is_(True),
+        )
+        result = await self._session.execute(statement.order_by(Till.code))
+        return list(result.scalars().all())
+
+    async def get_active(self, till_id: uuid.UUID) -> Till | None:
+        result = await self._session.execute(
+            select(Till).where(
+                Till.id == till_id,
+                Till.deleted_at.is_(None),
+                Till.is_active.is_(True),
             )
         )
         return result.scalar_one_or_none()

@@ -49,6 +49,15 @@ class PaymentProvider(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_simulated: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    environment: Mapped[str] = mapped_column(String(32), default="sandbox", nullable=False)
+    priority: Mapped[int] = mapped_column(Integer, default=100, nullable=False, index=True)
+    supported_currencies: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=lambda: ["MWK"]
+    )
+    supported_payment_methods: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=lambda: ["mobile_money"]
+    )
+    capabilities: Mapped[dict[str, bool]] = mapped_column(JSON, nullable=False, default=dict)
 
     attempts: Mapped[list[PaymentAttempt]] = relationship(back_populates="provider")
 

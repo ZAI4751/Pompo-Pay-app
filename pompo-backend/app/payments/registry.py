@@ -2,13 +2,7 @@
 
 from __future__ import annotations
 
-from app.payments.adapters import (
-    MockFailureProvider,
-    MockPendingProvider,
-    MockProvider,
-    MockSuccessProvider,
-    MockTimeoutProvider,
-)
+from app.payments.adapters import MockProvider
 from app.payments.providers import (
     ProviderAdapter,
     ProviderCapabilities,
@@ -19,13 +13,7 @@ from app.payments.providers import (
 
 class ProviderRegistry:
     def __init__(self, adapters: tuple[ProviderAdapter, ...] | None = None) -> None:
-        selected = adapters or (
-            MockSuccessProvider(),
-            MockPendingProvider(),
-            MockFailureProvider(),
-            MockTimeoutProvider(),
-            MockProvider("simulated", ProviderOutcome.SUCCESS),
-        )
+        selected = adapters or (MockProvider("simulated", ProviderOutcome.SUCCESS),)
         self._adapters = {adapter.code: adapter for adapter in selected}
 
     def get(self, code: str) -> ProviderAdapter:

@@ -59,3 +59,30 @@ class PaymentResponse(BaseModel):
 class PaymentTransition(BaseModel):
     status: str
     failure_reason: str | None = Field(default=None, max_length=500)
+
+
+class ProviderCapabilityResponse(BaseModel):
+    supports_push_payment: bool
+    supports_status_query: bool
+    supports_cancel: bool
+    supports_refund: bool
+    supports_webhooks: bool
+    supports_qr: bool
+
+
+class ProviderCatalogResponse(BaseModel):
+    code: str
+    display_name: str
+    is_active: bool
+    is_simulated: bool
+    environment: str
+    priority: int
+    supported_currencies: list[str]
+    supported_payment_methods: list[str]
+    capabilities: ProviderCapabilityResponse
+    adapter_configured: bool
+
+
+class ProviderCatalogUpdate(BaseModel):
+    is_active: bool | None = None
+    priority: int | None = Field(default=None, ge=1, le=1000)

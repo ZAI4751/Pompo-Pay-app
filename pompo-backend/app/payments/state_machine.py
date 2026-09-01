@@ -20,6 +20,9 @@ TRANSITIONS: dict[TransactionStatus, frozenset[TransactionStatus]] = {
     TransactionStatus.SUCCESS: frozenset({TransactionStatus.REFUNDED}),
 }
 
+# QR_GENERATED and PENDING_USER_PIN remain on the enum for the future QR/PIN
+# checkout flows. They are not wired into TRANSITIONS until those engines exist.
+
 
 def validate_transition(current: TransactionStatus, target: TransactionStatus) -> None:
     if target not in TRANSITIONS.get(current, frozenset()):

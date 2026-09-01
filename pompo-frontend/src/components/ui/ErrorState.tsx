@@ -11,11 +11,6 @@ import {
 import { Button } from "./Button";
 import type { ApiErrorKind } from "@/lib/types/common";
 
-/**
- * Reuses ApiErrorKind rather than defining a parallel vocabulary, so an
- * ApiError from the client can be rendered by passing `kind` straight
- * through -- there is no mapping table to fall out of sync.
- */
 const config: Record<ApiErrorKind, { icon: typeof AlertTriangle; title: string }> = {
   network: { icon: WifiOff, title: "Couldn't reach the Pompo backend" },
   unauthorized: { icon: Lock, title: "Your session has expired" },
@@ -32,12 +27,10 @@ const config: Record<ApiErrorKind, { icon: typeof AlertTriangle; title: string }
 interface ErrorStateProps {
   kind?: ApiErrorKind;
   description?: string;
-  /** Backend correlation ID, shown so a user can quote it in a bug report. */
   requestId?: string;
   onRetry?: () => void;
 }
 
-/** One consistent error presentation for every failure mode the app defines. */
 export function ErrorState({
   kind = "unknown",
   description,
@@ -46,9 +39,11 @@ export function ErrorState({
 }: ErrorStateProps) {
   const { icon: Icon, title } = config[kind];
   return (
-    <div className="flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
-      <Icon className="h-8 w-8 text-error" aria-hidden="true" />
-      <p className="text-sm font-medium text-text">{title}</p>
+    <div className="flex flex-col items-center justify-center gap-2 rounded-md border border-error/25 bg-error-bg/40 px-6 py-16 text-center">
+      <div className="flex h-11 w-11 items-center justify-center rounded-md bg-error-bg text-error">
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </div>
+      <p className="text-sm font-semibold text-text">{title}</p>
       {description && <p className="max-w-sm text-sm text-text-muted">{description}</p>}
       {requestId && (
         <p className="text-xs text-text-subtle">

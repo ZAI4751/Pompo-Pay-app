@@ -119,6 +119,15 @@ async def test_login_with_valid_credentials_succeeds(
 
 
 @pytest.mark.asyncio
+async def test_login_normalizes_email_case(
+    auth_service: AuthService, active_user: User
+) -> None:
+    tokens, user = await auth_service.login("  Grace@Chikondi.MW  ", "correct-horse-battery-staple")
+    assert user.id == active_user.id
+    assert tokens.access_token
+
+
+@pytest.mark.asyncio
 async def test_login_with_wrong_password_raises_invalid_credentials(
     auth_service: AuthService, active_user: User
 ) -> None:

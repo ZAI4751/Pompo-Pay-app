@@ -9,13 +9,26 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.deps import CurrentUserDep, DbSessionDep, require_permission
 from app.payments.providers import ProviderError
 from app.payments.registry import ProviderRegistry
-from app.schemas.payment import PaymentCreate, PaymentResponse
+from app.schemas.payment import (
+    PaymentCreate,
+    PaymentResponse,
+    ProviderCatalogResponse,
+    ProviderCatalogUpdate,
+    ProviderCapabilityResponse,
+)
 from app.services.payment import (
     PaymentConflictError,
     PaymentError,
     PaymentForbiddenError,
     PaymentNotFoundError,
     PaymentService,
+)
+from app.services.providers import (
+    ProviderCatalogConflictError,
+    ProviderCatalogError,
+    ProviderCatalogForbiddenError,
+    ProviderCatalogNotFoundError,
+    ProviderCatalogService,
 )
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
@@ -26,6 +39,43 @@ def get_payment_service(session: DbSessionDep) -> PaymentService:
 
 
 PaymentServiceDep = Annotated[PaymentService, Depends(get_payment_service)]
+
+
+def get_provider_catalog_service(session: DbSessionDep) -> ProviderCatalogService:
+    return ProviderCatalogService(session)
+
+
+ProviderCatalogServiceDep = Annotated[
+    ProviderCatalogService, Depends(get_provider_catalog_service)
+]
+
+
+def _catalog_response(
+    provider, service: ProviderCatalogService
+) -> ProviderCatalogResponse:
+    capabilities = service.capabilities_for(provider)
+    return ProviderCatalogResponse(
+        code=provider.code.value,
+        display_name=provider.display_name,
+        is_active=provider.is_active,
+        is_simulated=provider.is_simulated,
+        environment=provider.environment,
+        priority=provider.priority,
+        supported_currencies=list(provider.supported_currencies or []),
+        supported_payment_methods=list(provider.supported_payment_methods or []),
+        capabilities=ProviderCapabilityResponse(**capabilities),
+        adapter_configured=provider.code.value in service.adapter_codes(),
+    )
+
+
+def _catalog_error(exc: ProviderCatalogError) -> HTTPException:
+    if isinstance(exc, ProviderCatalogNotFoundError):
+        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    if isinstance(exc, ProviderCatalogConflictError):
+        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    if isinstance(exc, ProviderCatalogForbiddenError):
+        return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
 def _error(exc: PaymentError) -> HTTPException:
@@ -87,12 +137,42 @@ async def process_payment(
         raise _error(exc) from exc
 
 
-@router.get("/providers", dependencies=[Depends(require_permission("transactions:read"))])
-async def list_providers() -> list[dict[str, object]]:
-    return [
-        {"code": adapter.code, "capabilities": adapter.capabilities.__dict__}
-        for adapter in ProviderRegistry().list()
-    ]
+@router.get("/providers", response_model=list[ProviderCatalogResponse])
+async def list_providers(
+    current_user: CurrentUserDep, service: ProviderCatalogServiceDep
+) -> list[ProviderCatalogResponse]:
+    try:
+        providers = await service.list_catalog(current_user)
+    except ProviderCatalogError as exc:
+        raise _catalog_error(exc) from exc
+    return [_catalog_response(provider, service) for provider in providers]
+
+
+@router.get("/providers/{provider_code}", response_model=ProviderCatalogResponse)
+async def get_provider(
+    provider_code: str, current_user: CurrentUserDep, service: ProviderCatalogServiceDep
+) -> ProviderCatalogResponse:
+    try:
+        provider = await service.get_catalog_entry(current_user, provider_code)
+    except ProviderCatalogError as exc:
+        raise _catalog_error(exc) from exc
+    return _catalog_response(provider, service)
+
+
+@router.patch("/providers/{provider_code}", response_model=ProviderCatalogResponse)
+async def update_provider(
+    provider_code: str,
+    payload: ProviderCatalogUpdate,
+    current_user: CurrentUserDep,
+    service: ProviderCatalogServiceDep,
+) -> ProviderCatalogResponse:
+    try:
+        provider = await service.update_catalog_entry(
+            current_user, provider_code, payload.model_dump(exclude_unset=True)
+        )
+    except ProviderCatalogError as exc:
+        raise _catalog_error(exc) from exc
+    return _catalog_response(provider, service)
 
 
 @router.get(

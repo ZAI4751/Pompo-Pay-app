@@ -9,14 +9,9 @@ if the invoking environment already exports these (for example, a shell
 inside the `backend` container via docker-compose's `.env`, where
 `DATABASE_URL` correctly points at `postgres:5432` — the Docker network
 hostname, not localhost), that value is respected instead of being
-clobbered. This is what makes `docker compose exec backend pytest -v` work
-without any code change: the container's own environment already has the
-right hostnames, this file just needs to not override them.
-
-To run the suite against the Dockerized stack from a shell that already has
-network access to the containers (i.e. inside `backend`, or any container on
-the same compose network), point at an isolated test database explicitly so
-test runs don't touch dev data:
+clobbered. Hostnames stay correct that way, but the container `.env` also
+points at the development database (`pompo`). HTTP and DB fixtures refuse
+to run against `pompo`; in-container pytest still needs:
 
     DATABASE_URL=postgresql+asyncpg://pompo:pompo_secret@postgres:5432/pompo_test \
         pytest -v
@@ -49,6 +44,16 @@ from app.database.session import reset_session_factory  # noqa: E402
 from app.main import create_app  # noqa: E402
 
 
+def _assert_not_development_database(database_url: str) -> None:
+    """HTTP and DB fixtures must never write to the live development database."""
+    database_name = database_url.rsplit("/", 1)[-1].split("?", 1)[0]
+    if database_name == "pompo":
+        raise RuntimeError(
+            "Refusing to run pytest against the development database 'pompo'. "
+            "Point DATABASE_URL at pompo_test (see docs/testing.md Option A)."
+        )
+
+
 @pytest.fixture(scope="session")
 def settings():
     """Provide test settings."""
@@ -77,6 +82,7 @@ async def app(settings):
     re-checks it, so disposing the engine alone still leaves sessions bound
     to the stale one.
     """
+    _assert_not_development_database(settings.database_url_str)
     get_settings.cache_clear()
     application = create_app()
     yield application
@@ -100,6 +106,7 @@ async def client(app) -> AsyncGenerator[AsyncClient, None]:
 @pytest.fixture
 async def db_engine(settings) -> AsyncGenerator[AsyncEngine, None]:
     """Provide a database engine for integration tests."""
+    _assert_not_development_database(settings.database_url_str)
     engine = create_async_engine(settings.database_url_str, pool_pre_ping=True)
     yield engine
     await engine.dispose()

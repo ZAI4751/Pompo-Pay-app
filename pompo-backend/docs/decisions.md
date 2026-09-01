@@ -262,5 +262,57 @@ into the `backend` container.
 time. Since the Docker environment is the acceptance environment for
 PostgreSQL integration tests, silently testing stale code undermines the whole
 point. Specific subtrees are mounted rather than the whole context so the
-image's installed dependencies are never shadowed.
+image's installed dependencies are never shadowed. `./scripts` is also mounted
+so seed commands run the working-tree scripts.
+
+---
+
+## 2026-09-01 — Operational payment chain: tills and provider catalog
+
+### Dedicated till permissions, not branch permissions
+
+**Decision:** Till administration uses `tills:read|create|update|delete` rather
+than reusing `branches:*`.
+
+**Why:** A branch manager who can update a branch address is not automatically
+allowed to deactivate a checkout point. Payment creation already requires a
+till; treating tills as a branch sub-field would hide a distinct operational
+and audit boundary.
+
+### Till branch and code are immutable after create
+
+**Decision:** Reject `branch_id` and `code` on till update. Deactivate with
+soft-delete instead of hard-delete or reassignment.
+
+**Why:** Transactions reference `tills.id` with `ON DELETE RESTRICT`. Moving a
+till to another branch or recycling its code would rewrite the operational
+history of every payment taken at that checkout.
+
+### Provider catalog is database-backed; registry stays in-process
+
+**Decision:** `GET /payments/providers` reads `payment_providers` rows. The
+default `ProviderRegistry` registers only `simulated`. Planned rails have
+catalog rows that stay inactive and simulated until an adapter exists.
+
+**Why:** An empty migrated database previously could not create payments
+because no provider row existed. Seeding catalog metadata is an operations
+concern; pretending mock adapters are live Airtel/TNM/bank rails is not.
+
+### Sandbox provider seed is idempotent and production-refused
+
+**Decision:** `scripts/seed_providers.py` inserts missing catalog rows only,
+stores no secrets, and raises if `APP_ENV=production`.
+
+**Why:** Repeatable local/dev provisioning must not be a migration (migrations
+run in production) and must not be able to stamp sandbox placeholders onto a
+production database by accident.
+
+### User directory CRUD is deferred
+
+**Decision:** Do not add staff user CRUD in this slice.
+
+**Why:** The operational chain is merchant → branch → till → provider →
+payment. A platform administrator already exists via `seed_admin.py` and can
+exercise that chain. User CRUD is a privilege-escalation surface and belongs
+in its own secured slice.
 

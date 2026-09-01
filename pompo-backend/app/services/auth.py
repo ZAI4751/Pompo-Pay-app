@@ -100,6 +100,7 @@ class AuthService:
         password, AND disabled accounts alike — deliberately, so the API
         response can't be used to enumerate which case occurred.
         """
+        email = email.strip().lower()
         user = await self._users.get_by_email(email)
 
         if user is None:
