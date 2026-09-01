@@ -1,0 +1,57 @@
+"""Authoritative live-provider HTTP contracts.
+
+Insert a contract here only when POMPO has approved provider documentation
+in the repository (endpoints, auth, payloads, signatures). This registry is
+intentionally empty: there is currently no Airtel Money, TNM Mpamba, or bank
+API contract in source control, so live adapters must not become routable.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Protocol
+
+from app.payments.http import ProviderHttpRequest, ProviderHttpResponse
+from app.payments.providers import ProviderCapabilities, ProviderPaymentRequest, ProviderResult
+
+
+@dataclass(frozen=True)
+class ProviderHttpContract:
+    """Metadata describing an approved integration. Paths are relative."""
+
+    code: str
+    rail_environment: str
+    source: str
+    capabilities: ProviderCapabilities
+    idempotency_header: str | None = None
+    health_path: str | None = None
+
+
+class ProviderHttpMapper(Protocol):
+    """Translates POMPO requests to a provider's documented HTTP contract."""
+
+    contract: ProviderHttpContract
+
+    def initiate(
+        self, request: ProviderPaymentRequest, base_url: str, secret: str
+    ) -> ProviderHttpRequest: ...
+
+    def parse_initiate(self, response: ProviderHttpResponse) -> ProviderResult: ...
+
+    def status(self, provider_reference: str, base_url: str, secret: str) -> ProviderHttpRequest: ...
+
+    def parse_status(self, response: ProviderHttpResponse) -> ProviderResult: ...
+
+    def health(self, base_url: str, secret: str) -> ProviderHttpRequest | None: ...
+
+
+# Keyed by (provider_code, rail_environment). Populate only from approved docs.
+AUTHORITATIVE_CONTRACTS: dict[tuple[str, str], ProviderHttpMapper] = {}
+
+
+def get_authoritative_mapper(code: str, rail_environment: str) -> ProviderHttpMapper | None:
+    return AUTHORITATIVE_CONTRACTS.get((code, rail_environment))
+
+
+def has_authoritative_contract(code: str) -> bool:
+    return any(key[0] == code for key in AUTHORITATIVE_CONTRACTS)

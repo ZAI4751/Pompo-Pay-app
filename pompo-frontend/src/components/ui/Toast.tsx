@@ -1,77 +1,47 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState } from "react";
-import { CheckCircle2, XCircle, Info, X } from "lucide-react";
-import { cn } from "@/lib/utils/cn";
+import { Toaster, toast } from "sonner";
+import { useTheme } from "next-themes";
+import type { ReactNode } from "react";
 
 type ToastTone = "success" | "error" | "info";
-interface ToastItem {
-  id: number;
-  message: string;
-  tone: ToastTone;
-}
 
 interface ToastContextValue {
   push: (message: string, tone?: ToastTone) => void;
 }
 
-const ToastContext = createContext<ToastContextValue | null>(null);
-
-const icons: Record<ToastTone, typeof CheckCircle2> = {
-  success: CheckCircle2,
-  error: XCircle,
-  info: Info,
-};
-
-const toneClasses: Record<ToastTone, string> = {
-  success: "border-success/30 text-success",
-  error: "border-error/30 text-error",
-  info: "border-info/30 text-info",
-};
-
-export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-
-  const push = useCallback((message: string, tone: ToastTone = "info") => {
-    const id = Date.now();
-    setToasts((prev) => [...prev, { id, message, tone }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
-  }, []);
-
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const { resolvedTheme } = useTheme();
   return (
-    <ToastContext.Provider value={{ push }}>
+    <>
       {children}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
-        {toasts.map((toast) => {
-          const Icon = icons[toast.tone];
-          return (
-            <div
-              key={toast.id}
-              role="status"
-              className={cn(
-                "flex items-center gap-2 rounded-md border bg-surface px-4 py-3 text-sm shadow-md animate-slide-in-right",
-                toneClasses[toast.tone],
-              )}
-            >
-              <Icon className="h-4 w-4" aria-hidden="true" />
-              <span className="text-text">{toast.message}</span>
-              <button
-                aria-label="Dismiss"
-                onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
-                className="ml-2 text-text-subtle hover:text-text"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    </ToastContext.Provider>
+      <Toaster
+        position="bottom-right"
+        closeButton
+        duration={3800}
+        theme={resolvedTheme === "dark" ? "dark" : "light"}
+        toastOptions={{
+          classNames: {
+            toast:
+              "border border-border bg-surface text-text shadow-glow font-sans text-sm",
+            title: "text-text",
+            description: "text-text-muted",
+            success: "border-success/30",
+            error: "border-error/30",
+            info: "border-info/30",
+          },
+        }}
+      />
+    </>
   );
 }
 
 export function useToast(): ToastContextValue {
-  const ctx = useContext(ToastContext);
-  if (!ctx) throw new Error("useToast must be used within ToastProvider");
-  return ctx;
+  return {
+    push(message: string, tone: ToastTone = "info") {
+      if (tone === "success") toast.success(message);
+      else if (tone === "error") toast.error(message);
+      else toast(message);
+    },
+  };
 }

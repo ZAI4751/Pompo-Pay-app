@@ -1,3 +1,7 @@
+"use client";
+
+import { m } from "framer-motion";
+
 interface RadialMeterProps {
   value: number;
   label: string;
@@ -22,7 +26,7 @@ export function RadialMeter({ value, label, caption }: RadialMeterProps) {
             className="stroke-border-strong"
             strokeWidth="6"
           />
-          <circle
+          <m.circle
             cx="44"
             cy="44"
             r={radius}
@@ -31,7 +35,9 @@ export function RadialMeter({ value, label, caption }: RadialMeterProps) {
             strokeWidth="6"
             strokeLinecap="round"
             strokeDasharray={circumference}
-            strokeDashoffset={offset}
+            initial={{ strokeDashoffset: circumference }}
+            animate={{ strokeDashoffset: offset }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           />
         </svg>
         <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold tabular-nums text-text">
@@ -42,7 +48,7 @@ export function RadialMeter({ value, label, caption }: RadialMeterProps) {
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-subtle">
           {label}
         </p>
-        {caption && <p className="mt-1 max-w-[10rem] text-xs text-text-muted">{caption}</p>}
+        {caption && <p className="mt-1 max-w-[10rem] break-words text-xs text-text-muted">{caption}</p>}
       </div>
     </div>
   );

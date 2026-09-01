@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.api import deps
+from app.api.v1 import providers as providers_api
 from app.api.v1.payments import get_provider_catalog_service, router
 from app.core.config.base import AppEnvironment
 from app.models import Permission, Role, RolePermission, User
@@ -27,6 +28,8 @@ from app.payments.registry import ProviderRegistry
 from app.services.providers import (
     ProviderCatalogConflictError,
     ProviderCatalogForbiddenError,
+    ProviderCatalogInvalidError,
+    ProviderCatalogNotFoundError,
     ProviderCatalogService,
 )
 
@@ -84,11 +87,12 @@ async def test_provider_seed_is_idempotent_and_matches_registry_codes(
     assert airtel.is_simulated is True
     assert {row.code.value for row in catalog} >= {"simulated"}
     assert "simulated" in service.adapter_codes()
-    assert "airtel_money" not in service.adapter_codes()
+    assert "airtel_money" in service.adapter_codes()
+    assert service.adapter_for("airtel_money").live_contract_ready is False
 
 
 @pytest.mark.asyncio
-async def test_cannot_enable_provider_without_adapter(session: AsyncSession) -> None:
+async def test_cannot_enable_provider_without_live_contract(session: AsyncSession) -> None:
     await seed_provider_catalog(session)
     await session.commit()
     admin = await _actor(session, "platform_admin", ("providers:read", "providers:update"))
@@ -163,7 +167,8 @@ async def test_capabilities_prefer_adapter_when_configured(session: AsyncSession
     assert service.capabilities_for(simulated)["supports_cancel"] is True
     assert service.capabilities_for(airtel)["supports_cancel"] is False
     assert "simulated" in service.adapter_codes()
-    assert "airtel_money" not in service.adapter_codes()
+    assert "airtel_money" in service.adapter_codes()
+    assert service.adapter_for("airtel_money").live_contract_ready is False
 
 
 @pytest.mark.asyncio
@@ -199,3 +204,81 @@ async def test_provider_api_maps_forbidden_to_403() -> None:
     ) as client:
         response = await client.get("/payments/providers")
     assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_platform_admin_can_enable_and_disable_simulated(session: AsyncSession) -> None:
+    await seed_provider_catalog(session)
+    await session.commit()
+    admin = await _actor(session, "platform_admin", ("providers:read", "providers:update"))
+    service = ProviderCatalogService(session)
+    disabled = await service.disable_provider(admin, "simulated")
+    assert disabled.is_active is False
+    assert disabled.health_state.value == "disabled"
+    enabled = await service.enable_provider(admin, "simulated")
+    assert enabled.is_active is True
+    assert enabled.health_state.value == "active"
+    with pytest.raises(ProviderCatalogConflictError, match="outside production"):
+        await service.update_catalog_entry(admin, "simulated", {"environment": "live"})
+    await service.update_catalog_entry(admin, "simulated", {"is_active": False, "environment": "live"})
+    with pytest.raises(ProviderCatalogConflictError, match="outside production"):
+        await service.enable_provider(admin, "simulated")
+
+
+@pytest.mark.asyncio
+async def test_create_provider_rejects_unknown_and_duplicate(session: AsyncSession) -> None:
+    await seed_provider_catalog(session)
+    await session.commit()
+    admin = await _actor(
+        session, "platform_admin", ("providers:read", "providers:create", "providers:update")
+    )
+    service = ProviderCatalogService(session)
+    with pytest.raises(ProviderCatalogInvalidError):
+        await service.create_catalog_entry(
+            admin, {"code": "not_a_rail", "display_name": "Nope"}
+        )
+    with pytest.raises(ProviderCatalogConflictError):
+        await service.create_catalog_entry(
+            admin, {"code": "simulated", "display_name": "Again"}
+        )
+
+
+@pytest.mark.asyncio
+async def test_provider_management_api_status_codes() -> None:
+    from fastapi import FastAPI
+
+    class NotFoundService:
+        async def get_catalog_entry(self, _actor: User, _code: str):
+            raise ProviderCatalogNotFoundError("Provider not found")
+
+        async def create_catalog_entry(self, _actor: User, _values: dict):
+            raise ProviderCatalogConflictError("Provider already exists")
+
+        async def update_catalog_entry(self, _actor: User, _code: str, _values: dict):
+            raise ProviderCatalogInvalidError("Unknown provider type")
+
+    application = FastAPI()
+    application.include_router(providers_api.router)
+    actor = User(email="api@example.com", full_name="API", hashed_password="hash")
+    application.dependency_overrides[deps.get_current_user] = lambda: actor
+    application.dependency_overrides[providers_api.get_provider_catalog_service] = (
+        lambda: NotFoundService()
+    )
+    async with AsyncClient(
+        transport=ASGITransport(app=application), base_url="http://test"
+    ) as client:
+        missing = await client.get("/providers/missing")
+        duplicate = await client.post(
+            "/providers", json={"code": "simulated", "display_name": "Simulated"}
+        )
+        invalid = await client.patch("/providers/simulated", json={"display_name": "X"})
+    assert missing.status_code == 404
+    assert duplicate.status_code == 409
+    assert invalid.status_code == 422
+
+    bare = FastAPI()
+    bare.include_router(providers_api.router)
+    bare.dependency_overrides[deps.get_auth_service] = lambda: object()
+    async with AsyncClient(transport=ASGITransport(app=bare), base_url="http://test") as client:
+        unauthenticated = await client.get("/providers")
+    assert unauthenticated.status_code == 401

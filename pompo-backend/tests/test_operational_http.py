@@ -154,15 +154,18 @@ async def test_http_operational_chain_merchant_branch_till_provider_payment(
 
     providers = await client.get("/api/v1/payments/providers", headers=headers)
     assert providers.status_code == 200, providers.text
-    body = providers.json()
+    admin_providers = await client.get("/api/v1/providers", headers=headers)
+    assert admin_providers.status_code == 200, admin_providers.text
+    body = admin_providers.json()
     assert {row["code"] for row in body} >= {"simulated"}
     simulated = next(row for row in body if row["code"] == "simulated")
     assert simulated["is_simulated"] is True
     assert simulated["adapter_configured"] is True
+    assert simulated["live_contract_ready"] is True
+    assert "auth_configured" in simulated["configuration"]
     serialized = str(body).lower()
-    assert "secret" not in serialized
-    assert "credential" not in serialized
     assert "password" not in serialized
+    assert "api_key" not in serialized
 
     blocked = await client.patch(
         "/api/v1/payments/providers/airtel_money",

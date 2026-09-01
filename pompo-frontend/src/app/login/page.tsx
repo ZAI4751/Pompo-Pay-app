@@ -2,13 +2,16 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, m } from "framer-motion";
 import { Eye, EyeOff, FlaskConical } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { PompoMark } from "@/components/brand/PompoMark";
+import { AnimatedPage } from "@/components/motion/AnimatedPage";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { USE_MOCKS } from "@/lib/api/config";
+import { messageIn } from "@/lib/motion";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -79,12 +82,12 @@ export default function LoginPage() {
         </div>
       </aside>
 
-      <div className="relative flex min-h-screen items-center justify-center bg-background px-4 py-12">
+      <div className="relative flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12 transition-colors duration-200 dark:bg-black">
         <div className="absolute right-4 top-4">
           <ThemeToggle />
         </div>
 
-        <div className="w-full max-w-sm animate-fade-up">
+        <AnimatedPage className="w-full max-w-sm">
           <div className="mb-8 flex flex-col items-center gap-3 lg:items-start">
             <div className="lg:hidden">
               <PompoMark size={36} />
@@ -125,7 +128,7 @@ export default function LoginPage() {
 
           <form
             onSubmit={onSubmit}
-            className="space-y-4 rounded-md border border-border bg-surface p-6 card-depth"
+            className="space-y-4 rounded-md border border-border bg-white p-6 card-depth pompo-glass dark:border-neutral-800 dark:bg-slate-900/80"
           >
             {USE_MOCKS && (
               <p className="text-xs text-text-subtle">
@@ -163,19 +166,25 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {error && (
-              <div
-                role="alert"
-                className="rounded-sm border border-error/30 bg-error-bg px-3 py-2 text-sm text-error"
-              >
-                <p>{error}</p>
-                {errorReference && (
-                  <p className="mt-1 text-xs opacity-80">
-                    Reference: <span className="font-mono">{errorReference}</span>
-                  </p>
-                )}
-              </div>
-            )}
+            <AnimatePresence>
+              {error && (
+                <m.div
+                  role="alert"
+                  className="rounded-sm border border-error/30 bg-error-bg px-3 py-2 text-sm text-error"
+                  initial={messageIn.initial}
+                  animate={messageIn.animate}
+                  exit={messageIn.exit}
+                  transition={messageIn.transition}
+                >
+                  <p className="break-words">{error}</p>
+                  {errorReference && (
+                    <p className="mt-1 truncate text-xs opacity-80">
+                      Reference: <span className="font-mono">{errorReference}</span>
+                    </p>
+                  )}
+                </m.div>
+              )}
+            </AnimatePresence>
 
             <Button
               type="submit"
@@ -190,7 +199,7 @@ export default function LoginPage() {
           <p className="mt-6 text-center text-xs text-text-subtle lg:text-left">
             All activity is logged. Do not share credentials.
           </p>
-        </div>
+        </AnimatedPage>
       </div>
     </div>
   );

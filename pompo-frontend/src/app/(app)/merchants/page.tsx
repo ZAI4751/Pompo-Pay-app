@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Plus, Store } from "lucide-react";
 import { PageShell } from "@/components/layout/PageShell";
 import { MockDataBadge } from "@/components/ui/MockDataBadge";
@@ -28,6 +28,8 @@ const emptyForm = {
   contact_phone: "",
 };
 
+type MerchantFormValues = typeof emptyForm;
+
 export default function MerchantsPage() {
   const { isDemoSession } = useAuth();
   const { hasPermission } = usePermissions();
@@ -36,7 +38,8 @@ export default function MerchantsPage() {
   const [query, setQuery] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Merchant | null>(null);
-  const [form, setForm] = useState(emptyForm);
+  const [formInitial, setFormInitial] = useState<MerchantFormValues>(emptyForm);
+  const draftRef = useRef<MerchantFormValues>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [deactivate, setDeactivate] = useState<Merchant | null>(null);
@@ -58,20 +61,23 @@ export default function MerchantsPage() {
 
   function openCreate() {
     setEditing(null);
-    setForm(emptyForm);
+    setFormInitial(emptyForm);
+    draftRef.current = emptyForm;
     setFormError(null);
     setFormOpen(true);
   }
 
   function openEdit(merchant: Merchant) {
     setEditing(merchant);
-    setForm({
+    const values = {
       name: merchant.name,
       legal_name: merchant.legal_name ?? "",
       registration_number: merchant.registration_number ?? "",
       contact_email: merchant.contact_email,
       contact_phone: merchant.contact_phone,
-    });
+    };
+    setFormInitial(values);
+    draftRef.current = values;
     setFormError(null);
     setFormOpen(true);
   }
@@ -80,12 +86,13 @@ export default function MerchantsPage() {
     event?.preventDefault();
     setSaving(true);
     setFormError(null);
+    const draft = draftRef.current;
     const payload = {
-      name: form.name,
-      legal_name: form.legal_name || null,
-      registration_number: form.registration_number || null,
-      contact_email: form.contact_email,
-      contact_phone: form.contact_phone,
+      name: draft.name,
+      legal_name: draft.legal_name || null,
+      registration_number: draft.registration_number || null,
+      contact_email: draft.contact_email,
+      contact_phone: draft.contact_phone,
     };
     const saved = editing
       ? await merchantsService.update(editing.id, payload)
@@ -166,26 +173,32 @@ export default function MerchantsPage() {
             <Th>ID</Th>
             <Th>Contact</Th>
             <Th>Status</Th>
-            <Th />
+            <Th className="w-36" />
           </TableHead>
           <TableBody>
             {filtered.map((merchant) => (
               <Tr key={merchant.id}>
                 <Td>
-                  <p className="font-medium text-text">{merchant.name}</p>
-                  <p className="text-text-muted">{merchant.legal_name}</p>
+                  <p className="truncate font-medium text-text" title={merchant.name}>
+                    {merchant.name}
+                  </p>
+                  <p className="truncate text-text-muted" title={merchant.legal_name ?? undefined}>
+                    {merchant.legal_name}
+                  </p>
                 </Td>
                 <Td>
                   <MonoId>{merchant.id}</MonoId>
                 </Td>
                 <Td>
-                  <p>{merchant.contact_email}</p>
-                  <p className="text-text-muted">{merchant.contact_phone}</p>
+                  <p className="truncate" title={merchant.contact_email}>
+                    {merchant.contact_email}
+                  </p>
+                  <p className="truncate text-text-muted">{merchant.contact_phone}</p>
                 </Td>
-                <Td>
+                <Td className="whitespace-normal">
                   <ActiveBadge isActive={merchant.is_active} />
                 </Td>
-                <Td className="text-right">
+                <Td className="max-w-none overflow-visible whitespace-nowrap text-right">
                   {canUpdate && (
                     <Button variant="ghost" size="sm" onClick={() => openEdit(merchant)}>
                       Edit
@@ -212,39 +225,23 @@ export default function MerchantsPage() {
             <Button variant="secondary" size="sm" onClick={() => setFormOpen(false)}>
               Cancel
             </Button>
-            <Button size="sm" loading={saving} onClick={() => void onSave()}>
+            <Button type="submit" form="merchant-editor" size="sm" loading={saving}>
               Save
             </Button>
           </>
         }
       >
-        <form className="space-y-3" onSubmit={onSave}>
-          <Input label="Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <Input
-            label="Legal name"
-            value={form.legal_name}
-            onChange={(e) => setForm({ ...form, legal_name: e.target.value })}
+        {formOpen && (
+          <MerchantForm
+            key={editing?.id ?? "new"}
+            initial={formInitial}
+            formError={formError}
+            onChange={(values) => {
+              draftRef.current = values;
+            }}
+            onSubmit={() => void onSave()}
           />
-          <Input
-            label="Registration number"
-            value={form.registration_number}
-            onChange={(e) => setForm({ ...form, registration_number: e.target.value })}
-          />
-          <Input
-            label="Contact email"
-            type="email"
-            required
-            value={form.contact_email}
-            onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
-          />
-          <Input
-            label="Contact phone"
-            required
-            value={form.contact_phone}
-            onChange={(e) => setForm({ ...form, contact_phone: e.target.value })}
-          />
-          {formError && <p className="text-sm text-error">{formError}</p>}
-        </form>
+        )}
       </Modal>
 
       <ConfirmationDialog
@@ -258,5 +255,72 @@ export default function MerchantsPage() {
         onCancel={() => setDeactivate(null)}
       />
     </PageShell>
+  );
+}
+
+function MerchantForm({
+  initial,
+  formError,
+  onChange,
+  onSubmit,
+}: {
+  initial: MerchantFormValues;
+  formError: string | null;
+  onChange: (values: MerchantFormValues) => void;
+  onSubmit: () => void;
+}) {
+  const [values, setValues] = useState(initial);
+
+  function update<K extends keyof MerchantFormValues>(field: K, value: MerchantFormValues[K]) {
+    const next = { ...values, [field]: value };
+    setValues(next);
+    onChange(next);
+  }
+
+  return (
+    <form
+      id="merchant-editor"
+      className="space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
+      <Input
+        label="Name"
+        required
+        autoComplete="organization"
+        value={values.name}
+        onChange={(event) => update("name", event.target.value)}
+      />
+      <Input
+        label="Legal name"
+        autoComplete="organization"
+        value={values.legal_name}
+        onChange={(event) => update("legal_name", event.target.value)}
+      />
+      <Input
+        label="Registration number"
+        value={values.registration_number}
+        onChange={(event) => update("registration_number", event.target.value)}
+      />
+      <Input
+        label="Contact email"
+        type="email"
+        autoComplete="email"
+        required
+        value={values.contact_email}
+        onChange={(event) => update("contact_email", event.target.value)}
+      />
+      <Input
+        label="Contact phone"
+        type="tel"
+        autoComplete="tel"
+        required
+        value={values.contact_phone}
+        onChange={(event) => update("contact_phone", event.target.value)}
+      />
+      {formError && <p className="text-sm text-error">{formError}</p>}
+    </form>
   );
 }

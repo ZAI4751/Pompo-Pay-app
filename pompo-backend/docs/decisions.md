@@ -316,3 +316,94 @@ payment. A platform administrator already exists via `seed_admin.py` and can
 exercise that chain. User CRUD is a privilege-escalation surface and belongs
 in its own secured slice.
 
+## 2026-09-01 — Provider management and real-rail foundation
+
+### Payment core stays provider-neutral
+
+**Decision:** `PaymentService` selects a provider only through
+`select_provider` and talks to rails only through `ProviderAdapter`. Airtel,
+TNM, and bank modules are stub adapters that raise unavailable; they do not
+invent HTTP contracts.
+
+**Why:** Hardcoding rail branches in the payment core would have to be
+rewritten for every institution. Stubs keep the registry, catalog, and
+routing honest before credentials exist.
+
+### Secrets are references, never catalog values
+
+**Decision:** Provider rows store environment-variable *names* in
+`config_refs`. Runtime resolution checks whether the named secret is present
+and returns only booleans to the API. Seed scripts and logs never print
+secret values.
+
+**Why:** Encrypting secrets in ordinary PostgreSQL columns without a key
+hierarchy is not a justified design. Environment / secret-manager injection
+is the supported path for development, sandbox, and production.
+
+### Enablement is not the same as a live contract
+
+**Decision:** An adapter may be registered (`adapter_configured`) while
+`live_contract_ready` is false. Platform admins cannot enable those rails.
+Simulated adapters are the only rails that can process payments.
+
+**Why:** Registering a stub so the catalog and OpenAPI stay coherent must not
+let an operator send money to an invented URL.
+
+### Retry classification is bounded; identity stays in PostgreSQL
+
+**Decision:** Timeout, unavailable, and rate-limited failures are retryable
+up to three attempts. Authentication, invalid request, rejected, and
+duplicate failures are not. Each attempt reuses the transaction reference as
+the provider idempotency key. Redis is not the financial idempotency
+authority.
+
+**Why:** HTTP retries are not harmless. A new attempt number with a new
+provider idempotency key would create a second payment after a timeout.
+
+---
+
+## 2026-09-01 — M008: Live provider HTTP readiness without invented contracts
+
+### Do not invent provider APIs
+
+**Decision:** `AUTHORITATIVE_CONTRACTS` is empty. Airtel Money, TNM Mpamba, and
+bank adapters remain non-routable stubs until approved documentation is added
+to the repository.
+
+**Why:** Fabricated URLs, payloads, or signatures would be treated as real
+money movement. The HTTP client, mapper protocol, and credential resolver exist
+so the first real contract can be inserted without changing payment core.
+
+### HTTP retries stay at the payment-attempt layer
+
+**Decision:** `ProviderHttpClient` never retries POST/PUT/PATCH/DELETE. GET
+health probes may be marked retry-safe for classification only; the client
+still performs a single attempt. Payment retries remain operator/client
+re-invocations of `POST .../process` with the same transaction reference as the
+idempotency key.
+
+**Why:** A transport retry after a timeout can double-charge if the first
+request reached the institution.
+
+### Production rails cannot run in development
+
+**Decision:** Catalog `environment` `live`/`production` and
+`PROVIDER_<CODE>_ENVIRONMENT=production` are refused for credential use and
+enablement unless `APP_ENV=production`. Simulated adapters remain the
+development payment rails.
+
+**Why:** Sharing a `.env` that accidentally points at production credentials
+must not send sandbox traffic to a live institution.
+
+### Where a provider has no idempotency API
+
+**Decision:** POMPO always sends the transaction reference as
+`idempotency_key`. When a future mapper is added, it may copy that value into
+the provider's documented idempotency header. If the institution has no such
+mechanism, the limitation must be recorded in the mapper's contract `source`
+and operators must not retry after timeout without a status query.
+
+**Why:** POMPO cannot promise exactly-once at a rail that does not support it.
+Exactly-once business outcomes still depend on PostgreSQL uniqueness plus
+explicit status reconciliation (later).
+

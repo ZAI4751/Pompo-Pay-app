@@ -109,16 +109,17 @@ export default function BranchesPage() {
         </div>
       }
     >
-      <div className="mb-4 rounded-md border border-border bg-surface px-4 py-3">
-        <label htmlFor="merchant-filter" className="text-sm font-medium text-text">
-          Merchant
-        </label>
-        <select
-          id="merchant-filter"
-          className="mt-1.5 h-9 w-full max-w-sm rounded-sm border border-border-strong bg-surface px-3 text-sm text-text"
-          value={merchantId}
-          onChange={(event) => setMerchantId(event.target.value)}
-        >
+      <div className="mb-4 rounded-md border border-border bg-surface px-4 py-4">
+        <div className="flex max-w-sm flex-col gap-4">
+          <label htmlFor="merchant-filter" className="text-sm font-medium text-text">
+            Merchant
+          </label>
+          <select
+            id="merchant-filter"
+            className="h-9 w-full rounded-sm border border-border-strong bg-surface px-3 text-sm text-text"
+            value={merchantId}
+            onChange={(event) => setMerchantId(event.target.value)}
+          >
           {merchants.length === 0 && <option value="">No merchants</option>}
           {merchants.map((merchant) => (
             <option key={merchant.id} value={merchant.id}>
@@ -126,6 +127,7 @@ export default function BranchesPage() {
             </option>
           ))}
         </select>
+        </div>
       </div>
 
       {merchantsResult?.status === "error" && (
@@ -158,20 +160,24 @@ export default function BranchesPage() {
             <Th>ID</Th>
             <Th>Address</Th>
             <Th>Status</Th>
-            <Th />
+            <Th className="w-36" />
           </TableHead>
           <TableBody>
             {items.map((branch) => (
               <Tr key={branch.id}>
-                <Td className="font-medium">{branch.name}</Td>
+                <Td className="truncate font-medium" title={branch.name}>
+                  {branch.name}
+                </Td>
                 <Td>
                   <MonoId>{branch.id}</MonoId>
                 </Td>
-                <Td className="text-text-muted">{branch.address ?? "—"}</Td>
-                <Td>
+                <Td className="truncate text-text-muted" title={branch.address ?? undefined}>
+                  {branch.address ?? "—"}
+                </Td>
+                <Td className="whitespace-normal">
                   <ActiveBadge isActive={branch.is_active} />
                 </Td>
-                <Td className="text-right">
+                <Td className="max-w-none overflow-visible whitespace-nowrap text-right">
                   {canDelete && branch.is_active && (
                     <Button variant="ghost" size="sm" onClick={() => setDeactivate(branch)}>
                       Deactivate

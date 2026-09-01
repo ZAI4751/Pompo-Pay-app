@@ -52,9 +52,8 @@ class PaymentAttemptStatus(str, enum.Enum):
 class ProviderCode(str, enum.Enum):
     """Supported (or planned) payment provider integrations.
 
-    Real provider adapters are out of scope for the foundation milestones —
-    this enum exists so provider rows can be seeded and referenced by code
-    before any adapter is implemented.
+    Simulated codes are the only adapters that execute a payment. Airtel, TNM,
+    and bank codes have structured stub adapters until a real contract exists.
     """
 
     AIRTEL_MONEY = "airtel_money"
@@ -63,6 +62,26 @@ class ProviderCode(str, enum.Enum):
     FDH_BANK = "fdh_bank"
     STANDARD_BANK = "standard_bank"
     SIMULATED = "simulated"
+    SIMULATED_PENDING = "simulated_pending"
+    SIMULATED_FAILURE = "simulated_failure"
+    SIMULATED_TIMEOUT = "simulated_timeout"
+
+
+class ProviderType(str, enum.Enum):
+    """High-level rail family. Distinct from operational health."""
+
+    SIMULATED = "simulated"
+    MOBILE_MONEY = "mobile_money"
+    BANK = "bank"
+
+
+class ProviderHealthState(str, enum.Enum):
+    """Operational lifecycle. Registered is not the same as operational."""
+
+    ACTIVE = "active"
+    DISABLED = "disabled"
+    DEGRADED = "degraded"
+    UNAVAILABLE = "unavailable"
 
 
 class UserRoleCode(str, enum.Enum):

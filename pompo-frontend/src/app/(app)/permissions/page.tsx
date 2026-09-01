@@ -57,7 +57,9 @@ export default function PermissionsPage() {
                 <Td>
                   <MonoId>{permission.code}</MonoId>
                 </Td>
-                <Td className="text-text-muted">{permission.description}</Td>
+                <Td className="truncate text-text-muted" title={permission.description ?? undefined}>
+                  {permission.description}
+                </Td>
               </Tr>
             ))}
           </TableBody>

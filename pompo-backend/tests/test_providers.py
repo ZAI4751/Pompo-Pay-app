@@ -66,11 +66,14 @@ async def test_mock_adapters_normalize_success_pending_failure_and_timeout() -> 
 
 def test_registry_is_deterministic_and_exposes_capabilities() -> None:
     registry = ProviderRegistry()
+    codes = [provider.code for provider in registry.list()]
+    assert codes[0] == "simulated"
     assert registry.get("simulated").code == "simulated"
     assert registry.capabilities("simulated").supports_status_query is True
-    assert [provider.code for provider in registry.list()] == ["simulated"]
+    assert "airtel_money" in codes
+    assert registry.get("airtel_money").live_contract_ready is False
     with pytest.raises(ProviderError) as missing:
-        registry.get("airtel_money")
+        registry.get("missing_rail")
     assert missing.value.retryable is True
 
 
@@ -136,4 +139,5 @@ async def test_payment_service_integrates_provider_result_into_attempt_and_state
     assert processed.status is TransactionStatus.SUCCESS
     assert processed.attempts[0].status.value == "success"
     assert processed.attempts[0].provider_reference == f"simulated-{payment.reference}"
+    assert processed.attempts[0].provider_request["idempotency_key"] == payment.reference
     assert processed.attempts[0].provider_request["amount"] == "10.00"

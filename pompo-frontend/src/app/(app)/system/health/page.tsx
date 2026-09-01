@@ -6,6 +6,7 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { HealthBadge } from "@/components/ui/StatusBadge";
 import { MockDataBadge } from "@/components/ui/MockDataBadge";
+import { SkeletonCard } from "@/components/ui/SkeletonCard";
 import { healthService } from "@/lib/api/services/health";
 import { useAuth } from "@/lib/auth/AuthContext";
 import type { HealthResponse } from "@/lib/types/health";
@@ -36,7 +37,12 @@ export default function HealthPage() {
       breadcrumb={[{ label: "System" }, { label: "Health" }]}
       actions={isDemoSession ? <MockDataBadge /> : undefined}
     >
-      {result === null && <p className="text-sm text-text-muted">Checking /health…</p>}
+      {result === null && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      )}
 
       {result?.status === "error" && (
         <ErrorState

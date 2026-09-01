@@ -9,12 +9,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.deps import CurrentUserDep, DbSessionDep, require_permission
 from app.payments.providers import ProviderError
 from app.payments.registry import ProviderRegistry
+from app.api.v1.provider_views import catalog_response
 from app.schemas.payment import (
     PaymentCreate,
     PaymentResponse,
     ProviderCatalogResponse,
     ProviderCatalogUpdate,
-    ProviderCapabilityResponse,
 )
 from app.services.payment import (
     PaymentConflictError,
@@ -27,6 +27,7 @@ from app.services.providers import (
     ProviderCatalogConflictError,
     ProviderCatalogError,
     ProviderCatalogForbiddenError,
+    ProviderCatalogInvalidError,
     ProviderCatalogNotFoundError,
     ProviderCatalogService,
 )
@@ -50,24 +51,6 @@ ProviderCatalogServiceDep = Annotated[
 ]
 
 
-def _catalog_response(
-    provider, service: ProviderCatalogService
-) -> ProviderCatalogResponse:
-    capabilities = service.capabilities_for(provider)
-    return ProviderCatalogResponse(
-        code=provider.code.value,
-        display_name=provider.display_name,
-        is_active=provider.is_active,
-        is_simulated=provider.is_simulated,
-        environment=provider.environment,
-        priority=provider.priority,
-        supported_currencies=list(provider.supported_currencies or []),
-        supported_payment_methods=list(provider.supported_payment_methods or []),
-        capabilities=ProviderCapabilityResponse(**capabilities),
-        adapter_configured=provider.code.value in service.adapter_codes(),
-    )
-
-
 def _catalog_error(exc: ProviderCatalogError) -> HTTPException:
     if isinstance(exc, ProviderCatalogNotFoundError):
         return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
@@ -75,6 +58,8 @@ def _catalog_error(exc: ProviderCatalogError) -> HTTPException:
         return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     if isinstance(exc, ProviderCatalogForbiddenError):
         return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    if isinstance(exc, ProviderCatalogInvalidError):
+        return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
     return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
@@ -145,7 +130,7 @@ async def list_providers(
         providers = await service.list_catalog(current_user)
     except ProviderCatalogError as exc:
         raise _catalog_error(exc) from exc
-    return [_catalog_response(provider, service) for provider in providers]
+    return [await catalog_response(provider, service) for provider in providers]
 
 
 @router.get("/providers/{provider_code}", response_model=ProviderCatalogResponse)
@@ -156,7 +141,7 @@ async def get_provider(
         provider = await service.get_catalog_entry(current_user, provider_code)
     except ProviderCatalogError as exc:
         raise _catalog_error(exc) from exc
-    return _catalog_response(provider, service)
+    return await catalog_response(provider, service)
 
 
 @router.patch("/providers/{provider_code}", response_model=ProviderCatalogResponse)
@@ -172,7 +157,7 @@ async def update_provider(
         )
     except ProviderCatalogError as exc:
         raise _catalog_error(exc) from exc
-    return _catalog_response(provider, service)
+    return await catalog_response(provider, service)
 
 
 @router.get(

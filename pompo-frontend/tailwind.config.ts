@@ -77,6 +77,7 @@ const config: Config = {
         DEFAULT: "var(--shadow-card)",
         md: "var(--shadow-glow)",
         glow: "var(--shadow-glow)",
+        luminous: "var(--shadow-luminous)",
       },
       letterSpacing: {
         brand: "0.18em",

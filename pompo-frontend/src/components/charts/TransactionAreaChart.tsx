@@ -41,6 +41,12 @@ export function TransactionAreaChart({ data, metric }: AreaChartProps) {
       role="img"
       aria-label={metric === "volume" ? "Transaction volume trend" : "Transaction count trend"}
     >
+      <defs>
+        <linearGradient id="pompo-chart-fill" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="var(--color-primary)" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="var(--color-primary)" stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
       {[0.25, 0.5, 0.75].map((frac) => (
         <line
           key={frac}
@@ -52,15 +58,28 @@ export function TransactionAreaChart({ data, metric }: AreaChartProps) {
           strokeWidth="1"
         />
       ))}
-      <path d={area} className="fill-primary/15" />
-      <path d={line} fill="none" className="stroke-primary" strokeWidth="2.2" />
-      <path d={failLine} fill="none" className="stroke-error/70" strokeWidth="1.4" strokeDasharray="4 4" />
+      <path d={area} fill="url(#pompo-chart-fill)" className="motion-safe:animate-fade-in" />
+      <path
+        d={line}
+        fill="none"
+        className="stroke-primary motion-safe:animate-fade-in"
+        strokeWidth="2.2"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      <path
+        d={failLine}
+        fill="none"
+        className="stroke-error/70"
+        strokeWidth="1.4"
+        strokeDasharray="4 4"
+      />
       {data.map((point, index) => {
         const x = (index / Math.max(data.length - 1, 1)) * width;
         const value = values[index] ?? 0;
         const y = plotHeight - (value / max) * (plotHeight - 16) - 8;
         return (
-          <g key={point.label}>
+          <g key={`${point.label}-${metric}`}>
             <circle cx={x} cy={y} r="2.4" className="fill-primary" />
             <text
               x={x}

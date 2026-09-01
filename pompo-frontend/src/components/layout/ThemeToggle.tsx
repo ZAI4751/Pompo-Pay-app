@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { Moon, Sun } from "lucide-react";
+import { Monitor, Moon, Sun } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
 
 export function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   // Avoid a hydration mismatch: the server can't know the persisted theme.
@@ -17,13 +17,23 @@ export function ThemeToggle() {
   useEffect(() => setMounted(true), []);
   if (!mounted) return <div className="h-9 w-9" />;
 
-  const isDark = theme === "dark";
+  const nextTheme = theme === "system" ? "light" : theme === "light" ? "dark" : "system";
+  const label =
+    theme === "system"
+      ? `Theme follows system (${resolvedTheme ?? "light"}). Switch to light`
+      : theme === "light"
+        ? "Switch to dark mode"
+        : "Follow system theme";
+
   return (
-    <IconButton
-      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      onClick={() => setTheme(isDark ? "light" : "dark")}
-    >
-      {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    <IconButton aria-label={label} title={label} onClick={() => setTheme(nextTheme)}>
+      {theme === "system" ? (
+        <Monitor className="h-4 w-4" />
+      ) : resolvedTheme === "dark" ? (
+        <Moon className="h-4 w-4" />
+      ) : (
+        <Sun className="h-4 w-4" />
+      )}
     </IconButton>
   );
 }

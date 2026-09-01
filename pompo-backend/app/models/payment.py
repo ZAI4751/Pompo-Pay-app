@@ -29,7 +29,17 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import GUID, Base, SoftDeleteMixin, TimestampMixin, UUIDPrimaryKeyMixin
-from app.models.enums import PaymentAttemptStatus, ProviderCode, TransactionStatus
+from app.models.enums import (
+    PaymentAttemptStatus,
+    ProviderCode,
+    ProviderHealthState,
+    ProviderType,
+    TransactionStatus,
+)
+
+
+def _enum_values(enum_cls: type) -> list[str]:
+    return [member.value for member in enum_cls]
 
 if TYPE_CHECKING:
     from app.models.organization import Branch, Merchant, Till
@@ -47,10 +57,34 @@ class PaymentProvider(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         unique=True,
     )
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    provider_type: Mapped[ProviderType] = mapped_column(
+        SAEnum(
+            ProviderType,
+            name="provider_type",
+            native_enum=False,
+            length=32,
+            values_callable=_enum_values,
+        ),
+        default=ProviderType.SIMULATED,
+        nullable=False,
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_simulated: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     environment: Mapped[str] = mapped_column(String(32), default="sandbox", nullable=False)
+    health_state: Mapped[ProviderHealthState] = mapped_column(
+        SAEnum(
+            ProviderHealthState,
+            name="provider_health_state",
+            native_enum=False,
+            length=32,
+            values_callable=_enum_values,
+        ),
+        default=ProviderHealthState.ACTIVE,
+        nullable=False,
+        index=True,
+    )
     priority: Mapped[int] = mapped_column(Integer, default=100, nullable=False, index=True)
+    config_refs: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     supported_currencies: Mapped[list[str]] = mapped_column(
         JSON, nullable=False, default=lambda: ["MWK"]
     )
@@ -161,6 +195,8 @@ class PaymentAttempt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     provider_request: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     provider_response: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    failure_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    retryable: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     failure_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     initiated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(

@@ -13,6 +13,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from structlog.contextvars import get_contextvars
 
 from app.core.logging import get_logger
 from app.models import (
@@ -28,6 +29,8 @@ from app.models import (
 from app.models.enums import PaymentAttemptStatus, TransactionStatus
 from app.payments.providers import ProviderError, ProviderOutcome, ProviderPaymentRequest
 from app.payments.registry import ProviderRegistry
+from app.payments.retry import should_open_new_attempt
+from app.payments.routing import ProviderRoutingError, RoutingRequest, select_provider
 from app.payments.state_machine import InvalidTransactionTransition, validate_transition
 from app.repositories.payment import (
     PaymentAttemptRepository,
@@ -82,9 +85,25 @@ class PaymentService:
                 raise PaymentConflictError("Idempotency key was used with a different request")
             return existing
 
-        provider = await self._providers.get_active_by_code(values["provider_code"])
-        if provider is None:
-            raise PaymentInvalidError("Payment provider is unavailable")
+        try:
+            provider = select_provider(
+                await self._providers.list_catalog(),
+                RoutingRequest(
+                    payment_method=values["payment_method"],
+                    currency=values["currency"],
+                    provider_code=values.get("provider_code"),
+                ),
+                self._registry,
+            )
+        except ProviderRoutingError as exc:
+            raise PaymentInvalidError(str(exc)) from exc
+        logger.info(
+            "provider_selected",
+            provider_code=provider.code.value,
+            payment_method=values["payment_method"],
+            currency=values["currency"],
+            priority=provider.priority,
+        )
         transaction = Transaction(
             merchant_id=merchant_id,
             branch_id=values["branch_id"],
@@ -208,15 +227,26 @@ class PaymentService:
     async def process_payment(self, actor: User, reference: str) -> Transaction:
         await self._require(actor, "transactions:update")
         transaction = await self.get_payment(actor, reference)
+        if transaction.status in {
+            TransactionStatus.SUCCESS,
+            TransactionStatus.REFUNDED,
+            TransactionStatus.CANCELLED,
+        }:
+            raise PaymentInvalidError("Terminal transactions cannot be processed")
         if transaction.provider_id is None:
             raise PaymentInvalidError("Transaction has no payment provider")
         provider = await self._session.get(PaymentProvider, transaction.provider_id)
-        if provider is None:
+        if provider is None or not provider.is_active:
             raise PaymentInvalidError("Payment provider is unavailable")
         adapter = self._registry.get(provider.code.value)
+        if not adapter.live_contract_ready:
+            raise PaymentInvalidError("Payment provider is unavailable")
+        if not adapter.capabilities.supports_push_payment:
+            raise PaymentInvalidError("Provider does not support payment initiation")
         if not transaction.attempts:
             raise PaymentInvalidError("Transaction has no payment attempt")
-        attempt = transaction.attempts[-1]
+        attempt = await self._attempt_for_processing(transaction)
+        correlation_id = get_contextvars().get("request_id")
         request = ProviderPaymentRequest(
             reference=transaction.reference,
             amount=transaction.amount,
@@ -224,40 +254,76 @@ class PaymentService:
             merchant_id=str(transaction.merchant_id),
             customer_phone=transaction.customer_phone,
             narration=transaction.description,
-            idempotency_key=f"{transaction.reference}:{attempt.attempt_number}",
+            idempotency_key=transaction.reference,
+            rail_environment=provider.environment,
+            metadata={
+                "attempt_number": str(attempt.attempt_number),
+                "attempt_id": str(attempt.id),
+            },
         )
         request_data = asdict(request)
         request_data["amount"] = str(request.amount)
         attempt.provider_request = request_data
+        logger.info(
+            "provider_initiation",
+            reference=reference,
+            provider=provider.code.value,
+            attempt_number=attempt.attempt_number,
+        )
         started = monotonic()
         try:
             result = await adapter.initiate_payment(request)
         except ProviderError as exc:
+            attempt.duration_ms = int((monotonic() - started) * 1000)
+            attempt.completed_at = datetime.now(UTC)
+            attempt.failure_code = exc.code.value
+            attempt.retryable = exc.retryable
+            attempt.failure_reason = str(exc)
+            attempt.provider_status = exc.code.value
             attempt.status = (
                 PaymentAttemptStatus.TIMEOUT
                 if exc.code.value == "timeout"
                 else PaymentAttemptStatus.FAILED
             )
-            attempt.failure_reason = str(exc)
-            attempt.provider_status = exc.code.value
-            await self._advance_to(
-                transaction,
-                TransactionStatus.TIMEOUT
-                if exc.code.value == "timeout"
-                else TransactionStatus.FAILED,
+            exhausted = not should_open_new_attempt(
+                attempt_number=attempt.attempt_number, retryable=exc.retryable
             )
+            if exhausted:
+                await self._advance_to(
+                    transaction,
+                    TransactionStatus.TIMEOUT
+                    if exc.code.value == "timeout"
+                    else TransactionStatus.FAILED,
+                )
+            else:
+                await self._advance_to(transaction, TransactionStatus.PROCESSING)
             await self._session.commit()
-            logger.warning(
-                "provider_failure",
+            log = logger.warning if exhausted else logger.info
+            log(
+                "provider_timeout" if exc.code.value == "timeout" else "provider_failure",
                 reference=reference,
                 provider=provider.code.value,
+                attempt_number=attempt.attempt_number,
+                failure_code=exc.code.value,
                 retryable=exc.retryable,
+                retry_class=exc.retry_class.value,
             )
             return transaction
         attempt.duration_ms = int((monotonic() - started) * 1000)
+        attempt.completed_at = datetime.now(UTC)
         attempt.provider_reference = result.provider_reference
         attempt.provider_status = result.provider_status
-        attempt.provider_response = {key: str(value) for key, value in asdict(result).items()}
+        attempt.failure_code = result.error_code.value if result.error_code else None
+        attempt.retryable = result.retryable
+        stored = asdict(result)
+        stored.pop("error_code", None)
+        attempt.provider_response = {
+            key: None if value is None else str(value) for key, value in stored.items()
+        }
+        if result.error_code is not None:
+            attempt.provider_response["error_code"] = result.error_code.value
+        if correlation_id and not attempt.provider_response.get("correlation_id"):
+            attempt.provider_response["correlation_id"] = str(correlation_id)
         attempt.status = self._attempt_status(result.outcome)
         if result.message:
             attempt.failure_reason = result.message
@@ -271,18 +337,69 @@ class PaymentService:
         await self._advance_to(transaction, target)
         await self._session.commit()
         logger.info(
-            "provider_payment_result",
+            "provider_success" if result.outcome is ProviderOutcome.SUCCESS else "provider_payment_result",
             reference=reference,
             provider=provider.code.value,
+            attempt_number=attempt.attempt_number,
             outcome=result.outcome.value,
         )
         return transaction
 
+    async def _attempt_for_processing(self, transaction: Transaction) -> PaymentAttempt:
+        attempt = transaction.attempts[-1]
+        if attempt.status is PaymentAttemptStatus.INITIATED:
+            return attempt
+        if attempt.status is PaymentAttemptStatus.PENDING:
+            raise PaymentInvalidError("Payment is already pending with the provider")
+        if attempt.status is PaymentAttemptStatus.SUCCESS:
+            raise PaymentInvalidError("Payment attempt already succeeded")
+        if should_open_new_attempt(
+            attempt_number=attempt.attempt_number, retryable=bool(attempt.retryable)
+        ):
+            logger.info(
+                "provider_retry",
+                reference=transaction.reference,
+                attempt_number=attempt.attempt_number + 1,
+                previous_failure=attempt.failure_code,
+            )
+            nxt = PaymentAttempt(
+                transaction_id=transaction.id,
+                provider_id=transaction.provider_id,
+                attempt_number=attempt.attempt_number + 1,
+                status=PaymentAttemptStatus.INITIATED,
+                initiated_at=datetime.now(UTC),
+            )
+            nxt.transaction = transaction
+            self._session.add(nxt)
+            await self._session.flush()
+            return nxt
+        raise PaymentInvalidError("Retry is not permitted for this payment")
+
     async def _advance_to(self, transaction: Transaction, target: TransactionStatus) -> None:
         if transaction.status is target:
             return
-        path = [TransactionStatus.PENDING, TransactionStatus.PROCESSING, target]
-        if target is TransactionStatus.PENDING:
+        current = transaction.status
+        if current is TransactionStatus.CREATED:
+            if target is TransactionStatus.PENDING:
+                path = [TransactionStatus.PENDING]
+            elif target is TransactionStatus.PROCESSING:
+                path = [TransactionStatus.PENDING, TransactionStatus.PROCESSING]
+            elif target is TransactionStatus.CANCELLED:
+                path = [TransactionStatus.CANCELLED]
+            else:
+                path = [
+                    TransactionStatus.PENDING,
+                    TransactionStatus.PROCESSING,
+                    target,
+                ]
+        elif current is TransactionStatus.PENDING:
+            if target is TransactionStatus.CANCELLED:
+                path = [TransactionStatus.CANCELLED]
+            elif target is TransactionStatus.PROCESSING:
+                path = [TransactionStatus.PROCESSING]
+            else:
+                path = [TransactionStatus.PROCESSING, target]
+        else:
             path = [target]
         for next_status in path:
             if transaction.status is next_status:

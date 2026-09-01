@@ -110,22 +110,26 @@ export default function RolesPage() {
           <TableHead>
             <Th>Role</Th>
             <Th>Type</Th>
-            <Th>Permissions</Th>
+            <Th className="text-right">Permissions</Th>
             <Th>Status</Th>
-            <Th />
+            <Th className="w-36" />
           </TableHead>
           <TableBody>
             {result.data.map((role) => (
               <Tr key={role.id}>
                 <Td>
-                  <p className="flex items-center gap-1.5 font-medium text-text">
-                    <ShieldCheck className="h-3.5 w-3.5 text-text-subtle" aria-hidden="true" />
-                    {role.name}
+                  <p className="flex min-w-0 items-center gap-1.5 font-medium text-text">
+                    <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-text-subtle" aria-hidden="true" />
+                    <span className="truncate" title={role.name}>
+                      {role.name}
+                    </span>
                   </p>
-                  <p className="text-text-muted">{role.description}</p>
+                  <p className="truncate text-text-muted" title={role.description ?? undefined}>
+                    {role.description}
+                  </p>
                   <MonoId>{role.code}</MonoId>
                 </Td>
-                <Td>
+                <Td className="whitespace-normal">
                   {role.is_system_role ? (
                     <Badge tone="info" className="gap-1">
                       <Lock className="h-3 w-3" /> System
@@ -134,11 +138,11 @@ export default function RolesPage() {
                     <Badge tone="neutral">Custom</Badge>
                   )}
                 </Td>
-                <Td className="tabular-nums">{role.permission_codes.length}</Td>
-                <Td>
+                <Td className="text-right tabular-nums">{role.permission_codes.length}</Td>
+                <Td className="whitespace-normal">
                   <ActiveBadge isActive={role.is_active} />
                 </Td>
-                <Td className="text-right">
+                <Td className="max-w-none overflow-visible whitespace-nowrap text-right">
                   <Link href={`/roles/${role.id}`} className="text-sm font-medium text-primary hover:underline">
                     View
                   </Link>

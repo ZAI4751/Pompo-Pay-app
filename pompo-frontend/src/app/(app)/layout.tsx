@@ -8,7 +8,6 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { AppShellProvider } from "@/components/layout/AppShellContext";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -23,15 +22,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (status === "loading") {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-3 bg-background">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background pompo-aurora">
+        <div className="h-10 w-48">
+          <div className="skeleton h-3 w-24 rounded" />
+          <div className="skeleton mt-3 h-8 w-40 rounded" />
+        </div>
         <p className="text-xs font-medium uppercase tracking-[0.16em] text-text-subtle">Loading control plane</p>
       </div>
     );
   }
 
   if (status === "unauthenticated") {
-    return null;
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <p className="text-sm text-text-muted">Redirecting to sign in…</p>
+      </div>
+    );
   }
 
   return (

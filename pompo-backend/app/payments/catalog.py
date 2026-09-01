@@ -1,8 +1,8 @@
-"""Database-backed sandbox provider catalog.
+"""Database-backed provider catalog.
 
 Identifiers here must match ``ProviderCode`` and the in-process registry.
-Live Airtel/TNM/bank adapters are not registered; those rows stay inactive
-and simulated until a later milestone.
+Live Airtel/TNM/bank adapters are structured stubs; those rows stay inactive
+until a later milestone implements a real contract.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.base import AppEnvironment
-from app.models.enums import ProviderCode
+from app.models.enums import ProviderCode, ProviderHealthState, ProviderType
 from app.models.payment import PaymentProvider
 from app.payments.providers import ProviderCapabilities
 from app.payments.registry import ProviderRegistry
@@ -55,83 +55,158 @@ PLANNED_CAPABILITIES = asdict(
 class ProviderCatalogDefinition:
     code: ProviderCode
     display_name: str
+    provider_type: ProviderType
     is_active: bool
     is_simulated: bool
     environment: str
+    health_state: ProviderHealthState
     priority: int
     supported_currencies: tuple[str, ...]
     supported_payment_methods: tuple[str, ...]
     capabilities: dict[str, bool]
+    config_refs: dict[str, str]
+
+
+def _refs(code: str) -> dict[str, str]:
+    prefix = f"PROVIDER_{code.upper()}"
+    return {
+        "base_url_env": f"{prefix}_BASE_URL",
+        "timeout_env": f"{prefix}_TIMEOUT_SECONDS",
+        "credential_env": f"{prefix}_CREDENTIAL_REF",
+        "webhook_secret_env": f"{prefix}_WEBHOOK_SECRET_REF",
+    }
 
 
 PROVIDER_CATALOG: tuple[ProviderCatalogDefinition, ...] = (
     ProviderCatalogDefinition(
         code=ProviderCode.SIMULATED,
         display_name="Simulated sandbox",
+        provider_type=ProviderType.SIMULATED,
         is_active=True,
         is_simulated=True,
         environment="sandbox",
+        health_state=ProviderHealthState.ACTIVE,
         priority=1,
         supported_currencies=("MWK",),
-        supported_payment_methods=("mobile_money",),
+        supported_payment_methods=("mobile_money", "bank"),
         capabilities=SANDBOX_CAPABILITIES,
+        config_refs=_refs("simulated"),
     ),
     ProviderCatalogDefinition(
-        code=ProviderCode.AIRTEL_MONEY,
-        display_name="Airtel Money (sandbox placeholder — not live)",
+        code=ProviderCode.SIMULATED_PENDING,
+        display_name="Simulated pending",
+        provider_type=ProviderType.SIMULATED,
         is_active=False,
         is_simulated=True,
         environment="sandbox",
+        health_state=ProviderHealthState.DISABLED,
+        priority=2,
+        supported_currencies=("MWK",),
+        supported_payment_methods=("mobile_money",),
+        capabilities=SANDBOX_CAPABILITIES,
+        config_refs=_refs("simulated_pending"),
+    ),
+    ProviderCatalogDefinition(
+        code=ProviderCode.SIMULATED_FAILURE,
+        display_name="Simulated failure",
+        provider_type=ProviderType.SIMULATED,
+        is_active=False,
+        is_simulated=True,
+        environment="sandbox",
+        health_state=ProviderHealthState.DISABLED,
+        priority=3,
+        supported_currencies=("MWK",),
+        supported_payment_methods=("mobile_money",),
+        capabilities=SANDBOX_CAPABILITIES,
+        config_refs=_refs("simulated_failure"),
+    ),
+    ProviderCatalogDefinition(
+        code=ProviderCode.SIMULATED_TIMEOUT,
+        display_name="Simulated timeout",
+        provider_type=ProviderType.SIMULATED,
+        is_active=False,
+        is_simulated=True,
+        environment="sandbox",
+        health_state=ProviderHealthState.DISABLED,
+        priority=4,
+        supported_currencies=("MWK",),
+        supported_payment_methods=("mobile_money",),
+        capabilities=SANDBOX_CAPABILITIES,
+        config_refs=_refs("simulated_timeout"),
+    ),
+    ProviderCatalogDefinition(
+        code=ProviderCode.AIRTEL_MONEY,
+        display_name="Airtel Money (live contract not implemented)",
+        provider_type=ProviderType.MOBILE_MONEY,
+        is_active=False,
+        is_simulated=True,
+        environment="sandbox",
+        health_state=ProviderHealthState.UNAVAILABLE,
         priority=10,
         supported_currencies=("MWK",),
         supported_payment_methods=("mobile_money",),
         capabilities=PLANNED_CAPABILITIES,
+        config_refs=_refs("airtel_money"),
     ),
     ProviderCatalogDefinition(
         code=ProviderCode.TNM_MPAMBA,
-        display_name="TNM Mpamba (sandbox placeholder — not live)",
+        display_name="TNM Mpamba (live contract not implemented)",
+        provider_type=ProviderType.MOBILE_MONEY,
         is_active=False,
         is_simulated=True,
         environment="sandbox",
+        health_state=ProviderHealthState.UNAVAILABLE,
         priority=20,
         supported_currencies=("MWK",),
         supported_payment_methods=("mobile_money",),
         capabilities=PLANNED_CAPABILITIES,
+        config_refs=_refs("tnm_mpamba"),
     ),
     ProviderCatalogDefinition(
         code=ProviderCode.NATIONAL_BANK,
-        display_name="National Bank (sandbox placeholder — not live)",
+        display_name="National Bank (live contract not implemented)",
+        provider_type=ProviderType.BANK,
         is_active=False,
         is_simulated=True,
         environment="sandbox",
+        health_state=ProviderHealthState.UNAVAILABLE,
         priority=30,
         supported_currencies=("MWK",),
         supported_payment_methods=("bank",),
         capabilities=PLANNED_CAPABILITIES,
+        config_refs=_refs("national_bank"),
     ),
     ProviderCatalogDefinition(
         code=ProviderCode.FDH_BANK,
-        display_name="FDH Bank (sandbox placeholder — not live)",
+        display_name="FDH Bank (live contract not implemented)",
+        provider_type=ProviderType.BANK,
         is_active=False,
         is_simulated=True,
         environment="sandbox",
+        health_state=ProviderHealthState.UNAVAILABLE,
         priority=40,
         supported_currencies=("MWK",),
         supported_payment_methods=("bank",),
         capabilities=PLANNED_CAPABILITIES,
+        config_refs=_refs("fdh_bank"),
     ),
     ProviderCatalogDefinition(
         code=ProviderCode.STANDARD_BANK,
-        display_name="Standard Bank (sandbox placeholder — not live)",
+        display_name="Standard Bank (live contract not implemented)",
+        provider_type=ProviderType.BANK,
         is_active=False,
         is_simulated=True,
         environment="sandbox",
+        health_state=ProviderHealthState.UNAVAILABLE,
         priority=50,
         supported_currencies=("MWK",),
         supported_payment_methods=("bank",),
         capabilities=PLANNED_CAPABILITIES,
+        config_refs=_refs("standard_bank"),
     ),
 )
+
+CATALOG_BY_CODE = {definition.code: definition for definition in PROVIDER_CATALOG}
 
 
 async def seed_provider_catalog(
@@ -149,18 +224,26 @@ async def seed_provider_catalog(
         )
         if existing is not None:
             continue
-        adapter_configured = definition.code.value in {adapter.code for adapter in registry.list()}
+        adapter = registry.get_optional(definition.code.value)
+        adapter_ready = adapter is not None and adapter.live_contract_ready
         session.add(
             PaymentProvider(
                 code=definition.code,
                 display_name=definition.display_name,
-                is_active=definition.is_active and adapter_configured,
+                provider_type=definition.provider_type,
+                is_active=definition.is_active and adapter_ready,
                 is_simulated=definition.is_simulated,
                 environment=definition.environment,
+                health_state=(
+                    ProviderHealthState.ACTIVE
+                    if definition.is_active and adapter_ready
+                    else definition.health_state
+                ),
                 priority=definition.priority,
                 supported_currencies=list(definition.supported_currencies),
                 supported_payment_methods=list(definition.supported_payment_methods),
                 capabilities=dict(definition.capabilities),
+                config_refs=dict(definition.config_refs),
             )
         )
         created += 1

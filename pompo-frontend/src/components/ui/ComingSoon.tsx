@@ -10,7 +10,7 @@ export function ComingSoon({ feature }: { feature: string }) {
           <Construction className="h-6 w-6" aria-hidden="true" />
         </div>
         <p className="text-sm font-semibold text-text">{feature} is reserved</p>
-        <p className="max-w-md text-sm text-text-muted">
+        <p className="max-w-md break-words text-sm text-text-muted">
           MOCK — BACKEND NOT YET AVAILABLE. This surface is in the information architecture so
           operations can navigate here later. Nothing here is live production data.
         </p>
@@ -28,7 +28,7 @@ export function BackendUnavailable({ feature, detail }: { feature: string; detai
           MOCK — BACKEND NOT YET AVAILABLE
         </p>
         <p className="text-sm font-semibold text-text">{feature}</p>
-        <p className="max-w-lg text-sm text-text-muted">{detail}</p>
+        <p className="max-w-lg break-words text-sm text-text-muted">{detail}</p>
       </CardBody>
     </Card>
   );

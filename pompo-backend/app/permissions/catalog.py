@@ -40,6 +40,7 @@ PERMISSIONS: tuple[PermissionDefinition, ...] = (
     PermissionDefinition("tills:update", "Update tills."),
     PermissionDefinition("tills:delete", "Deactivate tills."),
     PermissionDefinition("providers:read", "View the payment provider catalog."),
+    PermissionDefinition("providers:create", "Register payment provider catalog entries."),
     PermissionDefinition("providers:update", "Enable, disable, or prioritize payment providers."),
     PermissionDefinition("transactions:read", "View transactions."),
     PermissionDefinition("transactions:create", "Create transactions."),

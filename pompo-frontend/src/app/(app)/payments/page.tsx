@@ -13,6 +13,7 @@ import { paymentsService } from "@/lib/api/services/payments";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { usePermissions } from "@/lib/auth/usePermissions";
 import { useToast } from "@/components/ui/Toast";
+import { celebrateSuccess } from "@/lib/celebrate";
 import { formatMwk } from "@/lib/format/money";
 import type { Payment } from "@/lib/types/payment";
 import type { ApiResult } from "@/lib/types/common";
@@ -60,8 +61,14 @@ export default function PaymentsPage() {
   async function process() {
     const processed = await paymentsService.process(reference.trim());
     setResult(processed);
-    if (processed.status === "success") push("Payment process requested", "success");
-    else push(processed.message, "error");
+    if (processed.status === "success") {
+      push("Payment processed", "success");
+      if (processed.data.status === "success") {
+        void celebrateSuccess();
+      }
+    } else {
+      push(processed.message, "error");
+    }
   }
 
   return (

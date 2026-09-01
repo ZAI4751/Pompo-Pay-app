@@ -181,8 +181,8 @@ area rather than one giant file:
 - **No provider-specific logic lives in these models.** `PaymentProvider`
   and `PaymentAttempt` are storage shape only. M007 has since added the
   adapter layer (`app/payments/providers.py`, `adapters.py`, `registry.py`),
-  but every registered adapter is a deterministic sandbox mock — turning
-  "call Airtel Money" into a real HTTP call remains a later milestone (M008+).
+  but adapters are provider-neutral; live Airtel/TNM/bank HTTP remains blocked
+  on authoritative contracts (M008 stopped at that boundary).
 - **RolePermission is a full entity**, not a bare association table, so
   grants can carry `granted_at` and future audit metadata.
 
@@ -349,10 +349,64 @@ supported operations, and normalized provider errors expose retryability without
 leaking provider-specific exceptions into the payment core. Mock adapters cover
 success, pending, rejection, and timeout outcomes. Provider request/response
 metadata and normalized status are retained on payment attempts. Live Airtel,
-TNM, and bank integrations remain deferred until approved credentials and
-provider contracts exist. The default registry contains only the `simulated`
-sandbox adapter. Database catalog rows for planned rails are seeded as inactive
-simulated placeholders and cannot be enabled without a registered adapter.
+TNM, and bank HTTP contracts remain unimplemented (structured stubs only).
+M008 added outbound HTTP, credential-reference resolution, and
+sandbox/production gating so a real contract can be inserted later without
+rewriting payment core.
+
+## M008 — Live provider integration readiness
+
+No authoritative Airtel Money, TNM Mpamba, or bank API contract exists in this
+repository. Live rails therefore stay on `UnconfiguredRailAdapter` and are not
+routable. The insertion point is `AUTHORITATIVE_CONTRACTS` in
+`app/payments/contracts.py`: a mapper is registered only after approved
+endpoint, authentication, payload, and signature documentation is present.
+
+Outbound calls go through `ProviderHttpClient` (connect/read/write/pool
+timeouts, connection pooling, correlation via `X-Request-ID`, structured logs
+without bodies or secrets). Unsafe HTTP methods cannot be marked retry-safe;
+the HTTP layer does not retry POST. Credentials are resolved from environment
+variable *references*; production rails and production credentials are refused
+unless `APP_ENV=production`. Adapters never mutate transaction state.
+
+Webhook processing is not implemented. `ProviderResult` may carry
+`provider_transaction_id` and `correlation_id` for a later callback engine.
+
+## Provider management and routing
+
+Payment core stays provider-neutral:
+
+```text
+PaymentService → ProviderRouter → ProviderRegistry → ProviderAdapter
+```
+
+There is no Airtel/TNM/bank branching in `PaymentService`. Routing is
+deterministic: explicit `provider_code` when supplied, otherwise lowest
+`priority` among active, capable, live-contract-ready rows that match method,
+currency, and (optional) environment. Disabled and unavailable rails are
+skipped. Stub rails cannot be enabled and cannot process payments.
+
+Catalog administration is `/api/v1/providers` (list/create/get/patch/enable/
+disable/health). `/api/v1/payments/providers` remains as a compatibility read/
+patch surface for POS clients. Mutations require a platform administrator with
+`providers:update` (create requires `providers:create`). Responses never include
+secret values; configuration status is booleans such as `auth_configured`.
+
+Provider secrets live in environment variables referenced by name
+(`PROVIDER_<CODE>_CREDENTIAL_REF` points at another env var). The catalog stores
+only those reference names in `config_refs`. Simulated adapters need no secrets.
+
+Lifecycle `health_state` is `active`, `disabled`, `degraded`, or `unavailable`.
+Registered is not operational. Adapter `health_check` is optional; stubs report
+that they do not support a live probe.
+
+Provider attempts use the transaction reference as the stable provider
+idempotency key. Retryable failures (timeout, unavailable, rate limited) may
+open a new `PaymentAttempt` up to three times; the state machine remains
+authoritative. Non-retryable failures fail the transaction immediately.
+
+Development seed: `scripts/seed_providers.py` (idempotent, refused in
+production, never prints secrets).
 
 ## Operational payment chain (tills + provider catalog)
 
@@ -361,9 +415,8 @@ Till administration is exposed under `/api/v1/organization` with dedicated
 cannot be changed after creation so transaction history stays coherent.
 
 The provider catalog is database-backed (`payment_providers`) and listed by
-`GET /api/v1/payments/providers`. Catalog codes are `ProviderCode` values.
-Development provisioning is `scripts/seed_providers.py`: idempotent, secret-free,
-and refused when `APP_ENV=production`.
+`GET /api/v1/providers` and `GET /api/v1/payments/providers`. Catalog codes are
+`ProviderCode` values.
 
 ## M005 — Merchant and Branch Administration
 

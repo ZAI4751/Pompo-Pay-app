@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bell, Menu, Search, Activity } from "lucide-react";
+import { Bell, Menu, Search } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { UserMenu } from "./UserMenu";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
@@ -39,7 +39,7 @@ export function TopBar({ title, breadcrumb, actions }: TopBarProps) {
   }, []);
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface/90 px-4 backdrop-blur-md">
+    <header className="relative z-30 flex h-14 shrink-0 items-center gap-4 border-b border-border bg-white/80 px-4 pompo-glass transition-colors duration-200 dark:bg-slate-900/80">
       <IconButton aria-label="Open navigation" className="md:hidden" onClick={openMobileNav}>
         <Menu className="h-4 w-4" />
       </IconButton>
@@ -63,10 +63,10 @@ export function TopBar({ title, breadcrumb, actions }: TopBarProps) {
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setSearchOpen(true)}
           placeholder="Search merchants, refs, users"
-          className="h-8 w-full rounded-sm border border-border bg-surface-inset pl-8 pr-3 text-xs text-text placeholder:text-text-subtle"
+          className="h-8 w-full rounded-sm border border-border bg-slate-50 pl-8 pr-3 text-xs text-text placeholder:text-text-subtle transition-colors duration-200 focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-primary)_22%,transparent)] dark:bg-slate-900"
         />
         {searchOpen && (
-          <div className="absolute right-0 top-full z-20 mt-1 w-full rounded-sm border border-border bg-surface p-3 text-xs text-text-muted shadow-md animate-fade-in">
+          <div className="absolute right-0 top-full z-20 mt-1 w-full rounded-sm border border-border bg-surface p-3 text-xs text-text-muted shadow-glow pompo-glass animate-fade-in">
             Search is a visual control-plane affordance. It is not connected to live data in this
             preview.
           </div>
@@ -75,8 +75,10 @@ export function TopBar({ title, breadcrumb, actions }: TopBarProps) {
 
       <div className="flex items-center gap-1.5">
         <span className="hidden items-center gap-1.5 rounded-sm border border-border px-2 py-1 text-[11px] text-text-muted sm:inline-flex">
-          <Activity className="h-3 w-3 text-success" aria-hidden="true" />
-          <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-success" />
+          <span className="relative flex h-2 w-2" aria-hidden="true">
+            <span className="absolute inset-0 rounded-full bg-success opacity-60 motion-safe:animate-ping" />
+            <span className="relative h-2 w-2 rounded-full bg-success motion-safe:animate-pulse-dot" />
+          </span>
           Systems
         </span>
         {isDemoSession && <MockDataBadge />}
@@ -93,7 +95,7 @@ export function TopBar({ title, breadcrumb, actions }: TopBarProps) {
             <div
               role="dialog"
               aria-label="Notifications"
-              className="absolute right-0 top-full z-20 mt-1 w-72 rounded-sm border border-border bg-surface p-3 shadow-md animate-fade-in"
+              className="absolute right-0 top-full z-20 mt-1 w-72 rounded-sm border border-border bg-surface p-3 shadow-glow pompo-glass animate-fade-in"
             >
               <p className="text-xs font-medium text-text">Operations notices</p>
               <p className="mt-1 text-xs text-text-muted">

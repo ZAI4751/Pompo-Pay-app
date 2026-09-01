@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { LayoutGroup, m } from "framer-motion";
 import {
   ArrowLeftRight,
   Building2,
@@ -12,10 +13,14 @@ import {
 import { PageShell } from "@/components/layout/PageShell";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { Card, CardBody, CardEyebrow, CardHeader, CardTitle } from "@/components/ui/Card";
-import { StatusBadge, HealthBadge } from "@/components/ui/StatusBadge";
+import { HealthBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { MockDataBadge } from "@/components/ui/MockDataBadge";
 import { MonoId } from "@/components/ui/Table";
+import { HealthIndicator } from "@/components/ui/HealthIndicator";
+import { ActivityTimeline } from "@/components/ui/ActivityTimeline";
+import { MetricSkeleton } from "@/components/ui/SkeletonCard";
+import { Stagger, StaggerItem } from "@/components/motion/Stagger";
 import { ChartLegend, TransactionAreaChart } from "@/components/charts/TransactionAreaChart";
 import { RadialMeter } from "@/components/charts/RadialMeter";
 import { merchantsService } from "@/lib/api/services/merchants";
@@ -24,7 +29,7 @@ import { healthService } from "@/lib/api/services/health";
 import { paymentsService } from "@/lib/api/services/payments";
 import { transactionsService } from "@/lib/api/services/transactions";
 import { USE_MOCKS } from "@/lib/api/config";
-import { formatCompactCount, formatCompactMwk, formatMwk } from "@/lib/format/money";
+import { formatCompactCount, formatCompactMwk } from "@/lib/format/money";
 import { cn } from "@/lib/utils/cn";
 import type { Transaction } from "@/lib/types/transaction";
 import type { Merchant } from "@/lib/types/merchant";
@@ -37,15 +42,6 @@ const periods: { id: OpsPeriod; label: string }[] = [
   { id: "7d", label: "7d" },
   { id: "30d", label: "30d" },
 ];
-
-function formatStamp(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 export default function DashboardPage() {
   const [transactions, setTransactions] = useState<Transaction[] | null>(USE_MOCKS ? null : []);
@@ -106,84 +102,111 @@ export default function DashboardPage() {
 
   return (
     <PageShell title="Dashboard" breadcrumb={[{ label: "Overview" }, { label: "Dashboard" }]}>
-      <section className="overflow-hidden rounded-md border border-primary/25 bg-dark-blue text-white glow-ring">
-        <div className="relative px-5 py-5 sm:px-6">
+      <section className="overflow-hidden rounded-md border border-primary/30 bg-dark-blue text-white glow-ring dark:shadow-luminous">
+        <div className="relative px-5 py-6 sm:px-7 sm:py-7">
           <div className="pompo-grid-bg pointer-events-none absolute inset-0 opacity-30" aria-hidden="true" />
-          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
+          <div className="pointer-events-none absolute -right-16 top-0 h-56 w-56 rounded-full bg-primary/20 blur-3xl" aria-hidden="true" />
+          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0 max-w-xl">
               <p className="text-[11px] font-semibold uppercase tracking-brand text-primary">
-                Pompo system overview
+                Pompo payment network
               </p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-tight">Platform operations at a glance</h2>
-              <p className="mt-1.5 max-w-xl text-sm text-white/70">
-                Merchant counts, health, and sandbox providers come from the live API. Volume and
-                success-rate charts are labeled mock series — there is no ledger list endpoint.
+              <h2 className="mt-2 text-3xl font-semibold tracking-tight">Operations control center</h2>
+              <p className="mt-2 text-sm leading-relaxed text-white/70">
+                Live merchant, health, and sandbox-provider state from the API. Volume charts are
+                labeled mock series — they are not live settlement telemetry.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <HeroStat label="System" value={systemHeadline} hint={health ? "GET /health" : "Waiting"} />
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <HeroStat label="System" value={systemHeadline} hint={health ? "GET /health" : "Waiting"} live={health?.status === "healthy"} />
               <HeroStat
                 label="Providers"
-                value={`${providers.length} sandbox`}
-                hint="Not live Airtel/TNM"
+                value={`${providers.length}`}
+                hint="Catalog rails"
               />
-              <HeroStat label="Volume" value={formatCompactMwk(totals.volume)} hint={`Window ${period}`} />
+              <HeroStat label="Volume" value={formatCompactMwk(totals.volume)} hint={`Illustrative ${period}`} />
               <HeroStat
                 label="Success rate"
                 value={`${totals.successRate.toFixed(1)}%`}
-                hint={`${formatCompactCount(totals.successful)} settled`}
+                hint="Mock window"
               />
             </div>
           </div>
         </div>
       </section>
 
-      <section className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="sm:col-span-2">
+      <Stagger className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StaggerItem className="sm:col-span-2">
           <MetricCard
             label="Transaction volume"
             value={formatCompactMwk(totals.volume)}
+            numericValue={totals.volume}
+            formatNumeric={formatCompactMwk}
             icon={Wallet}
             emphasis="primary"
             series={series.map((point) => point.volume)}
             hint="Demo series — not live settlement"
           />
-        </div>
-        <MetricCard
-          label="Transaction count"
-          value={formatCompactCount(totals.count)}
-          icon={ArrowLeftRight}
-          series={series.map((point) => point.count)}
-          hint="Push attempts in window"
-        />
-        <MetricCard
-          label="Successful payments"
-          value={formatCompactCount(totals.successful)}
-          icon={CheckCircle2}
-          hint={`${totals.successRate.toFixed(1)}% of window`}
-        />
-        <MetricCard
-          label="Failed payments"
-          value={formatCompactCount(totals.failed)}
-          icon={XCircle}
-          hint="Includes timeouts in series"
-        />
-        <MetricCard
-          label="Active merchants"
-          value={String(activeMerchants)}
-          icon={Store}
-          hint="GET /organization/merchants"
-        />
-        <MetricCard
-          label="Active branches"
-          value={branchTotal === null ? "—" : String(branchTotal)}
-          icon={Building2}
-          hint="Sum of per-merchant branch lists"
-        />
-      </section>
+        </StaggerItem>
+        <StaggerItem>
+          <MetricCard
+            label="Transaction count"
+            value={formatCompactCount(totals.count)}
+            numericValue={totals.count}
+            formatNumeric={(n) => formatCompactCount(Math.round(n))}
+            icon={ArrowLeftRight}
+            series={series.map((point) => point.count)}
+            hint="Push attempts in window"
+          />
+        </StaggerItem>
+        <StaggerItem>
+          <MetricCard
+            label="Successful payments"
+            value={formatCompactCount(totals.successful)}
+            numericValue={totals.successful}
+            formatNumeric={(n) => formatCompactCount(Math.round(n))}
+            icon={CheckCircle2}
+            hint={`${totals.successRate.toFixed(1)}% of window`}
+          />
+        </StaggerItem>
+        <StaggerItem>
+          <MetricCard
+            label="Failed payments"
+            value={formatCompactCount(totals.failed)}
+            numericValue={totals.failed}
+            formatNumeric={(n) => formatCompactCount(Math.round(n))}
+            icon={XCircle}
+            hint="Includes timeouts in series"
+          />
+        </StaggerItem>
+        <StaggerItem>
+          <MetricCard
+            label="Active merchants"
+            value={String(activeMerchants)}
+            numericValue={activeMerchants}
+            formatNumeric={(n) => String(Math.round(n))}
+            icon={Store}
+            hint="GET /organization/merchants"
+          />
+        </StaggerItem>
+        <StaggerItem>
+          {branchTotal === null ? (
+            <MetricSkeleton />
+          ) : (
+            <MetricCard
+              label="Active branches"
+              value={String(branchTotal)}
+              numericValue={branchTotal}
+              formatNumeric={(n) => String(Math.round(n))}
+              icon={Building2}
+              hint="Sum of per-merchant branch lists"
+            />
+          )}
+        </StaggerItem>
+      </Stagger>
 
       <section className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card className="xl:col-span-2" glow>
+        <Card className="xl:col-span-2" glow interactive>
           <CardHeader>
             <div>
               <CardEyebrow>Transaction activity</CardEyebrow>
@@ -211,7 +234,9 @@ export default function DashboardPage() {
               {metric === "volume" ? "Settled volume (MWK)" : "Transaction count"} · dashed line is
               failed attempts · source: mock ops series · window {period}
             </p>
-            <TransactionAreaChart data={series} metric={metric} />
+            <div className="min-w-0 overflow-hidden">
+              <TransactionAreaChart data={series} metric={metric} />
+            </div>
             <div className="mt-2 flex items-center justify-between">
               <ChartLegend />
               <span className="text-[11px] text-text-subtle">Time ({period} buckets)</span>
@@ -219,7 +244,7 @@ export default function DashboardPage() {
           </CardBody>
         </Card>
 
-        <Card>
+        <Card interactive>
           <CardHeader>
             <div>
               <CardEyebrow>Quality</CardEyebrow>
@@ -244,7 +269,7 @@ export default function DashboardPage() {
       </section>
 
       <section className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-5">
-        <Card className="xl:col-span-3">
+        <Card className="xl:col-span-3" interactive>
           <CardHeader>
             <div>
               <CardEyebrow>Payment network</CardEyebrow>
@@ -260,19 +285,32 @@ export default function DashboardPage() {
               providers.map((provider) => (
                 <div
                   key={provider.code}
-                  className="rounded-sm border border-border bg-surface-inset/50 px-3.5 py-3"
+                  className="rounded-sm border border-border bg-surface-inset/50 px-3.5 py-3 transition-colors duration-150 hover:border-primary/30"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-text">
-                        {provider.display_name ?? provider.code}
-                      </p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-text" title={provider.display_name ?? provider.code}>
+                      {provider.display_name ?? provider.code}
+                    </p>
                       <MonoId>
                         {provider.code}
                         {provider.is_simulated ? " · simulated" : ""}
                       </MonoId>
                     </div>
-                    <RailBadge status={provider.is_active ? "sandbox" : "degraded"} />
+                    <HealthIndicator
+                      state={
+                        !provider.is_active
+                          ? "idle"
+                          : provider.health_state === "degraded"
+                            ? "degraded"
+                            : provider.health_state === "unavailable"
+                              ? "unavailable"
+                              : provider.health_state === "active"
+                                ? "active"
+                                : "idle"
+                      }
+                      label={provider.is_simulated ? "Sandbox" : provider.environment}
+                    />
                   </div>
                   <p className="mt-2 text-[11px] text-text-subtle">
                     Push {provider.capabilities.supports_push_payment ? "yes" : "no"} · Status{" "}
@@ -285,7 +323,7 @@ export default function DashboardPage() {
           </CardBody>
         </Card>
 
-        <Card className="xl:col-span-2">
+        <Card className="xl:col-span-2" interactive>
           <CardHeader>
             <div>
               <CardEyebrow>System health</CardEyebrow>
@@ -297,10 +335,10 @@ export default function DashboardPage() {
               ? Object.entries(health.components).map(([name, component]) => (
                   <div
                     key={name}
-                    className="flex items-center justify-between rounded-sm border border-border px-3 py-2.5"
+                    className="flex min-w-0 items-center justify-between rounded-sm border border-border px-3 py-2.5"
                   >
-                    <div>
-                      <p className="text-sm font-medium capitalize text-text">{name}</p>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium capitalize text-text">{name}</p>
                       <p className="text-[11px] text-text-subtle">{component.status}</p>
                     </div>
                     <HealthBadge
@@ -321,7 +359,7 @@ export default function DashboardPage() {
       </section>
 
       <section className="mt-5">
-        <Card>
+        <Card interactive>
           <CardHeader>
             <div>
               <CardEyebrow>Recent activity</CardEyebrow>
@@ -330,31 +368,11 @@ export default function DashboardPage() {
           </CardHeader>
           <CardBody className="p-0">
             {transactions === null ? (
-              <div className="p-5 text-sm text-text-muted">Loading…</div>
+              <div className="space-y-3 p-5">
+                <MetricSkeleton />
+              </div>
             ) : USE_MOCKS && transactions.length > 0 ? (
-              <ul className="divide-y divide-border">
-                {transactions.map((txn) => (
-                  <li
-                    key={txn.id}
-                    className="flex flex-col gap-2 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium text-text">{txn.merchant_name}</p>
-                      <p className="mt-0.5 text-xs text-text-muted">
-                        <MonoId>{txn.reference}</MonoId>
-                        <span className="mx-1.5 text-text-subtle">·</span>
-                        {txn.provider_name ?? "Unrouted"}
-                        <span className="mx-1.5 text-text-subtle">·</span>
-                        {formatStamp(txn.created_at)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <p className="text-sm font-semibold tabular-nums text-text">{formatMwk(txn.amount)}</p>
-                      <StatusBadge status={txn.status} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <ActivityTimeline items={transactions} />
             ) : (
               <div className="p-5">
                 <EmptyState
@@ -370,12 +388,30 @@ export default function DashboardPage() {
   );
 }
 
-function HeroStat({ label, value, hint }: { label: string; value: string; hint: string }) {
+function HeroStat({
+  label,
+  value,
+  hint,
+  live,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  live?: boolean;
+}) {
   return (
-    <div className="min-w-[8.5rem] rounded-sm border border-white/10 bg-black/20 px-3 py-2.5">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/50">{label}</p>
-      <p className="mt-1 text-sm font-semibold tracking-tight">{value}</p>
-      <p className="mt-0.5 text-[10px] text-white/45">{hint}</p>
+    <div className="min-w-0 rounded-sm border border-white/10 bg-black/25 px-3 py-2.5 pompo-glass">
+      <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-white/50">{label}</p>
+      <p className="mt-1 flex min-w-0 items-center gap-1.5 text-sm font-semibold tracking-tight">
+        {live && (
+          <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
+            <span className="absolute inset-0 rounded-full bg-success opacity-60 motion-safe:animate-ping" />
+            <span className="relative h-2 w-2 rounded-full bg-success" />
+          </span>
+        )}
+        <span className="truncate">{value}</span>
+      </p>
+      <p className="mt-0.5 truncate text-[10px] text-white/45">{hint}</p>
     </div>
   );
 }
@@ -398,37 +434,32 @@ function Segmented<T extends string>({
   value: T;
   onChange: (next: T) => void;
 }) {
+  const layoutKey = options.map((option) => option.id).join("-");
   return (
-    <div className="inline-flex rounded-sm border border-border bg-surface-inset p-0.5">
+    <LayoutGroup id={`segmented-${layoutKey}`}>
+      <div className="relative inline-flex rounded-sm border border-border bg-slate-50 p-0.5 dark:bg-slate-900">
       {options.map((option) => (
         <button
           key={option.id}
           type="button"
           onClick={() => onChange(option.id)}
           className={cn(
-            "rounded-sm px-2.5 py-1 text-[11px] font-medium transition-colors duration-150",
-            value === option.id
-              ? "bg-surface text-text"
-              : "text-text-muted hover:text-text",
+            "relative rounded-sm px-2.5 py-1 text-[11px] font-medium transition-colors duration-200",
+            value === option.id ? "text-text" : "text-text-muted hover:text-text",
           )}
         >
-          {option.label}
+          {value === option.id && (
+            <m.span
+              layoutId={`segmented-${layoutKey}`}
+              className="absolute inset-0 rounded-sm bg-white shadow-sm dark:bg-slate-800"
+              transition={{ type: "spring", stiffness: 400, damping: 28 }}
+            />
+          )}
+          <span className="relative z-10">{option.label}</span>
         </button>
       ))}
     </div>
+    </LayoutGroup>
   );
 }
 
-function RailBadge({ status }: { status: "operational" | "degraded" | "sandbox" }) {
-  const map = {
-    operational: { label: "Operational", className: "bg-success-bg text-success" },
-    degraded: { label: "Degraded", className: "bg-warning-bg text-warning" },
-    sandbox: { label: "Sandbox", className: "bg-info-bg text-info" },
-  };
-  const { label, className } = map[status];
-  return (
-    <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide", className)}>
-      {label}
-    </span>
-  );
-}

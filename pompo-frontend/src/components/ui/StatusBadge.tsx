@@ -39,6 +39,18 @@ export function StatusBadge({ status }: { status: TransactionStatus }) {
   const { label, tone, Icon, pulse } = config[status];
   return (
     <Badge tone={tone} className="gap-1">
+      <span
+        className={cn(
+          "h-1.5 w-1.5 rounded-full",
+          pulse && "motion-safe:animate-pulse-dot",
+          tone === "success" && "bg-success",
+          tone === "warning" && "bg-warning",
+          tone === "error" && "bg-error",
+          tone === "info" && "bg-info",
+          tone === "neutral" && "bg-text-subtle",
+        )}
+        aria-hidden="true"
+      />
       <Icon className={cn("h-3 w-3", pulse && status === "processing" && "animate-spin")} />
       {label}
     </Badge>
@@ -76,8 +88,8 @@ export function HealthBadge({
       <span
         className={cn(
           "h-1.5 w-1.5 rounded-full",
-          state === "healthy" && "bg-success animate-pulse-dot",
-          state === "degraded" && "bg-warning",
+          state === "healthy" && "bg-success motion-safe:animate-pulse-dot",
+          state === "degraded" && "bg-warning motion-safe:animate-pulse-dot",
           state === "down" && "bg-error",
           state === "unknown" && "bg-text-subtle",
         )}

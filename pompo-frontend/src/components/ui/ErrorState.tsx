@@ -43,10 +43,10 @@ export function ErrorState({
       <div className="flex h-11 w-11 items-center justify-center rounded-md bg-error-bg text-error">
         <Icon className="h-5 w-5" aria-hidden="true" />
       </div>
-      <p className="text-sm font-semibold text-text">{title}</p>
-      {description && <p className="max-w-sm text-sm text-text-muted">{description}</p>}
+      <p className="max-w-sm break-words text-sm font-semibold text-text">{title}</p>
+      {description && <p className="max-w-sm break-words text-sm text-text-muted">{description}</p>}
       {requestId && (
-        <p className="text-xs text-text-subtle">
+        <p className="max-w-full truncate text-xs text-text-subtle">
           Reference: <span className="font-mono">{requestId}</span>
         </p>
       )}

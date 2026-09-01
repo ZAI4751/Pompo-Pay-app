@@ -191,20 +191,24 @@ export default function TillsPage() {
             <Th>Till</Th>
             <Th>Code</Th>
             <Th>Status</Th>
-            <Th />
+            <Th className="w-36" />
           </TableHead>
           <TableBody>
             {items.map((till) => (
               <Tr key={till.id}>
                 <Td>
-                  <p className="font-medium text-text">{till.name}</p>
+                  <p className="truncate font-medium text-text" title={till.name}>
+                    {till.name}
+                  </p>
                   <MonoId>{till.id}</MonoId>
                 </Td>
-                <Td className="font-mono text-sm">{till.code}</Td>
-                <Td>
+                <Td className="truncate font-mono text-sm" title={till.code}>
+                  {till.code}
+                </Td>
+                <Td className="whitespace-normal">
                   <ActiveBadge isActive={till.is_active} />
                 </Td>
-                <Td className="text-right">
+                <Td className="max-w-none overflow-visible whitespace-nowrap text-right">
                   {canDelete && (
                     <Button variant="ghost" size="sm" onClick={() => setDeactivate(till)}>
                       Deactivate

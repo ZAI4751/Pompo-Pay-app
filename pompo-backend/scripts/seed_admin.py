@@ -7,7 +7,7 @@ Credentials come from the environment and are never written to source, printed,
 or logged:
 
     POMPO_ADMIN_EMAIL     required
-    POMPO_ADMIN_PASSWORD  required (minimum 12 characters)
+    POMPO_ADMIN_PASSWORD  required (minimum 8 characters)
     POMPO_ADMIN_NAME      optional, defaults to "Platform Administrator"
 
 Usage:
@@ -40,7 +40,7 @@ from app.models import Role, User
 from app.permissions.catalog import SYSTEM_ROLES
 
 ADMIN_ROLE_CODE = "platform_admin"
-MIN_PASSWORD_LENGTH = 12
+MIN_PASSWORD_LENGTH = 8
 
 
 class SeedError(RuntimeError):
