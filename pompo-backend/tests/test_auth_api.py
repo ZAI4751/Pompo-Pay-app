@@ -123,7 +123,9 @@ async def test_me_with_valid_token_returns_user(client: AsyncClient, seeded_user
         "/api/v1/auth/me", headers={"Authorization": f"Bearer {access_token}"}
     )
     assert response.status_code == 200
-    assert response.json()["email"] == seeded_user.email
+    body = response.json()
+    assert body["email"] == seeded_user.email
+    assert "role_code" in body
 
 
 @pytest.mark.asyncio

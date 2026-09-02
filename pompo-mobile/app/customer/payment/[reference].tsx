@@ -1,0 +1,56 @@
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import { Text, View } from "react-native";
+
+import { Card, ErrorBanner, formatMoney, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
+import { paymentStatusLabel } from "@/domain/paymentStatus";
+import { useAuth } from "@/state/AuthProvider";
+import type { Payment } from "@/types";
+
+export default function CustomerPaymentDetail() {
+  const { reference } = useLocalSearchParams<{ reference: string }>();
+  const theme = useTheme();
+  const router = useRouter();
+  const { api } = useAuth();
+  const [payment, setPayment] = useState<Payment | null>(null);
+  const [error, setError] = useState<{ message: string; requestId?: string } | null>(null);
+
+  useEffect(() => {
+    if (!reference) {
+      return;
+    }
+    void api.getPayment(reference).then((result) => {
+      if (result.ok) {
+        setPayment(result.data);
+      } else {
+        setError({ message: result.error.message, requestId: result.error.requestId });
+      }
+    });
+  }, [api, reference]);
+
+  return (
+    <Screen>
+      <Title>Payment</Title>
+      {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
+      {payment ? (
+        <Card>
+          <Text style={{ color: theme.text, fontSize: 22, fontWeight: "800" }}>
+            {formatMoney(payment.amount, payment.currency)}
+          </Text>
+          <Text style={{ color: theme.muted }}>{payment.merchant_name ?? "Merchant"}</Text>
+          <Text style={{ color: theme.text }}>{paymentStatusLabel(payment.status)}</Text>
+          <View style={{ gap: 4, marginTop: 8 }}>
+            <Text style={{ color: theme.subtle }}>Reference {payment.reference}</Text>
+            {payment.created_at ? (
+              <Text style={{ color: theme.subtle }}>{new Date(payment.created_at).toLocaleString()}</Text>
+            ) : null}
+            {payment.attempts[0]?.provider_reference ? (
+              <Text style={{ color: theme.subtle }}>Provider ref {payment.attempts[0].provider_reference}</Text>
+            ) : null}
+          </View>
+        </Card>
+      ) : null}
+      <SecondaryButton label="Back" onPress={() => router.back()} />
+    </Screen>
+  );
+}

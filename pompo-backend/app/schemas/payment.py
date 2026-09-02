@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -66,6 +67,11 @@ class PaymentResponse(BaseModel):
     description: str | None
     failure_reason: str | None
     attempts: list[PaymentAttemptResponse] = Field(default_factory=list)
+    merchant_name: str | None = None
+    branch_name: str | None = None
+    till_name: str | None = None
+    created_at: datetime | None = None
+    completed_at: datetime | None = None
 
 
 class PaymentTransition(BaseModel):

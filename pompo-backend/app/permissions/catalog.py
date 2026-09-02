@@ -132,6 +132,18 @@ SYSTEM_ROLES: dict[str, tuple[str, str, frozenset[str]]] = {
         "Process assigned checkout transactions.",
         frozenset({"transactions:read", "transactions:create"}),
     ),
+    "customer": (
+        "Customer",
+        "Pay from a scanned QR and view own payment history.",
+        frozenset(
+            {
+                "transactions:read",
+                "transactions:create",
+                "transactions:update",
+                "transactions:cancel",
+            }
+        ),
+    ),
 }
 
 

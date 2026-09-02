@@ -4,13 +4,15 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import CurrentUserDep, DbSessionDep, require_permission
 from app.payments.providers import ProviderError
 from app.payments.registry import ProviderRegistry
 from app.api.v1.provider_views import catalog_response
+from app.models.payment import Transaction
 from app.schemas.payment import (
+    PaymentAttemptResponse,
     PaymentCreate,
     PaymentResponse,
     ProviderCatalogResponse,
@@ -22,6 +24,7 @@ from app.services.payment import (
     PaymentConflictError,
     PaymentError,
     PaymentForbiddenError,
+    PaymentInvalidError,
     PaymentNotFoundError,
     PaymentService,
 )
@@ -35,6 +38,46 @@ from app.services.providers import (
 )
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
+
+
+def _payment_response(transaction: Transaction) -> PaymentResponse:
+    attempts = []
+    for attempt in transaction.attempts or []:
+        attempts.append(
+            PaymentAttemptResponse(
+                id=attempt.id,
+                attempt_number=attempt.attempt_number,
+                status=attempt.status.value if hasattr(attempt.status, "value") else str(attempt.status),
+                provider_reference=attempt.provider_reference,
+                provider_status=attempt.provider_status,
+                duration_ms=attempt.duration_ms,
+                failure_code=attempt.failure_code,
+                retryable=attempt.retryable,
+                failure_reason=attempt.failure_reason,
+            )
+        )
+    merchant = getattr(transaction, "merchant", None)
+    branch = getattr(transaction, "branch", None)
+    till = getattr(transaction, "till", None)
+    return PaymentResponse(
+        id=transaction.id,
+        reference=transaction.reference,
+        merchant_id=transaction.merchant_id,
+        branch_id=transaction.branch_id,
+        till_id=transaction.till_id,
+        amount=transaction.amount,
+        currency=transaction.currency,
+        payment_method=transaction.payment_method,
+        status=transaction.status.value if hasattr(transaction.status, "value") else str(transaction.status),
+        description=transaction.description,
+        failure_reason=transaction.failure_reason,
+        attempts=attempts,
+        merchant_name=getattr(merchant, "name", None),
+        branch_name=getattr(branch, "name", None),
+        till_name=getattr(till, "name", None),
+        created_at=getattr(transaction, "created_at", None),
+        completed_at=transaction.completed_at,
+    )
 
 
 def get_payment_service(session: DbSessionDep) -> PaymentService:
@@ -98,6 +141,8 @@ def _error(exc: PaymentError) -> HTTPException:
         return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     if isinstance(exc, PaymentForbiddenError):
         return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    if isinstance(exc, PaymentInvalidError):
+        return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
     return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
 
 
@@ -136,6 +181,42 @@ async def create_payment_from_qr(
     except QRServiceError as exc:
         raise _qr_payment_error(exc) from exc
     return transaction
+
+
+@router.get(
+    "/mine",
+    response_model=list[PaymentResponse],
+    dependencies=[Depends(require_permission("transactions:read"))],
+)
+async def list_my_payments(
+    current_user: CurrentUserDep,
+    service: PaymentServiceDep,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> list[PaymentResponse]:
+    try:
+        rows = await service.list_my_payments(current_user, limit=limit, offset=offset)
+    except PaymentError as exc:
+        raise _error(exc) from exc
+    return [_payment_response(row) for row in rows]
+
+
+@router.get(
+    "",
+    response_model=list[PaymentResponse],
+    dependencies=[Depends(require_permission("transactions:read"))],
+)
+async def list_merchant_payments(
+    current_user: CurrentUserDep,
+    service: PaymentServiceDep,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> list[PaymentResponse]:
+    try:
+        rows = await service.list_merchant_payments(current_user, limit=limit, offset=offset)
+    except PaymentError as exc:
+        raise _error(exc) from exc
+    return [_payment_response(row) for row in rows]
 
 
 @router.post(
@@ -232,6 +313,7 @@ async def get_payment(
     service: PaymentServiceDep,
 ) -> PaymentResponse:
     try:
-        return await service.get_payment(current_user, reference)
+        transaction = await service.get_payment(current_user, reference)
     except PaymentError as exc:
         raise _error(exc) from exc
+    return _payment_response(transaction)

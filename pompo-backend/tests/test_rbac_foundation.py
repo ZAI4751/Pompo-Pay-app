@@ -30,7 +30,13 @@ async def session() -> AsyncGenerator[AsyncSession, None]:
 def test_permission_catalog_is_unique_and_complete() -> None:
     validate_catalog()
     assert len({permission.code for permission in PERMISSIONS}) == len(PERMISSIONS)
-    assert set(SYSTEM_ROLES) == {"platform_admin", "merchant_owner", "branch_manager", "cashier"}
+    assert set(SYSTEM_ROLES) == {
+        "platform_admin",
+        "merchant_owner",
+        "branch_manager",
+        "cashier",
+        "customer",
+    }
 
 
 @pytest.mark.asyncio

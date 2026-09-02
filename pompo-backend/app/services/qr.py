@@ -184,13 +184,36 @@ class QRService:
         await self._validate_scope(actor, qr.merchant_id, qr.branch_id)
         return qr
 
+    async def list_qrs(
+        self,
+        actor: User,
+        *,
+        till_id: uuid.UUID | None = None,
+        qr_type: QRType | None = None,
+    ) -> list[QRCode]:
+        await self._require(actor, "qr:read")
+        if actor.merchant_id is None:
+            raise QRForbiddenError("Merchant context is required")
+        return await self._qr_codes.list_for_merchant(
+            actor.merchant_id,
+            branch_id=actor.branch_id,
+            till_id=till_id,
+            qr_type=qr_type,
+        )
+
     async def inspect_qr(self, public_identifier: str) -> QRCode:
         """Public-safe QR lookup for mobile scan preview."""
         qr = await self._qr_codes.get_by_public_identifier(public_identifier)
         if qr is None:
             raise QRNotFoundError("QR code not found")
         await self._refresh_expiry_if_needed(qr)
-        if qr.status not in {QRStatus.ACTIVE}:
+        if qr.status is QRStatus.EXPIRED:
+            raise QRInvalidError("QR code has expired")
+        if qr.status is QRStatus.REVOKED:
+            raise QRInvalidError("QR code has been revoked")
+        if qr.status is QRStatus.CONSUMED:
+            raise QRConflictError("QR code has already been used")
+        if qr.status is not QRStatus.ACTIVE:
             raise QRInvalidError("QR code is not available")
         return qr
 
@@ -299,7 +322,9 @@ class QRService:
             "idempotency_key": idempotency_key,
         }
         try:
-            transaction = await self._payments.create_payment(actor, payment_values)
+            transaction = await self._payments.create_payment(
+                actor, payment_values, require_merchant_scope=False
+            )
         except PaymentError as exc:
             raise QRInvalidError(str(exc)) from exc
         await self._audit(
@@ -365,6 +390,15 @@ class QRService:
         if transaction.status is TransactionStatus.QR_GENERATED:
             validate_transition(transaction.status, TransactionStatus.PENDING)
             transaction.status = TransactionStatus.PENDING
+            # Attribute the payment to the paying customer so /payments/mine
+            # and process authorization follow the payer, not the QR issuer.
+            transaction.cashier_id = actor.id
+        elif (
+            transaction.cashier_id is not None
+            and transaction.cashier_id != actor.id
+            and actor.merchant_id != qr.merchant_id
+        ):
+            raise QRConflictError("QR payment is already in progress")
 
         await self._audit(
             actor,

@@ -376,6 +376,7 @@ export function getDemoAdminUser(): AuthenticatedUser {
     merchant_id: admin.merchant_id,
     branch_id: admin.branch_id,
     role_id: admin.role_id,
+    role_code: "platform_admin",
     is_active: admin.is_active,
   };
 }

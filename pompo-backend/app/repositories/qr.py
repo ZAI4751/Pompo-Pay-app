@@ -55,7 +55,7 @@ class QRCodeRepository(BaseRepository[QRCode]):
         qr_type: QRType | None = None,
     ) -> list[QRCode]:
         query = (
-            select(QRCode)
+            self._base_query()
             .where(QRCode.merchant_id == merchant_id)
             .order_by(QRCode.created_at.desc())
         )
@@ -66,7 +66,7 @@ class QRCodeRepository(BaseRepository[QRCode]):
         if qr_type is not None:
             query = query.where(QRCode.qr_type == qr_type)
         result = await self._session.execute(query)
-        return list(result.scalars().all())
+        return list(result.scalars().unique().all())
 
     async def list_active_static_for_till(self, till_id: uuid.UUID) -> list[QRCode]:
         result = await self._session.execute(

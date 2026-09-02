@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import CurrentUserDep, DbSessionDep, require_permission
 from app.models.payment import QRCode
@@ -115,6 +117,23 @@ async def create_dynamic_qr(
     except QRError as exc:
         raise _error(exc) from exc
     return _qr_response(qr)
+
+
+@router.get(
+    "",
+    response_model=list[QRResponse],
+    dependencies=[Depends(require_permission("qr:read"))],
+)
+async def list_qrs(
+    current_user: CurrentUserDep,
+    service: QRServiceDep,
+    till_id: UUID | None = Query(default=None),
+) -> list[QRResponse]:
+    try:
+        rows = await service.list_qrs(current_user, till_id=till_id)
+    except QRError as exc:
+        raise _error(exc) from exc
+    return [_qr_response(qr) for qr in rows]
 
 
 @router.get("/{public_identifier}", response_model=QRInspectResponse)

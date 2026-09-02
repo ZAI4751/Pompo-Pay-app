@@ -93,4 +93,14 @@ async def logout(payload: LogoutRequest, auth_service: AuthServiceDep) -> None:
 @router.get("/me", response_model=AuthenticatedUserResponse)
 async def get_me(current_user: CurrentUserDep) -> AuthenticatedUserResponse:
     """Return the caller's own profile, resolved from the access token."""
-    return AuthenticatedUserResponse.model_validate(current_user)
+    role = current_user.role
+    return AuthenticatedUserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        full_name=current_user.full_name,
+        merchant_id=current_user.merchant_id,
+        branch_id=current_user.branch_id,
+        role_id=current_user.role_id,
+        role_code=role.code if role is not None else "",
+        is_active=current_user.is_active,
+    )

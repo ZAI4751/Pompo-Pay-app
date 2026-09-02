@@ -82,10 +82,15 @@ class PaymentService:
         self._authorization = AuthorizationService(AuthorizationRepository(session))
         self._registry = registry or ProviderRegistry()
 
-    async def create_payment(self, actor: User, values: dict[str, Any]) -> Transaction:
+    async def create_payment(
+        self, actor: User, values: dict[str, Any], *, require_merchant_scope: bool = True
+    ) -> Transaction:
         await self._require(actor, "transactions:create")
         merchant_id = values["merchant_id"]
-        await self._validate_scope(actor, merchant_id, values["branch_id"], values["till_id"])
+        if require_merchant_scope:
+            await self._validate_scope(actor, merchant_id, values["branch_id"], values["till_id"])
+        else:
+            await self._validate_destination(merchant_id, values["branch_id"], values["till_id"])
         fingerprint = self._fingerprint(values)
         existing = await self._transactions.get_by_idempotency(
             merchant_id, values["idempotency_key"]
@@ -177,10 +182,39 @@ class PaymentService:
         transaction = await self._transactions.get_active_by_reference(reference)
         if transaction is None:
             raise PaymentNotFoundError("Payment not found")
-        await self._validate_scope(
-            actor, transaction.merchant_id, transaction.branch_id, transaction.till_id
-        )
+        await self._assert_can_view_payment(actor, transaction)
         return transaction
+
+    async def list_merchant_payments(
+        self,
+        actor: User,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Transaction]:
+        await self._require(actor, "transactions:read")
+        if await self._is_platform_admin(actor):
+            raise PaymentInvalidError("Platform administrators must use merchant-scoped admin tools")
+        if actor.merchant_id is None:
+            raise PaymentForbiddenError("Merchant context is required")
+        return await self._transactions.list_for_merchant(
+            actor.merchant_id,
+            branch_id=actor.branch_id,
+            limit=min(limit, 100),
+            offset=max(offset, 0),
+        )
+
+    async def list_my_payments(
+        self,
+        actor: User,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Transaction]:
+        await self._require(actor, "transactions:read")
+        return await self._transactions.list_initiated_by(
+            actor.id, limit=min(limit, 100), offset=max(offset, 0)
+        )
 
     async def transition_payment(
         self,
@@ -531,6 +565,22 @@ class PaymentService:
             or (actor.branch_id is not None and actor.branch_id != branch_id)
         ):
             raise PaymentForbiddenError("Payment is outside actor scope")
+        await self._validate_destination(merchant_id, branch_id, till_id)
+
+    async def _assert_can_view_payment(self, actor: User, transaction: Transaction) -> None:
+        if await self._is_platform_admin(actor):
+            return
+        if transaction.cashier_id == actor.id:
+            return
+        if actor.merchant_id == transaction.merchant_id and (
+            actor.branch_id is None or actor.branch_id == transaction.branch_id
+        ):
+            return
+        raise PaymentForbiddenError("Payment is outside actor scope")
+
+    async def _validate_destination(
+        self, merchant_id: uuid.UUID, branch_id: uuid.UUID, till_id: uuid.UUID
+    ) -> None:
         merchant = await self._session.scalar(
             select(Merchant).where(
                 Merchant.id == merchant_id,

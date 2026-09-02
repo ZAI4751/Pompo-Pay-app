@@ -38,8 +38,8 @@ class TokenResponse(BaseModel):
 class AuthenticatedUserResponse(BaseModel):
     """Safe user representation returned by /auth/me.
 
-    Deliberately excludes ``hashed_password`` and does not (yet) include
-    role/permission details — that's M004's job.
+    ``role_code`` is the system/custom role slug used by mobile mode switching.
+    Permission catalogs are still loaded from the RBAC API, not this payload.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -50,4 +50,5 @@ class AuthenticatedUserResponse(BaseModel):
     merchant_id: uuid.UUID | None
     branch_id: uuid.UUID | None
     role_id: uuid.UUID
+    role_code: str = ""
     is_active: bool

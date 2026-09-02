@@ -25,5 +25,6 @@ export interface AuthenticatedUser {
   merchant_id: string | null;
   branch_id: string | null;
   role_id: string;
+  role_code?: string;
   is_active: boolean;
 }

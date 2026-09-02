@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "POMPO",
+    "slug": "pompo-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "pompo",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0b2545"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "mw.pompo.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "POMPO uses the camera to scan merchant QR codes so you can pay."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0b2545",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "mw.pompo.mobile",
+      "permissions": ["CAMERA"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0b2545",
+          "image": "./assets/splash-icon.png"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "POMPO uses the camera to scan merchant QR codes so you can pay."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiBaseUrl": "https://pompo-api-production.up.railway.app/api/v1"
+    }
+  }
+}

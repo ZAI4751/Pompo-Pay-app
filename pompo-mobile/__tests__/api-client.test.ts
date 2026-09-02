@@ -1,0 +1,225 @@
+import { randomUUID } from "expo-crypto";
+
+import { PompoApi } from "@/api/client";
+import type { TokenStore } from "@/auth/secureStorage";
+import { extractPublicIdentifier } from "@/domain/qrPayload";
+import { mapPaymentStatus } from "@/domain/paymentStatus";
+
+function memoryStore(initial?: { access?: string; refresh?: string }): TokenStore {
+  let access = initial?.access ?? null;
+  let refresh = initial?.refresh ?? null;
+  return {
+    async getAccessToken() {
+      return access;
+    },
+    async getRefreshToken() {
+      return refresh;
+    },
+    async setTokens(nextAccess, nextRefresh) {
+      access = nextAccess;
+      refresh = nextRefresh;
+    },
+    async clear() {
+      access = null;
+      refresh = null;
+    },
+  };
+}
+
+function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", "X-Request-ID": "req-test", ...headers },
+  });
+}
+
+describe("extractPublicIdentifier", () => {
+  it("reads a static POMPO payload without verifying the signature", () => {
+    const result = extractPublicIdentifier("POMPO:1:static:QRABC123456789:not-a-real-signature");
+    expect(result).toEqual({ ok: true, publicIdentifier: "QRABC123456789" });
+  });
+
+  it("reads a dynamic payload public id and ignores amount fields", () => {
+    const result = extractPublicIdentifier(
+      "POMPO:1:dynamic:QRDYN123456789:15000:MWK:9999999999:PMP-1:sigsigsigsigsigsigsigg",
+    );
+    expect(result).toEqual({ ok: true, publicIdentifier: "QRDYN123456789" });
+  });
+
+  it("accepts a bare public identifier", () => {
+    expect(extractPublicIdentifier("QRABC123456789")).toEqual({
+      ok: true,
+      publicIdentifier: "QRABC123456789",
+    });
+  });
+
+  it("rejects malformed payloads", () => {
+    expect(extractPublicIdentifier("https://example.com")).toEqual({
+      ok: false,
+      message: "This is not a POMPO QR code",
+    });
+  });
+});
+
+describe("mapPaymentStatus", () => {
+  it("maps backend statuses without inventing new financial states", () => {
+    expect(mapPaymentStatus("qr_generated")).toBe("awaiting_confirmation");
+    expect(mapPaymentStatus("pending")).toBe("pending");
+    expect(mapPaymentStatus("processing")).toBe("processing");
+    expect(mapPaymentStatus("success")).toBe("success");
+    expect(mapPaymentStatus("failed")).toBe("failed");
+    expect(mapPaymentStatus("timeout")).toBe("timeout");
+    expect(mapPaymentStatus("mystery")).toBe("unknown");
+  });
+});
+
+describe("PompoApi", () => {
+  it("stores tokens on login and sends them on subsequent calls", async () => {
+    const store = memoryStore();
+    const fetchImpl = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/auth/login")) {
+        return jsonResponse({
+          access_token: "access-1",
+          refresh_token: "refresh-1",
+          token_type: "bearer",
+          expires_in: 900,
+        });
+      }
+      if (url.endsWith("/auth/me")) {
+        return jsonResponse({
+          id: "u1",
+          email: "customer@example.com",
+          full_name: "Customer",
+          merchant_id: null,
+          branch_id: null,
+          role_id: "r1",
+          role_code: "customer",
+          is_active: true,
+        });
+      }
+      return jsonResponse({ detail: "missing" }, 404);
+    }) as typeof fetch;
+
+    const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl, randomId: () => "rid" });
+    const login = await api.login("customer@example.com", "secret");
+    expect(login.ok).toBe(true);
+    const me = await api.me();
+    expect(me.ok).toBe(true);
+    const meCall = fetchImpl.mock.calls[1];
+    const headers = meCall[1]?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer access-1");
+    expect(headers["X-Request-ID"]).toBe("rid");
+  });
+
+  it("refreshes once on 401 and retries the original request", async () => {
+    const store = memoryStore({ access: "expired", refresh: "refresh-1" });
+    let meCalls = 0;
+    const fetchImpl = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/auth/refresh")) {
+        const body = JSON.parse(String(init?.body));
+        expect(body.refresh_token).toBe("refresh-1");
+        return jsonResponse({
+          access_token: "access-2",
+          refresh_token: "refresh-2",
+          token_type: "bearer",
+          expires_in: 900,
+        });
+      }
+      if (url.endsWith("/auth/me")) {
+        meCalls += 1;
+        if (meCalls === 1) {
+          return jsonResponse({ detail: "expired" }, 401);
+        }
+        return jsonResponse({
+          id: "u1",
+          email: "a@b.c",
+          full_name: "A",
+          merchant_id: null,
+          branch_id: null,
+          role_id: "r1",
+          role_code: "customer",
+          is_active: true,
+        });
+      }
+      return jsonResponse({ detail: "no" }, 404);
+    }) as typeof fetch;
+
+    const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
+    const me = await api.me();
+    expect(me.ok).toBe(true);
+    expect(await store.getAccessToken()).toBe("access-2");
+  });
+
+  it("clears tokens when refresh fails", async () => {
+    const store = memoryStore({ access: "expired", refresh: "dead" });
+    const fetchImpl = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/auth/refresh")) {
+        return jsonResponse({ detail: "Invalid or expired refresh token" }, 401);
+      }
+      return jsonResponse({ detail: "expired" }, 401);
+    }) as typeof fetch;
+    const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
+    const me = await api.me();
+    expect(me.ok).toBe(false);
+    expect(await store.getAccessToken()).toBeNull();
+  });
+
+  it("sends an idempotency key with from-qr", async () => {
+    const store = memoryStore({ access: "access-1" });
+    const fetchImpl = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toContain("/payments/from-qr");
+      const body = JSON.parse(String(init?.body));
+      expect(body.idempotency_key).toBe("pay-1");
+      expect(body.payload).toContain("POMPO:");
+      return jsonResponse({
+        id: "p1",
+        reference: "PMP-1",
+        merchant_id: "m1",
+        branch_id: "b1",
+        till_id: "t1",
+        amount: "10.00",
+        currency: "MWK",
+        payment_method: "mobile_money",
+        status: "pending",
+        description: null,
+        failure_reason: null,
+        attempts: [],
+      });
+    }) as typeof fetch;
+    const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
+    const result = await api.payFromQr({
+      payload: "POMPO:1:static:QRABC123456789:signaturelooks22charsx",
+      idempotencyKey: "pay-1",
+      amount: "10.00",
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("does not send a client amount for dynamic QR payments", async () => {
+    const store = memoryStore({ access: "access-1" });
+    const fetchImpl = jest.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      expect(body.amount).toBeUndefined();
+      return jsonResponse({
+        id: "p1",
+        reference: "PMP-2",
+        merchant_id: "m1",
+        branch_id: "b1",
+        till_id: "t1",
+        amount: "150.00",
+        currency: "MWK",
+        payment_method: "mobile_money",
+        status: "pending",
+        description: null,
+        failure_reason: null,
+        attempts: [],
+      });
+    }) as typeof fetch;
+    const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
+    await api.payFromQr({ payload: "POMPO:1:dynamic:QRDYN123456789:x", idempotencyKey: randomUUID() });
+    expect(fetchImpl).toHaveBeenCalled();
+  });
+});

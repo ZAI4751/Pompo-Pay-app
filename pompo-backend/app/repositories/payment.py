@@ -15,14 +15,20 @@ from app.repositories.base import BaseRepository
 class TransactionRepository(BaseRepository[Transaction]):
     model = Transaction
 
+    def _detail_query(self):
+        return select(Transaction).options(
+            selectinload(Transaction.attempts),
+            selectinload(Transaction.merchant),
+            selectinload(Transaction.branch),
+            selectinload(Transaction.till),
+        )
+
     async def get_active_by_reference(self, reference: str) -> Transaction | None:
         result = await self._session.execute(
-            select(Transaction)
-            .where(
+            self._detail_query().where(
                 Transaction.reference == reference,
                 Transaction.deleted_at.is_(None),
             )
-            .options(selectinload(Transaction.attempts))
         )
         return result.scalar_one_or_none()
 
@@ -38,6 +44,48 @@ class TransactionRepository(BaseRepository[Transaction]):
             .options(selectinload(Transaction.attempts))
         )
         return result.scalar_one_or_none()
+
+    async def list_for_merchant(
+        self,
+        merchant_id: uuid.UUID,
+        *,
+        branch_id: uuid.UUID | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Transaction]:
+        query = (
+            self._detail_query()
+            .where(
+                Transaction.merchant_id == merchant_id,
+                Transaction.deleted_at.is_(None),
+            )
+            .order_by(Transaction.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        if branch_id is not None:
+            query = query.where(Transaction.branch_id == branch_id)
+        result = await self._session.execute(query)
+        return list(result.scalars().unique().all())
+
+    async def list_initiated_by(
+        self,
+        cashier_id: uuid.UUID,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Transaction]:
+        result = await self._session.execute(
+            self._detail_query()
+            .where(
+                Transaction.cashier_id == cashier_id,
+                Transaction.deleted_at.is_(None),
+            )
+            .order_by(Transaction.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(result.scalars().unique().all())
 
 
 class PaymentProviderRepository(BaseRepository[PaymentProvider]):
