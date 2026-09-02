@@ -1,8 +1,8 @@
-/* Design tokens
+﻿/* Design tokens
  * ---------------------------------------------------------------
  * Single source of truth for the Pompo brand palette. Every token
  * referenced from tailwind.config.ts lives here, split into a
- * `:root` (light) block and a `.dark` (dark) block — dark mode is
+ * `:root` (light) block and a `.dark` (dark) block ΓÇö dark mode is
  * a deliberate pitch-black theme, not an inverted light theme.
  * Components use Tailwind token classes, never hardcoded hex.
  */
@@ -14,7 +14,7 @@
 :root {
   color-scheme: light;
 
-  /* Brand — crisp blue-600 accent on cool slate type */
+  /* Brand ΓÇö crisp blue-600 accent on cool slate type */
   --color-primary: #2563eb;
   --color-primary-hover: #1d4ed8;
   --color-primary-light: #eff6ff;
@@ -22,7 +22,7 @@
   --color-dark-blue: #0b2545;
   --color-dark-blue-hover: #14335c;
 
-  /* Canvas / surfaces — white cards on slate-50 */
+  /* Canvas / surfaces ΓÇö white cards on slate-50 */
   --color-background: #f8fafc;
   --color-surface: #ffffff;
   --color-surface-raised: #f8fafc;
@@ -38,7 +38,7 @@
   --color-sidebar-active: #93c5fd;
   --color-sidebar-active-bg: rgb(37 99 235 / 0.18);
 
-  /* Text — slate-900, not generic gray-black */
+  /* Text ΓÇö slate-900, not generic gray-black */
   --color-text: #0f172a;
   --color-text-muted: #334155;
   --color-text-subtle: #64748b;
@@ -191,41 +191,6 @@
   }
   .dark .pompo-glass {
     background-color: rgb(15 23 42 / 0.72);
-  }
-  .pompo-mesh {
-    background-color: #f4eefe;
-    background-image:
-      radial-gradient(at 8% 0%, rgb(196 181 253 / 0.85) 0, transparent 42%),
-      radial-gradient(at 92% 8%, rgb(253 164 175 / 0.7) 0, transparent 38%),
-      radial-gradient(at 80% 100%, rgb(147 197 253 / 0.7) 0, transparent 42%),
-      radial-gradient(at 0% 78%, rgb(253 186 116 / 0.55) 0, transparent 36%);
-  }
-  .dark .pompo-mesh {
-    background-color: #020617;
-    background-image:
-      radial-gradient(at 10% 0%, rgb(76 29 149 / 0.55) 0, transparent 46%),
-      radial-gradient(at 90% 10%, rgb(190 24 93 / 0.28) 0, transparent 40%),
-      radial-gradient(at 70% 100%, rgb(30 64 175 / 0.4) 0, transparent 45%);
-  }
-  .pompo-orb {
-    background:
-      radial-gradient(circle at 32% 28%, #dbeafe 0%, #60a5fa 28%, #2563eb 62%, #1e3a8a 100%);
-    box-shadow:
-      0 0 0 12px rgb(37 99 235 / 0.12),
-      0 18px 40px -12px rgb(37 99 235 / 0.55);
-    animation: pompo-orb-pulse 3.2s ease-in-out infinite;
-  }
-}
-
-@keyframes pompo-orb-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-    filter: saturate(1);
-  }
-  50% {
-    transform: scale(1.04);
-    filter: saturate(1.15);
   }
 }
 
