@@ -141,6 +141,10 @@ class TestingSettings(BaseAppSettings):
     allowed_hosts: str = "*"
     database_pool_size: int = 5
     database_max_overflow: int = 5
+    # GitHub CI and local pytest share one Redis IP bucket (127.0.0.1) across
+    # the full HTTP suite. Production stays at 100. Dedicated tests still
+    # assert 429 via a middleware stub limit of 1 or per-client rate_limit_requests.
+    rate_limit_requests: int = Field(default=10000, ge=1)
 
 
 class ProductionSettings(BaseAppSettings):

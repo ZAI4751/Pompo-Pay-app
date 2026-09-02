@@ -85,6 +85,7 @@ async def app(settings):
     _assert_not_development_database(settings.database_url_str)
     get_settings.cache_clear()
     application = create_app()
+    await application.state.redis_service.client.flushdb()
     yield application
     await application.state.redis_service.close()
     await dispose_engine()
