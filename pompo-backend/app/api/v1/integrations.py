@@ -20,6 +20,7 @@ from app.schemas.integration import (
     IntegrationClientCreatedResponse,
     IntegrationClientResponse,
     IntegrationClientUpdate,
+    IntegrationErrorBody,
     IntegrationPaymentCreate,
     IntegrationPaymentResponse,
     IntegrationQRResponse,
@@ -46,6 +47,21 @@ from app.services.payment import (
 from app.services.qr import QRError, QRForbiddenError, QRInvalidError, QRNotFoundError, QRService
 
 router = APIRouter(prefix="/integrations", tags=["Integrations"])
+
+_MACHINE_ERROR_RESPONSES = {
+    401: {
+        "model": IntegrationErrorBody,
+        "description": "invalid_api_key, api_key_revoked, api_key_expired, api_key_inactive",
+    },
+    403: {"model": IntegrationErrorBody, "description": "insufficient_scope"},
+    404: {"model": IntegrationErrorBody, "description": "payment_not_found"},
+    409: {"model": IntegrationErrorBody, "description": "idempotency_conflict"},
+    422: {
+        "model": IntegrationErrorBody,
+        "description": "invalid_till, invalid_amount, invalid_request, unsupported_currency",
+    },
+    429: {"model": IntegrationErrorBody, "description": "rate_limited"},
+}
 
 _api_key_header = APIKeyHeader(
     name="X-API-Key",
@@ -104,8 +120,8 @@ def _payment_error(exc: PaymentError | QRError) -> IntegrationAPIError:
             return IntegrationAPIError("invalid_amount", str(exc))
         if "till" in text or "branch" in text or "merchant" in text:
             return IntegrationAPIError("invalid_till", str(exc))
-        return IntegrationAPIError("invalid_amount", str(exc))
-    return IntegrationAPIError("invalid_amount", str(exc))
+        return IntegrationAPIError("invalid_request", str(exc))
+    return IntegrationAPIError("invalid_request", str(exc))
 
 
 def _client_response(client) -> IntegrationClientResponse:
@@ -434,6 +450,7 @@ async def list_client_deliveries(
     "/payments",
     response_model=IntegrationPaymentResponse,
     status_code=status.HTTP_201_CREATED,
+    responses=_MACHINE_ERROR_RESPONSES,
 )
 async def create_integration_payment(
     payload: IntegrationPaymentCreate,
@@ -453,7 +470,7 @@ async def create_integration_payment(
     )
     key = payload.idempotency_key or idempotency_key
     if not key:
-        raise IntegrationAPIError("invalid_amount", "Idempotency key is required")
+        raise IntegrationAPIError("invalid_request", "Idempotency key is required")
     values = {
         "merchant_id": merchant_id,
         "branch_id": branch_id,
@@ -486,7 +503,11 @@ async def create_integration_payment(
     return _payment_response(transaction)
 
 
-@router.get("/payments/{reference}", response_model=IntegrationPaymentResponse)
+@router.get(
+    "/payments/{reference}",
+    response_model=IntegrationPaymentResponse,
+    responses=_MACHINE_ERROR_RESPONSES,
+)
 async def get_integration_payment(
     reference: str,
     principal: APIClientDep,

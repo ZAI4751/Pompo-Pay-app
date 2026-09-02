@@ -36,7 +36,12 @@ export const integrationsService = {
 
   async update(
     clientId: string,
-    payload: { name?: string; webhook_url?: string | null; disabled?: boolean },
+    payload: {
+      name?: string;
+      webhook_url?: string | null;
+      disabled?: boolean;
+      scopes?: string[];
+    },
   ): Promise<ApiResult<IntegrationClient>> {
     if (USE_MOCKS) return DEMO_UNAVAILABLE;
     return apiRequest<IntegrationClient>(`/integrations/clients/${encodeURIComponent(clientId)}`, {

@@ -331,6 +331,58 @@ async def test_revoked_expired_and_insufficient_scope(
 
 
 @pytest.mark.asyncio
+async def test_disable_client_makes_key_inactive(
+    client: AsyncClient, platform_admin: User
+) -> None:
+    token = await _login(client, platform_admin.email)
+    headers = {"Authorization": f"Bearer {token}"}
+    suffix = uuid.uuid4().hex[:8]
+    merchant_id, branch_id, till_id = await _merchant_tree(client, headers, suffix)
+    created = await client.post(
+        "/api/v1/integrations/clients",
+        headers=headers,
+        json={
+            "name": "Disable me",
+            "client_type": "merchant_pos",
+            "merchant_id": merchant_id,
+            "branch_id": branch_id,
+            "till_id": till_id,
+            "scopes": ["payments:read", "transactions:read"],
+        },
+    )
+    assert created.status_code == 201, created.text
+    raw_key = created.json()["api_key"]
+    client_id = created.json()["id"]
+    assert created.json()["scopes"] == ["payments:read", "transactions:read"]
+
+    disabled = await client.patch(
+        f"/api/v1/integrations/clients/{client_id}",
+        headers=headers,
+        json={"disabled": True},
+    )
+    assert disabled.status_code == 200
+    assert disabled.json()["status"] == "disabled"
+    inactive = await client.get(
+        "/api/v1/integrations/payments/PMP-X", headers={"X-API-Key": raw_key}
+    )
+    assert inactive.status_code == 401
+    assert inactive.json()["code"] == "api_key_inactive"
+
+    enabled = await client.patch(
+        f"/api/v1/integrations/clients/{client_id}",
+        headers=headers,
+        json={"disabled": False},
+    )
+    assert enabled.status_code == 200
+    assert enabled.json()["status"] == "active"
+    missing = await client.get(
+        "/api/v1/integrations/payments/PMP-X", headers={"X-API-Key": raw_key}
+    )
+    assert missing.status_code == 404
+    assert missing.json()["code"] == "payment_not_found"
+
+
+@pytest.mark.asyncio
 async def test_merchant_and_till_isolation(client: AsyncClient, platform_admin: User) -> None:
     token = await _login(client, platform_admin.email)
     headers = {"Authorization": f"Bearer {token}"}
@@ -709,3 +761,7 @@ async def test_expired_key_invalid_amount_currency_rate_limit_and_openapi(
     assert "SECRET_KEY" not in dumped
     assert "pompo_live_" + "a" * 24 not in dumped
     assert spec["paths"]["/api/v1/integrations/payments"]["post"].get("tags") == ["Integrations"]
+    post_responses = spec["paths"]["/api/v1/integrations/payments"]["post"]["responses"]
+    for code in ("401", "403", "404", "409", "422", "429"):
+        assert code in post_responses
+    assert "IntegrationErrorBody" in dumped or "invalid_api_key" in dumped

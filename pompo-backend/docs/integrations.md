@@ -191,10 +191,15 @@ No stack traces. Cross-tenant payment lookups return `payment_not_found`.
 | POST | `/integrations/clients` | `api_keys:create` |
 | GET | `/integrations/clients` | `api_keys:read` |
 | GET | `/integrations/clients/{id}` | `api_keys:read` |
-| PATCH | `/integrations/clients/{id}` | `api_keys:create` |
+| PATCH | `/integrations/clients/{id}` | `api_keys:create` (name, scopes, webhook URL, disable/enable) |
 | POST | `/integrations/clients/{id}/keys` | `api_keys:create` |
+| POST | `/integrations/clients/{id}/webhook-secret` | `api_keys:create` |
 | POST | `/integrations/clients/{id}/revoke` | `api_keys:revoke` |
 | GET | `/integrations/clients/{id}/deliveries` | `api_keys:read` |
+
+Master Admin **API Keys** creates clients, assigns scopes, binds POS
+merchant/branch/till, rotates keys, disables or revokes clients, and inspects
+outbound deliveries. Secrets are shown once.
 
 ## Example client
 

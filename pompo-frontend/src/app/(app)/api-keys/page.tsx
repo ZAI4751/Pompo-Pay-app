@@ -27,6 +27,15 @@ import type { ApiResult } from "@/lib/types/common";
 const selectClass =
   "mt-1 block w-full rounded-sm border border-border bg-surface px-3 py-2 text-sm text-text";
 
+const SCOPE_OPTIONS = [
+  "payments:create",
+  "payments:read",
+  "qr:create",
+  "qr:read",
+  "transactions:read",
+  "webhooks:read",
+] as const;
+
 export default function ApiKeysPage() {
   const { isDemoSession } = useAuth();
   const { hasPermission } = usePermissions();
@@ -46,6 +55,7 @@ export default function ApiKeysPage() {
   const [branchId, setBranchId] = useState("");
   const [tillId, setTillId] = useState("");
   const [webhookUrl, setWebhookUrl] = useState("");
+  const [scopes, setScopes] = useState<string[]>([...SCOPE_OPTIONS]);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [secretOpen, setSecretOpen] = useState(false);
@@ -53,6 +63,8 @@ export default function ApiKeysPage() {
   const [oneTimeWebhook, setOneTimeWebhook] = useState("");
   const [revokeTarget, setRevokeTarget] = useState<IntegrationClient | null>(null);
   const [revoking, setRevoking] = useState(false);
+  const [disableTarget, setDisableTarget] = useState<IntegrationClient | null>(null);
+  const [disabling, setDisabling] = useState(false);
   const [selected, setSelected] = useState<IntegrationClient | null>(null);
   const [deliveries, setDeliveries] = useState<OutboundWebhookDelivery[] | null>(null);
 
@@ -108,6 +120,7 @@ export default function ApiKeysPage() {
       branch_id: bindTill ? branchId || null : null,
       till_id: bindTill ? tillId || null : null,
       webhook_url: webhookUrl || null,
+      scopes,
     });
     setSaving(false);
     if (created.status === "error") {
@@ -117,6 +130,7 @@ export default function ApiKeysPage() {
     setFormOpen(false);
     setName("");
     setWebhookUrl("");
+    setScopes([...SCOPE_OPTIONS]);
     setOneTimeKey(created.data.api_key);
     setOneTimeWebhook(created.data.webhook_signing_secret ?? "");
     setSecretOpen(true);
@@ -134,6 +148,36 @@ export default function ApiKeysPage() {
     setOneTimeWebhook("");
     setSecretOpen(true);
     push("API key rotated. Copy it now — it will not be shown again.", "success");
+    void integrationsService.list(merchantId).then(setResult);
+  }
+
+  function toggleScope(code: string) {
+    setScopes((current) =>
+      current.includes(code) ? current.filter((item) => item !== code) : [...current, code],
+    );
+  }
+
+  async function onDisable() {
+    if (!disableTarget) return;
+    setDisabling(true);
+    const updated = await integrationsService.update(disableTarget.id, { disabled: true });
+    setDisabling(false);
+    if (updated.status === "error") {
+      push(updated.message, "error");
+      return;
+    }
+    setDisableTarget(null);
+    push("Integration disabled", "success");
+    void integrationsService.list(merchantId).then(setResult);
+  }
+
+  async function onEnable(row: IntegrationClient) {
+    const updated = await integrationsService.update(row.id, { disabled: false });
+    if (updated.status === "error") {
+      push(updated.message, "error");
+      return;
+    }
+    push("Integration enabled", "success");
     void integrationsService.list(merchantId).then(setResult);
   }
 
@@ -229,6 +273,7 @@ export default function ApiKeysPage() {
                   <Td>
                     <div className="font-medium">{row.name}</div>
                     <MonoId>{row.public_id}</MonoId>
+                    <div className="mt-1 text-xs text-text-muted">{row.scopes.join(", ")}</div>
                   </Td>
                   <Td>{row.client_type}</Td>
                   <Td>
@@ -247,6 +292,16 @@ export default function ApiKeysPage() {
                       {canCreate && row.status === "active" && (
                         <Button variant="secondary" size="sm" onClick={() => void onRotate(row)}>
                           Rotate key
+                        </Button>
+                      )}
+                      {canCreate && row.status === "active" && (
+                        <Button variant="secondary" size="sm" onClick={() => setDisableTarget(row)}>
+                          Disable
+                        </Button>
+                      )}
+                      {canCreate && row.status === "disabled" && (
+                        <Button variant="secondary" size="sm" onClick={() => void onEnable(row)}>
+                          Enable
                         </Button>
                       )}
                       {canRevoke && row.status !== "revoked" && (
@@ -314,12 +369,27 @@ export default function ApiKeysPage() {
             onChange={(event) => setWebhookUrl(event.target.value)}
             placeholder="https://example.com/pompo/webhooks"
           />
+          <fieldset>
+            <legend className="text-sm text-text-muted">Scopes</legend>
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {SCOPE_OPTIONS.map((code) => (
+                <label key={code} className="flex items-center gap-2 text-sm text-text">
+                  <input
+                    type="checkbox"
+                    checked={scopes.includes(code)}
+                    onChange={() => toggleScope(code)}
+                  />
+                  {code}
+                </label>
+              ))}
+            </div>
+          </fieldset>
           {formError && <p className="text-sm text-error">{formError}</p>}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setFormOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" loading={saving}>
+            <Button type="submit" loading={saving} disabled={scopes.length === 0}>
               Create
             </Button>
           </div>
@@ -375,6 +445,16 @@ export default function ApiKeysPage() {
           </ul>
         )}
       </Modal>
+
+      <ConfirmationDialog
+        open={disableTarget !== null}
+        onCancel={() => setDisableTarget(null)}
+        title="Disable integration?"
+        description="The client will stop authenticating until it is enabled again. Keys are not revoked."
+        confirmLabel="Disable"
+        loading={disabling}
+        onConfirm={() => void onDisable()}
+      />
 
       <ConfirmationDialog
         open={revokeTarget !== null}
