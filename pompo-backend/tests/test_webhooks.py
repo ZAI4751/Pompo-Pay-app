@@ -184,6 +184,8 @@ async def test_ingest_valid_webhook_updates_payment(session: AsyncSession) -> No
     event = await service.ingest("simulated", headers=headers, body=body)
     await session.refresh(transaction)
     assert event.processing_status is WebhookProcessingStatus.PROCESSED
+    assert 1 <= len(event.public_identifier) <= 40
+    assert event.public_identifier.startswith("WHK-")
     assert transaction.status is TransactionStatus.SUCCESS
 
 

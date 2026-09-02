@@ -226,7 +226,7 @@ class WebhookEvent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ),
     )
 
-    public_identifier: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
+    public_identifier: Mapped[str] = mapped_column(String(40), nullable=False, unique=True)
     provider_id: Mapped[uuid.UUID] = mapped_column(
         GUID(), ForeignKey("payment_providers.id", ondelete="RESTRICT"), nullable=False, index=True
     )
