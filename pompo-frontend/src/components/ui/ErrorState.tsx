@@ -39,7 +39,7 @@ export function ErrorState({
 }: ErrorStateProps) {
   const { icon: Icon, title } = config[kind];
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-md border border-error/25 bg-error-bg/40 px-6 py-16 text-center">
+    <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-error/25 bg-error-bg/40 px-6 py-16 text-center">
       <div className="flex h-11 w-11 items-center justify-center rounded-md bg-error-bg text-error">
         <Icon className="h-5 w-5" aria-hidden="true" />
       </div>

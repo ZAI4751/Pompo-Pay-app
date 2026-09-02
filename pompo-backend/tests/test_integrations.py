@@ -9,13 +9,13 @@ import json
 import time
 import uuid
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.base import get_settings
 from app.core.security.password import PasswordHasher
 from app.integrations.keys import hash_secret, looks_like_api_key
 from app.integrations.scopes import DEFAULT_POS_SCOPES, FORBIDDEN_INTEGRATION_SCOPES, normalize_scopes
@@ -86,9 +86,13 @@ async def platform_admin(db_session: AsyncSession) -> AsyncGenerator[User, None]
     db_session.add(user)
     await seed_provider_catalog(db_session)
     await db_session.commit()
+    user_id = user.id
     yield user
+    await db_session.rollback()
     client_ids = list(
-        await db_session.scalars(select(IntegrationClient.id).where(IntegrationClient.created_by_user_id == user.id))
+        await db_session.scalars(
+            select(IntegrationClient.id).where(IntegrationClient.created_by_user_id == user_id)
+        )
     )
     if client_ids:
         await db_session.execute(
@@ -102,7 +106,7 @@ async def platform_admin(db_session: AsyncSession) -> AsyncGenerator[User, None]
             await db_session.execute(delete(Transaction).where(Transaction.id.in_(txn_ids)))
         await db_session.execute(delete(APIKey).where(APIKey.client_id.in_(client_ids)))
         await db_session.execute(delete(IntegrationClient).where(IntegrationClient.id.in_(client_ids)))
-    await db_session.execute(delete(User).where(User.id == user.id))
+    await db_session.execute(delete(User).where(User.id == user_id))
     await db_session.commit()
 
 
@@ -513,7 +517,9 @@ async def test_outbound_webhook_signing_delivery_duplicate_and_retry(
         payload=delivery.payload,
     )
     db_session.add(duplicate)
-    with pytest.raises(Exception):
+    from sqlalchemy.exc import IntegrityError
+
+    with pytest.raises(IntegrityError):
         await db_session.commit()
     await db_session.rollback()
 
@@ -583,3 +589,123 @@ async def test_invalid_destination_fails_without_retry_forever(
     result = await service.deliver(delivery.id)
     assert result.status.value == "failed"
     assert result.failure_category.value == "invalid_destination"
+
+
+@pytest.mark.asyncio
+async def test_expired_key_invalid_amount_currency_rate_limit_and_openapi(
+    client: AsyncClient, platform_admin: User, db_session: AsyncSession
+) -> None:
+    token = await _login(client, platform_admin.email)
+    headers = {"Authorization": f"Bearer {token}"}
+    suffix = uuid.uuid4().hex[:8]
+    merchant_id, branch_id, till_id = await _merchant_tree(client, headers, suffix)
+    created = await client.post(
+        "/api/v1/integrations/clients",
+        headers=headers,
+        json={
+            "name": "Limited POS",
+            "client_type": "merchant_pos",
+            "merchant_id": merchant_id,
+            "branch_id": branch_id,
+            "till_id": till_id,
+        },
+    )
+    assert created.status_code == 201, created.text
+    raw_key = created.json()["api_key"]
+    api_headers = {"X-API-Key": raw_key}
+
+    limited_client = await client.post(
+        "/api/v1/integrations/clients",
+        headers=headers,
+        json={
+            "name": "Rate limited POS",
+            "client_type": "merchant_pos",
+            "merchant_id": merchant_id,
+            "branch_id": branch_id,
+            "till_id": till_id,
+            "rate_limit_requests": 1,
+        },
+    )
+    assert limited_client.status_code == 201, limited_client.text
+    limited_key = limited_client.json()["api_key"]
+
+    bad_amount = await client.post(
+        "/api/v1/integrations/payments",
+        headers=api_headers,
+        json={
+            "amount": "0.00",
+            "currency": "MWK",
+            "payment_method": "mobile_money",
+            "idempotency_key": f"zero-{suffix}",
+        },
+    )
+    assert bad_amount.status_code == 422
+    assert bad_amount.json()["code"] == "invalid_amount"
+
+    bad_currency = await client.post(
+        "/api/v1/integrations/payments",
+        headers=api_headers,
+        json={
+            "amount": "10.00",
+            "currency": "USD",
+            "payment_method": "mobile_money",
+            "idempotency_key": f"usd-{suffix}",
+        },
+    )
+    assert bad_currency.status_code == 422
+    assert bad_currency.json()["code"] == "unsupported_currency"
+
+    first = await client.post(
+        "/api/v1/integrations/payments",
+        headers={"X-API-Key": limited_key},
+        json={
+            "amount": "12.00",
+            "currency": "MWK",
+            "payment_method": "mobile_money",
+            "idempotency_key": f"rl-{suffix}",
+            "generate_qr": False,
+        },
+    )
+    assert first.status_code == 201, first.text
+    limited = await client.post(
+        "/api/v1/integrations/payments",
+        headers={"X-API-Key": limited_key},
+        json={
+            "amount": "13.00",
+            "currency": "MWK",
+            "payment_method": "mobile_money",
+            "idempotency_key": f"rl2-{suffix}",
+            "generate_qr": False,
+        },
+    )
+    assert limited.status_code == 429
+    assert limited.json()["code"] == "rate_limited"
+    assert "retry-after" in {k.lower() for k in limited.headers}
+
+    stored = await db_session.scalar(select(APIKey).where(APIKey.key_prefix == raw_key[:16]))
+    assert stored is not None
+    stored.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    await db_session.commit()
+    expired = await client.get(
+        "/api/v1/integrations/payments/PMP-X", headers={"X-API-Key": raw_key}
+    )
+    assert expired.status_code == 401
+    assert expired.json()["code"] == "api_key_expired"
+
+    from fastapi import FastAPI
+
+    from app.api.v1.router import api_v1_router
+
+    app = FastAPI()
+    app.include_router(api_v1_router, prefix="/api/v1")
+    spec = app.openapi()
+    paths = spec["paths"]
+    assert "/api/v1/integrations/payments" in paths
+    assert "post" in paths["/api/v1/integrations/payments"]
+    assert "/api/v1/integrations/payments/{reference}" in paths
+    assert "/api/v1/integrations/clients" in paths
+    dumped = json.dumps(spec)
+    assert "hashed_key" not in dumped.lower()
+    assert "SECRET_KEY" not in dumped
+    assert "pompo_live_" + "a" * 24 not in dumped
+    assert spec["paths"]["/api/v1/integrations/payments"]["post"].get("tags") == ["Integrations"]

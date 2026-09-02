@@ -65,20 +65,33 @@ class IntegrationClientResponse(BaseModel):
 
 
 class IntegrationClientCreatedResponse(IntegrationClientResponse):
-    api_key: str
-    webhook_signing_secret: str | None = None
+    api_key: str = Field(
+        description="Shown once. Never stored in plaintext and never returned by list/get.",
+        json_schema_extra={"examples": ["pompo_test_<shown-once>"]},
+    )
+    webhook_signing_secret: str | None = Field(
+        default=None,
+        description="Shown once. Derived signing secret; not stored.",
+        json_schema_extra={"examples": ["whsec_<shown-once>"]},
+    )
 
 
 class APIKeyCreatedResponse(BaseModel):
     client_id: uuid.UUID
     key_prefix: str
-    api_key: str
+    api_key: str = Field(
+        description="Shown once. Never stored in plaintext.",
+        json_schema_extra={"examples": ["pompo_test_<shown-once>"]},
+    )
 
 
 class WebhookSecretCreatedResponse(BaseModel):
     client_id: uuid.UUID
     webhook_secret_prefix: str
-    webhook_signing_secret: str
+    webhook_signing_secret: str = Field(
+        description="Shown once. Derived signing secret; not stored.",
+        json_schema_extra={"examples": ["whsec_<shown-once>"]},
+    )
 
 
 class IntegrationPaymentCreate(BaseModel):

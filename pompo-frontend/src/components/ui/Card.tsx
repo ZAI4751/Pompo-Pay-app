@@ -18,7 +18,7 @@ export function Card({ className, padded, glow, interactive, glass, ...props }: 
       whileHover={interactive ? cardHover : undefined}
       transition={cardTransition}
       className={cn(
-        "rounded-md border border-border bg-white card-depth transition-colors duration-200",
+        "rounded-2xl border border-border bg-white card-depth transition-colors duration-200",
         "dark:border-neutral-800 dark:bg-slate-900/80 dark:backdrop-blur-md",
         padded && "px-5 py-4",
         glow && "glow-ring",

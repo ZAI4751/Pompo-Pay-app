@@ -36,7 +36,7 @@ export function MetricCard({
       whileHover={cardHover}
       transition={cardTransition}
       className={cn(
-        "h-full min-w-0 rounded-md border px-4 py-4 card-depth transition-colors duration-200",
+        "h-full min-w-0 rounded-2xl border px-5 py-5 card-depth transition-colors duration-200",
         primary
           ? "border-primary/30 bg-gradient-to-br from-primary-light to-white glow-ring dark:from-primary-light dark:to-slate-900/80 dark:shadow-luminous"
           : "border-border bg-white hover:border-primary/25 hover:shadow-glow dark:border-neutral-800 dark:bg-slate-900/80 dark:hover:shadow-luminous",
@@ -62,7 +62,7 @@ export function MetricCard({
         </div>
         <div
           className={cn(
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-sm",
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl",
             primary ? "bg-primary text-primary-foreground" : "bg-primary-light text-primary",
           )}
         >

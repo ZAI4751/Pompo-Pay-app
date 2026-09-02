@@ -408,6 +408,9 @@ class QRService:
         amount = values.get("amount")
         if amount is None:
             raise QRInvalidError("Amount is required for static QR payments")
+        public_identifier = qr.public_identifier
+        actor_id = actor.id
+        actor_merchant_id = actor.merchant_id
         payment_values = {
             "merchant_id": qr.merchant_id,
             "branch_id": qr.branch_id,
@@ -426,22 +429,29 @@ class QRService:
             )
         except PaymentError as exc:
             raise QRInvalidError(str(exc)) from exc
-        await self._audit(
-            actor,
-            "payment_initiated_from_qr",
-            transaction.id,
-            None,
-            {
-                "public_identifier": qr.public_identifier,
-                "qr_type": QRType.STATIC.value,
-                "reference": transaction.reference,
-            },
+        reference = transaction.reference
+        self._session.add(
+            AuditLog(
+                created_at=datetime.now(UTC),
+                actor_user_id=actor_id,
+                merchant_id=actor_merchant_id,
+                action="payment_initiated_from_qr",
+                entity_type="qr_code",
+                entity_id=str(transaction.id),
+                before_state=None,
+                after_state={
+                    "public_identifier": public_identifier,
+                    "qr_type": QRType.STATIC.value,
+                    "reference": reference,
+                },
+            )
         )
         await self._session.commit()
+        await self._session.refresh(transaction, attribute_names=["attempts"])
         logger.info(
             "payment_from_static_qr",
-            public_identifier=qr.public_identifier,
-            reference=transaction.reference,
+            public_identifier=public_identifier,
+            reference=reference,
         )
         return transaction
 

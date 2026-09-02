@@ -17,7 +17,7 @@ export function PageShell({ title, breadcrumb, actions, children }: PageShellPro
       <TopBar title={title} breadcrumb={breadcrumb} actions={actions} />
       <main className="relative flex-1 overflow-y-auto scrollbar-thin">
         <div className="pompo-aurora pointer-events-none absolute inset-0" aria-hidden="true" />
-        <AnimatedPage className="relative p-5 lg:p-6">{children}</AnimatedPage>
+        <AnimatedPage className="relative px-4 py-5 sm:px-6 lg:px-8">{children}</AnimatedPage>
       </main>
     </>
   );

@@ -82,12 +82,13 @@ export default function LoginPage() {
         </div>
       </aside>
 
-      <div className="relative flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12 transition-colors duration-200 dark:bg-black">
-        <div className="absolute right-4 top-4">
+      <div className="relative flex min-h-screen items-center justify-center bg-background px-4 py-12 transition-colors duration-200">
+        <div className="pompo-aurora pointer-events-none absolute inset-0" aria-hidden="true" />
+        <div className="absolute right-4 top-4 z-10">
           <ThemeToggle />
         </div>
 
-        <AnimatedPage className="w-full max-w-sm">
+        <AnimatedPage className="relative z-10 w-full max-w-sm">
           <div className="mb-8 flex flex-col items-center gap-3 lg:items-start">
             <div className="lg:hidden">
               <PompoMark size={36} />
@@ -109,7 +110,7 @@ export default function LoginPage() {
           {USE_MOCKS && (
             <div
               role="status"
-              className="mb-4 rounded-md border border-warning/30 bg-warning-bg px-3 py-3 text-sm text-warning"
+              className="mb-4 rounded-2xl border border-warning/30 bg-warning-bg px-3 py-3 text-sm text-warning"
             >
               <p className="flex items-center gap-1.5 font-medium">
                 <FlaskConical className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -128,7 +129,7 @@ export default function LoginPage() {
 
           <form
             onSubmit={onSubmit}
-            className="space-y-4 rounded-md border border-border bg-white p-6 card-depth pompo-glass dark:border-neutral-800 dark:bg-slate-900/80"
+            className="space-y-4 rounded-3xl border border-border bg-white p-6 card-depth pompo-glass dark:border-neutral-800 dark:bg-slate-900/80"
           >
             {USE_MOCKS && (
               <p className="text-xs text-text-subtle">

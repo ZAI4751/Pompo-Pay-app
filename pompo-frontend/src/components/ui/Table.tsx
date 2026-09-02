@@ -7,7 +7,7 @@ import { staggerContainer, staggerItem } from "@/lib/motion";
 
 export function Table({ className, ...props }: TableHTMLAttributes<HTMLTableElement>) {
   return (
-    <div className="w-full overflow-x-auto rounded-md border border-border bg-white dark:border-neutral-800 dark:bg-slate-900/80">
+    <div className="w-full overflow-x-auto rounded-2xl border border-border bg-white dark:border-neutral-800 dark:bg-slate-900/80">
       <table className={cn("w-full min-w-[640px] table-fixed border-collapse text-sm", className)} {...props} />
     </div>
   );

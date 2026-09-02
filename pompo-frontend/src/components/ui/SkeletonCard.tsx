@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils/cn";
 export function SkeletonCard({ className, lines = 3 }: { className?: string; lines?: number }) {
   return (
     <div
-      className={cn("rounded-md border border-border bg-surface p-4 card-depth", className)}
+      className={cn("rounded-2xl border border-border bg-surface p-4 card-depth", className)}
       role="status"
       aria-label="Loading"
     >
@@ -21,7 +21,7 @@ export function SkeletonCard({ className, lines = 3 }: { className?: string; lin
 
 export function MetricSkeleton() {
   return (
-    <div className="rounded-md border border-border bg-surface px-4 py-4 card-depth" role="status" aria-label="Loading metric">
+    <div className="rounded-2xl border border-border bg-surface px-5 py-5 card-depth" role="status" aria-label="Loading metric">
       <div className="flex items-start justify-between">
         <Skeleton className="h-3 w-28" />
         <Skeleton className="h-8 w-8 rounded-sm" />

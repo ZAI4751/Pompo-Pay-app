@@ -62,7 +62,7 @@ export function UserMenu() {
             role="menu"
             aria-label="Account"
             className={cn(
-              "absolute w-64 overflow-hidden rounded-md border border-border bg-white py-1 shadow-glow pompo-glass",
+              "absolute w-64 overflow-hidden rounded-2xl border border-border bg-white py-1 shadow-glow pompo-glass",
               "dark:border-neutral-800 dark:bg-slate-900",
               "animate-fade-in",
             )}
@@ -107,9 +107,9 @@ export function UserMenu() {
         onClick={() => setOpen((value) => !value)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex max-w-[11rem] items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors duration-200 hover:bg-primary-light"
+        className="flex max-w-[11rem] items-center gap-2 rounded-full px-2 py-1.5 text-sm transition-colors duration-200 hover:bg-primary-light"
       >
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm bg-dark-blue text-xs font-semibold text-white">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
           {user.full_name.charAt(0).toUpperCase()}
         </div>
         <span className="hidden min-w-0 truncate text-text sm:inline">{user.full_name}</span>

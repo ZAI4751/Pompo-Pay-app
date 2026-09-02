@@ -118,13 +118,25 @@ def register_exception_handlers(app: FastAPI) -> None:
             path=request.url.path,
             errors=errors,
         )
+        content: dict[str, Any] = {
+            "detail": "Request validation failed",
+            "request_id": request_id,
+            "errors": errors,
+        }
+        if request.url.path.startswith("/api/v1/integrations/"):
+            joined = " ".join(
+                f"{error.get('loc', '')} {error.get('msg', '')} {error.get('type', '')}"
+                for error in errors
+            ).lower()
+            if "currency" in joined:
+                content["code"] = "unsupported_currency"
+            elif "till" in joined or "merchant" in joined or "branch" in joined:
+                content["code"] = "invalid_till"
+            else:
+                content["code"] = "invalid_amount"
         return JSONResponse(
             status_code=HTTP_422_UNPROCESSABLE,
-            content={
-                "detail": "Request validation failed",
-                "request_id": request_id,
-                "errors": errors,
-            },
+            content=content,
         )
 
     @app.exception_handler(IntegrationAPIError)

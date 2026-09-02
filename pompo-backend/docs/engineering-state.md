@@ -1,9 +1,11 @@
 # POMPO Engineering State
 
 ## CURRENT MILESTONE
-M008 live-provider integration readiness is implemented as far as available
-contracts allow. No authoritative Airtel/TNM/bank HTTP contract exists in the
-repository, so live rails remain non-routable stubs.
+M013 POS + developer platform is implemented: hashed API keys, integration
+clients, POS payment/QR/status APIs, outbound partner webhooks, Master Admin
+management, and machine-readable integration errors.
+
+Do not start M014 or real Airtel/TNM/bank integrations.
 
 The operational chain remains Merchant → Branch → Till → Provider → Payment
 → Transaction → Payment Attempt.
@@ -37,8 +39,8 @@ PaymentService → select_provider → ProviderRegistry → ProviderAdapter
 ```
 
 ## DATABASE STATE
-PostgreSQL migration graph head is `0008_provider_management` (parent
-`0007_operational_tills_providers`).
+PostgreSQL migration graph head is `0013_m013_integrations` (parent
+`0012_m012_mobile`).
 M008 required no schema change; attempt correlation metadata fits in existing
 `provider_request` / `provider_response` JSON.
 `0008` adds `provider_type`, `health_state`, `config_refs` on
@@ -130,13 +132,15 @@ every capability the backend already exposes:
 REAL API INTEGRATED: authentication (`/auth/login`, `/refresh`, `/logout`,
 `/me`); RBAC roles/permissions/grants; merchant, branch, and till CRUD
 (soft-delete); payment get-by-reference plus cancel/process; provider catalog
-list/detail/enable-disable/health; health/readiness/liveness.
+list/detail/enable-disable/health; health/readiness/liveness; QR codes;
+inbound provider webhooks; settlements/reconciliation; integration API clients
+and hashed API keys (`/api-keys`).
 
 Effective permissions are loaded from `GET /rbac/roles/{role_id}`
 (`permission_codes`). `/auth/me` still does not return permission codes.
 
 MOCK / NOT YET AVAILABLE: user directory, payment/transaction list,
-webhooks, audit logs, API keys, reports, QR, live Airtel/TNM/bank adapters.
+audit logs, reports, live Airtel/TNM/bank adapters.
 Dashboard volume charts remain labeled illustrative series.
 
 `NEXT_PUBLIC_USE_MOCKS=true` is opt-in demo mode. The default is live API.

@@ -79,7 +79,7 @@ export const navGroups: NavGroup[] = [
   {
     label: "Platform",
     items: [
-      { label: "API Keys", href: "/api-keys", icon: KeySquare, comingSoon: true },
+      { label: "API Keys", href: "/api-keys", icon: KeySquare, permission: "api_keys:read" },
       { label: "Audit Logs", href: "/audit-logs", icon: ScrollText, comingSoon: true },
       { label: "Security", href: "/security", icon: Lock, comingSoon: true },
       { label: "Reports", href: "/reports", icon: FileBarChart, comingSoon: true },

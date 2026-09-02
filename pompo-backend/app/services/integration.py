@@ -129,7 +129,7 @@ class IntegrationService:
         now = datetime.now(UTC)
         record.last_used_at = now
         client.last_used_at = now
-        await self._session.flush()
+        await self._session.commit()
         logger.info(
             "integration_authenticated",
             client_id=str(client.id),

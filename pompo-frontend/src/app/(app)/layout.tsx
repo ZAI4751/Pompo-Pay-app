@@ -27,7 +27,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="skeleton h-3 w-24 rounded" />
           <div className="skeleton mt-3 h-8 w-40 rounded" />
         </div>
-        <p className="text-xs font-medium uppercase tracking-[0.16em] text-text-subtle">Loading control plane</p>
+        <p className="text-xs font-medium uppercase tracking-[0.16em] text-text-subtle">Loading operations</p>
       </div>
     );
   }

@@ -21,7 +21,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
       whileTap={disabled ? undefined : { scale: 0.97 }}
       transition={pressSpring}
       className={cn(
-        "inline-flex h-9 w-9 items-center justify-center rounded-sm text-text-muted",
+        "inline-flex h-9 w-9 items-center justify-center rounded-xl text-text-muted",
         "hover:bg-primary-light hover:text-text",
         "transition-colors duration-200",
         "disabled:opacity-50 disabled:cursor-not-allowed",

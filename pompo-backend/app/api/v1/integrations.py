@@ -152,15 +152,6 @@ def _payment_response(transaction: Transaction, qr: QRCode | None = None) -> Int
             status=qr.status.value,
             expires_at=qr.expires_at,
         )
-    elif transaction.qr_code is not None:
-        linked = transaction.qr_code
-        qr_payload = IntegrationQRResponse(
-            public_identifier=linked.public_identifier,
-            encoded_payload=linked.payload,
-            qr_type=linked.qr_type.value,
-            status=linked.status.value,
-            expires_at=linked.expires_at,
-        )
     return IntegrationPaymentResponse(
         reference=transaction.reference,
         status=transaction.status.value if hasattr(transaction.status, "value") else str(transaction.status),
@@ -507,4 +498,4 @@ async def get_integration_payment(
         transaction = await payments.get_payment_for_client(principal.client, reference)
     except PaymentError as exc:
         raise _payment_error(exc) from exc
-    return _payment_response(transaction)
+    return _payment_response(transaction, transaction.qr_code)

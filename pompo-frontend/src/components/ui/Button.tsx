@@ -44,7 +44,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         whileTap={isDisabled ? undefined : buttonTap}
         transition={pressSpring}
         className={cn(
-          "inline-flex items-center justify-center rounded-sm font-medium",
+          "inline-flex items-center justify-center rounded-xl font-medium",
           "transition-colors duration-200",
           "disabled:opacity-50 disabled:cursor-not-allowed",
           variantClasses[variant],
