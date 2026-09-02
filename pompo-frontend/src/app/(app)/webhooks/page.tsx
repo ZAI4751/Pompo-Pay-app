@@ -75,7 +75,7 @@ export default function WebhooksPage() {
             {result.data.map((event) => (
               <Tr key={event.id} onClick={() => setSelected(event)} className="cursor-pointer">
                 <Td>
-                  <MonoId value={event.public_identifier} />
+                  <MonoId>{event.public_identifier}</MonoId>
                   <div className="text-xs text-text-subtle">{event.provider_event_id}</div>
                 </Td>
                 <Td>{event.event_type}</Td>
