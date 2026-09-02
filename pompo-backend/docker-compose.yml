@@ -47,7 +47,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
-      ALLOWED_HOSTS: localhost,127.0.0.1,[::1],backend
+      # "*" so Expo Go on a physical phone can call the API via the LAN IP
+      # (Host: 192.168.x.x). Production must set an explicit host list.
+      ALLOWED_HOSTS: "*"
       # The admin frontend is opened as either host name locally, and the two
       # are distinct origins to a browser. Set here rather than in .env so the
       # development contract is version-controlled; `environment` also takes

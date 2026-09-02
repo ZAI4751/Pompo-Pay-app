@@ -14,14 +14,20 @@ beyond Expo.
 
 ## Configuration
 
-Set `EXPO_PUBLIC_API_BASE_URL` (no trailing slash).
+Set `EXPO_PUBLIC_API_BASE_URL` (no trailing slash) to override auto-detection.
 
 | Environment | Value |
 |---|---|
-| iOS simulator | `http://localhost:8000/api/v1` |
-| Android emulator | `http://10.0.2.2:8000/api/v1` |
-| Physical device | your machine LAN URL, e.g. `http://192.168.x.x:8000/api/v1` |
-| Production | `https://pompo-api-production.up.railway.app/api/v1` |
+| iOS simulator | `http://localhost:8000/api/v1` (default in `__DEV__`) |
+| Expo Go on a physical phone | auto: `http://<Metro LAN IP>:8000/api/v1` |
+| Android emulator | `http://10.0.2.2:8000/api/v1` (set via env) |
+| Production / release | `https://pompo-api-production.up.railway.app/api/v1` |
+
+In Expo Go, `localhost` is the **phone**, not your PC — that is why login used to
+fail without a LAN override. Metro logs `[POMPO] API_BASE_URL=...` on bundle load.
+
+The local Docker API must accept LAN Host headers (`ALLOWED_HOSTS=*` in
+development compose). Phone and PC must be on the same Wi‑Fi.
 
 Release builds default to the production API. Do not commit secrets. Access and
 refresh tokens live in SecureStore, never AsyncStorage.
