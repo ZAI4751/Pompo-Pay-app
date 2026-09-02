@@ -132,8 +132,10 @@ def register_exception_handlers(app: FastAPI) -> None:
                 content["code"] = "unsupported_currency"
             elif "till" in joined or "merchant" in joined or "branch" in joined:
                 content["code"] = "invalid_till"
-            else:
+            elif "amount" in joined:
                 content["code"] = "invalid_amount"
+            else:
+                content["code"] = "invalid_request"
         return JSONResponse(
             status_code=HTTP_422_UNPROCESSABLE,
             content=content,

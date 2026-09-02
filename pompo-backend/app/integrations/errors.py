@@ -13,6 +13,7 @@ INTEGRATION_ERROR_STATUS: dict[str, int] = {
     "insufficient_scope": 403,
     "invalid_till": 422,
     "invalid_amount": 422,
+    "invalid_request": 422,
     "unsupported_currency": 422,
     "invalid_destination": 422,
     "idempotency_conflict": 409,

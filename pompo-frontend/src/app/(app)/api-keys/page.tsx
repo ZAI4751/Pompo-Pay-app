@@ -99,13 +99,14 @@ export default function ApiKeysPage() {
     event?.preventDefault();
     setSaving(true);
     setFormError(null);
+    const bindTill = clientType === "merchant_pos";
     const created = await integrationsService.create({
       name,
       client_type: clientType,
       environment: "sandbox",
       merchant_id: merchantId,
-      branch_id: branchId || null,
-      till_id: tillId || null,
+      branch_id: bindTill ? branchId || null : null,
+      till_id: bindTill ? tillId || null : null,
       webhook_url: webhookUrl || null,
     });
     setSaving(false);
@@ -279,26 +280,34 @@ export default function ApiKeysPage() {
               <option value="partner">Partner</option>
             </select>
           </label>
-          <label className="text-sm text-text-muted">
-            Branch
-            <select className={selectClass} value={branchId} onChange={(event) => setBranchId(event.target.value)}>
-              {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-sm text-text-muted">
-            Till
-            <select className={selectClass} value={tillId} onChange={(event) => setTillId(event.target.value)}>
-              {tills.map((till) => (
-                <option key={till.id} value={till.id}>
-                  {till.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          {clientType === "merchant_pos" && (
+            <>
+              <label className="text-sm text-text-muted">
+                Branch
+                <select
+                  className={selectClass}
+                  value={branchId}
+                  onChange={(event) => setBranchId(event.target.value)}
+                >
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm text-text-muted">
+                Till
+                <select className={selectClass} value={tillId} onChange={(event) => setTillId(event.target.value)}>
+                  {tills.map((till) => (
+                    <option key={till.id} value={till.id}>
+                      {till.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
           <Input
             label="Partner webhook URL (optional)"
             value={webhookUrl}
