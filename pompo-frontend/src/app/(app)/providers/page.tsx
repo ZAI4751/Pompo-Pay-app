@@ -63,7 +63,9 @@ export default function ProvidersPage() {
       actions={isDemoSession ? <MockDataBadge /> : undefined}
     >
       <p className="mb-4 max-w-2xl text-sm text-text-muted">
-        Awaiting actual functional providers
+        Rails are enabled only when a live contract is ready and credentials are
+        configured. Airtel Money Malawi can be enabled from this page; TNM and
+        bank rails remain awaiting their contracts.
       </p>
 
       {result === null && (

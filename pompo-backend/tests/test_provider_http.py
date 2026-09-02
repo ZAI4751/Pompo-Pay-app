@@ -9,7 +9,6 @@ import pytest
 
 from app.core.config.base import AppEnvironment
 from app.payments.contracts import (
-    AUTHORITATIVE_CONTRACTS,
     ProviderHttpContract,
     get_authoritative_mapper,
     has_authoritative_contract,
@@ -135,21 +134,21 @@ def _credential_env(monkeypatch: pytest.MonkeyPatch, *, production: bool = False
     )
 
 
-def test_authoritative_contract_registry_is_empty() -> None:
-    assert AUTHORITATIVE_CONTRACTS == {}
-    assert get_authoritative_mapper("airtel_money", "sandbox") is None
-    assert has_authoritative_contract("airtel_money") is False
+def test_authoritative_contract_registry_registers_airtel_only() -> None:
+    assert get_authoritative_mapper("airtel_money", "sandbox") is not None
+    assert has_authoritative_contract("airtel_money") is True
+    assert get_authoritative_mapper("tnm_mpamba", "sandbox") is None
     assert has_authoritative_contract("tnm_mpamba") is False
 
 
-def test_live_catalog_codes_remain_unconfigured_stubs() -> None:
+def test_live_catalog_codes_remain_unconfigured_without_credentials() -> None:
     adapter = build_live_rail_adapter("airtel_money")
-    assert isinstance(adapter, UnconfiguredRailAdapter)
     assert adapter.live_contract_ready is False
     registry = ProviderRegistry()
     assert registry.get("airtel_money").live_contract_ready is False
     assert registry.get("tnm_mpamba").live_contract_ready is False
     assert registry.get("national_bank").live_contract_ready is False
+    assert isinstance(registry.get("tnm_mpamba"), UnconfiguredRailAdapter)
 
 
 def test_rail_environment_normalization() -> None:

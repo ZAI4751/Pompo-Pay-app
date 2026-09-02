@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from app.payments.contracts import ProviderHttpMapper, get_authoritative_mapper
+from app.payments.airtel_malawi import AirtelMoneyMalawiAdapter, AirtelMoneyMalawiMapper
+from app.payments.contracts import get_authoritative_mapper
 from app.payments.credentials import (
     ProviderEnvironmentError,
     normalize_rail_environment,
@@ -138,10 +139,14 @@ def build_live_rail_adapter(
     catalog_environment: str = "sandbox",
     client: ProviderHttpClient | None = None,
     capabilities: ProviderCapabilities | None = None,
-) -> UnconfiguredRailAdapter | ContractBoundHttpAdapter:
+) -> UnconfiguredRailAdapter | ContractBoundHttpAdapter | AirtelMoneyMalawiAdapter:
     mapper = get_authoritative_mapper(code, normalize_rail_environment(catalog_environment))
     if mapper is None:
         return UnconfiguredRailAdapter(code, capabilities or PLANNED_CAPABILITIES)
+    if isinstance(mapper, AirtelMoneyMalawiMapper):
+        return AirtelMoneyMalawiAdapter(
+            mapper, client=client, catalog_environment=catalog_environment
+        )
     return ContractBoundHttpAdapter(
         code, mapper, client=client, catalog_environment=catalog_environment
     )

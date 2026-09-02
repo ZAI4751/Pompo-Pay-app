@@ -84,7 +84,7 @@ async def test_provider_seed_is_idempotent_and_matches_registry_codes(
     assert simulated.environment == "sandbox"
     airtel = next(row for row in catalog if row.code is ProviderCode.AIRTEL_MONEY)
     assert airtel.is_active is False
-    assert airtel.is_simulated is True
+    assert airtel.is_simulated is False
     assert {row.code.value for row in catalog} >= {"simulated"}
     assert "simulated" in service.adapter_codes()
     assert "airtel_money" in service.adapter_codes()
@@ -99,6 +99,26 @@ async def test_cannot_enable_provider_without_live_contract(session: AsyncSessio
     service = ProviderCatalogService(session)
     with pytest.raises(ProviderCatalogConflictError):
         await service.update_catalog_entry(admin, "airtel_money", {"is_active": True})
+
+
+@pytest.mark.asyncio
+async def test_airtel_can_be_enabled_when_configured_then_disabled(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PROVIDER_AIRTEL_MONEY_BASE_URL", "https://openapiuat.airtel.mw")
+    monkeypatch.setenv("PROVIDER_AIRTEL_MONEY_ENVIRONMENT", "sandbox")
+    monkeypatch.setenv("PROVIDER_AIRTEL_MONEY_CLIENT_ID", "client-id")
+    monkeypatch.setenv("PROVIDER_AIRTEL_MONEY_CREDENTIAL_REF", "AIRTEL_MONEY_CLIENT_SECRET")
+    monkeypatch.setenv("AIRTEL_MONEY_CLIENT_SECRET", "client-secret-value")
+    await seed_provider_catalog(session)
+    await session.commit()
+    admin = await _actor(session, "platform_admin", ("providers:read", "providers:update"))
+    service = ProviderCatalogService(session)
+    enabled = await service.update_catalog_entry(admin, "airtel_money", {"is_active": True})
+    assert enabled.is_active is True
+    disabled = await service.disable_provider(admin, "airtel_money")
+    assert disabled.is_active is False
+    assert service.adapter_for("airtel_money").live_contract_ready is True
 
 
 @pytest.mark.asyncio

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any
@@ -13,7 +14,7 @@ from app.core.logging import get_logger
 from app.models import AuditLog, PaymentProvider, User
 from app.models.enums import ProviderCode, ProviderHealthState, ProviderType
 from app.payments.catalog import CATALOG_BY_CODE
-from app.payments.config import resolve_provider_runtime_config
+from app.payments.config import provider_env_key, resolve_provider_runtime_config
 from app.payments.contracts import get_authoritative_mapper
 from app.payments.credentials import normalize_rail_environment, production_rails_permitted
 from app.payments.health import operational_health_state
@@ -210,11 +211,18 @@ class ProviderCatalogService:
         mapper = get_authoritative_mapper(provider.code.value, rail_environment)
         contract_registered = provider.is_simulated or mapper is not None
         production_permitted = production_rails_permitted()
+        client_id_configured = bool(
+            os.environ.get(provider_env_key(provider.code.value, "CLIENT_ID"), "").strip()
+        )
+        auth_configured = runtime.secrets_configured and (
+            provider.is_simulated or client_id_configured
+        )
         if provider.is_simulated:
             complete = True
         else:
             complete = (
                 runtime.configuration_complete
+                and auth_configured
                 and contract_registered
                 and adapter is not None
                 and adapter.live_contract_ready
@@ -222,7 +230,7 @@ class ProviderCatalogService:
         return {
             "base_url_configured": runtime.base_url_configured,
             "timeout_seconds": runtime.timeout_seconds,
-            "auth_configured": runtime.secrets_configured,
+            "auth_configured": auth_configured,
             "signing_configured": runtime.webhook_signing_configured,
             "configuration_complete": complete,
             "rail_environment": rail_environment,

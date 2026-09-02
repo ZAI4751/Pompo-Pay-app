@@ -1,8 +1,8 @@
 """Database-backed provider catalog.
 
 Identifiers here must match ``ProviderCode`` and the in-process registry.
-Live Airtel/TNM/bank adapters are structured stubs; those rows stay inactive
-until a later milestone implements a real contract.
+TNM/bank adapters remain structured stubs. Airtel Money Malawi is a live
+contract (inactive until credentials are configured and an admin enables it).
 """
 
 from __future__ import annotations
@@ -72,6 +72,7 @@ def _refs(code: str) -> dict[str, str]:
     return {
         "base_url_env": f"{prefix}_BASE_URL",
         "timeout_env": f"{prefix}_TIMEOUT_SECONDS",
+        "client_id_env": f"{prefix}_CLIENT_ID",
         "credential_env": f"{prefix}_CREDENTIAL_REF",
         "webhook_secret_env": f"{prefix}_WEBHOOK_SECRET_REF",
     }
@@ -136,16 +137,25 @@ PROVIDER_CATALOG: tuple[ProviderCatalogDefinition, ...] = (
     ),
     ProviderCatalogDefinition(
         code=ProviderCode.AIRTEL_MONEY,
-        display_name="Airtel Money (live contract not implemented)",
+        display_name="Airtel Money Malawi",
         provider_type=ProviderType.MOBILE_MONEY,
         is_active=False,
-        is_simulated=True,
+        is_simulated=False,
         environment="sandbox",
-        health_state=ProviderHealthState.UNAVAILABLE,
+        health_state=ProviderHealthState.DISABLED,
         priority=10,
         supported_currencies=("MWK",),
         supported_payment_methods=("mobile_money",),
-        capabilities=PLANNED_CAPABILITIES,
+        capabilities=asdict(
+            ProviderCapabilities(
+                supports_push_payment=True,
+                supports_status_query=True,
+                supports_cancel=False,
+                supports_refund=False,
+                supports_webhooks=True,
+                supports_qr=False,
+            )
+        ),
         config_refs=_refs("airtel_money"),
     ),
     ProviderCatalogDefinition(

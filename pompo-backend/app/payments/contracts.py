@@ -1,9 +1,9 @@
 """Authoritative live-provider HTTP contracts.
 
 Insert a contract here only when POMPO has approved provider documentation
-in the repository (endpoints, auth, payloads, signatures). This registry is
-intentionally empty: there is currently no Airtel Money, TNM Mpamba, or bank
-API contract in source control, so live adapters must not become routable.
+in the repository (endpoints, auth, payloads, signatures). TNM Mpamba and
+bank rails remain unregistered. Airtel Money Malawi is registered from
+docs/providers/airtel-money-malawi.md.
 """
 
 from __future__ import annotations
@@ -47,6 +47,15 @@ class ProviderHttpMapper(Protocol):
 
 # Keyed by (provider_code, rail_environment). Populate only from approved docs.
 AUTHORITATIVE_CONTRACTS: dict[tuple[str, str], ProviderHttpMapper] = {}
+
+
+def _register_approved_contracts() -> None:
+    from app.payments.airtel_malawi import airtel_malawi_mappers
+
+    AUTHORITATIVE_CONTRACTS.update(airtel_malawi_mappers())
+
+
+_register_approved_contracts()
 
 
 def get_authoritative_mapper(code: str, rail_environment: str) -> ProviderHttpMapper | None:

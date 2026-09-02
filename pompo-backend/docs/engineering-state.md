@@ -1,11 +1,12 @@
 # POMPO Engineering State
 
 ## CURRENT MILESTONE
-M013 POS + developer platform is implemented: hashed API keys, integration
-clients, POS payment/QR/status APIs, outbound partner webhooks, Master Admin
-management, and machine-readable integration errors.
+M014 Airtel Money Malawi is the first live external rail: OAuth client
+credentials, Collection initiation/status, M010 callback adapter, sandbox vs
+production host separation, and catalog enable/disable without making Airtel
+the unconditional default.
 
-Do not start M014 or real Airtel/TNM/bank integrations.
+Do not start TNM, bank integrations, or M015.
 
 The operational chain remains Merchant → Branch → Till → Provider → Payment
 → Transaction → Payment Attempt.
@@ -20,9 +21,9 @@ Operational till management, provider catalog, and admin integration.
 Provider management APIs, routing, health, failure taxonomy, stub rails,
 simulated variants, and Master Admin wiring.
 M008 outbound HTTP client, credential-reference resolution, sandbox/production
-gating, contract registry (empty), webhook metadata fields, and admin
-contract-readiness visibility. Live Airtel/TNM/bank adapters are still waiting
-on authoritative documentation.
+gating, and admin contract-readiness visibility.
+M009 QR payments; M010 inbound webhooks; M011 settlement/reconciliation;
+M012 unified mobile app; M013 POS / developer platform.
 
 ## CURRENT ARCHITECTURE
 FastAPI routes use dependencies, services, repositories, and async SQLAlchemy.
@@ -39,8 +40,8 @@ PaymentService → select_provider → ProviderRegistry → ProviderAdapter
 ```
 
 ## DATABASE STATE
-PostgreSQL migration graph head is `0014_m013_webhook_endpoints` (parent
-`0013_m013_integrations`).
+PostgreSQL migration graph head is `0015_m014_airtel_malawi` (parent
+`0014_m013_webhook_endpoints`).
 M008 required no schema change; attempt correlation metadata fits in existing
 `provider_request` / `provider_response` JSON.
 `0008` adds `provider_type`, `health_state`, `config_refs` on
@@ -57,10 +58,15 @@ Default registry:
 
 - simulated (success) — live-contract-ready
 - simulated_pending / simulated_failure / simulated_timeout — live-contract-ready, inactive by default
-- airtel_money, tnm_mpamba, national_bank, fdh_bank, standard_bank — structured stubs, not live HTTP
+- airtel_money — Airtel Money Malawi Collection contract; inactive until credentials are configured and a platform admin enables it
+- tnm_mpamba, national_bank, fdh_bank, standard_bank — structured stubs, not live HTTP
 
-`AUTHORITATIVE_CONTRACTS` is empty. `build_live_rail_adapter` returns a stub
-until a mapper is registered for `(code, sandbox|production)`.
+`AUTHORITATIVE_CONTRACTS` registers `(airtel_money, sandbox|production)` from
+`docs/providers/airtel-money-malawi.md`. Other live rails stay stubs.
+
+Airtel is never the unconditional default. Routing still prefers the lowest
+priority active, matching, live-contract-ready provider. Simulated remains
+priority 1.
 
 Capabilities are explicit on the adapter (`supports_push_payment`,
 `supports_status_query`, `supports_cancel`, `supports_refund`,
@@ -91,8 +97,9 @@ Failures: timeout / unavailable / rate limited are retryable; authentication,
 invalid request, rejected, duplicate, unknown are not. Max three attempts.
 Provider idempotency key is the POMPO transaction reference. PostgreSQL
 unique constraints remain the financial identity authority.
-Webhook engine is not implemented; attempts may store `provider_transaction_id`
-and `correlation_id` for later callbacks.
+Webhook engine is implemented for simulated rails and Airtel Money Malawi
+callbacks (`POST /api/v1/webhooks/{provider_code}`). Attempts store
+`provider_transaction_id` and `correlation_id` for later matching.
 
 HTTP:
 
@@ -114,13 +121,11 @@ There is still no user-directory CRUD API. Role assignment remains
 
 ## PAYMENT API COMPLETENESS
 Usable by future POS/mobile clients for create, get-by-reference, cancel, and
-process against simulated adapters once merchant, branch, till, and an
-active catalog provider exist. `provider_code` may be omitted to use
-deterministic routing.
+process against simulated or Airtel-backed adapters once merchant, branch, till,
+and an active catalog provider exist. `provider_code` may be omitted to use
+deterministic routing. Airtel is not the global default.
 
-Deferred: payment/transaction list and search, refunds, QR engine, webhooks,
-settlement, reconciliation, live Airtel/TNM/bank HTTP adapters (blocked on
-authoritative contracts, not on HTTP infrastructure).
+Deferred: payment/transaction list and search, refunds, TNM, and bank HTTP adapters.
 
 `QR_GENERATED` and `PENDING_USER_PIN` remain enum values for a future QR/PIN
 checkout. They are not in `TRANSITIONS` and cannot be applied.
@@ -140,8 +145,7 @@ Effective permissions are loaded from `GET /rbac/roles/{role_id}`
 (`permission_codes`). `/auth/me` still does not return permission codes.
 
 MOCK / NOT YET AVAILABLE: user directory, payment/transaction list,
-audit logs, reports, live Airtel/TNM/bank adapters.
-Dashboard volume charts remain labeled illustrative series.
+audit logs, reports, TNM and bank live adapters.
 
 `NEXT_PUBLIC_USE_MOCKS=true` is opt-in demo mode. The default is live API.
 Local Master Admin sign-in uses a seeded platform administrator; the frontend
