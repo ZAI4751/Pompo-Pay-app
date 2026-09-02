@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from app.payments.credentials import ProviderCredentials
 from app.payments.providers import (
     ProviderCapabilities,
     ProviderHealth,
@@ -14,18 +15,32 @@ from app.payments.providers import (
     ProviderTimeout,
     UnsupportedProviderOperation,
 )
+from app.payments.webhooks import (
+    NormalizedWebhookEvent,
+    WebhookVerificationResult,
+    is_supported_mock_event_type,
+    parse_mock_webhook_body,
+    verify_mock_signature,
+)
 
 
 class MockProvider:
     live_contract_ready = True
 
-    def __init__(self, code: str, outcome: ProviderOutcome) -> None:
+    def __init__(
+        self,
+        code: str,
+        outcome: ProviderOutcome,
+        *,
+        supports_webhooks: bool = False,
+    ) -> None:
         self.code = code
         self.outcome = outcome
         self.capabilities = ProviderCapabilities(
             supports_cancel=True,
             supports_status_query=True,
             supports_push_payment=True,
+            supports_webhooks=supports_webhooks,
         )
 
     async def initiate_payment(self, request: ProviderPaymentRequest) -> ProviderResult:
@@ -37,6 +52,7 @@ class MockProvider:
             outcome=self.outcome,
             provider_reference=f"{self.code}-{request.reference}",
             provider_status=self.outcome.value,
+            provider_transaction_id=f"{self.code}-{request.reference}",
             retryable=self.outcome is ProviderOutcome.PENDING,
         )
 
@@ -64,15 +80,43 @@ class MockProvider:
             message="Simulated adapter is local and deterministic",
         )
 
+    async def verify_webhook(
+        self,
+        *,
+        headers: dict[str, str],
+        body: bytes,
+        credentials: ProviderCredentials,
+    ) -> WebhookVerificationResult:
+        if not self.capabilities.supports_webhooks:
+            return WebhookVerificationResult(False, failure_reason="Provider does not support webhooks")
+        return verify_mock_signature(
+            headers=headers,
+            body=body,
+            secret=credentials.webhook_secret(),
+        )
+
+    async def parse_webhook(
+        self,
+        *,
+        headers: dict[str, str],
+        body: bytes,
+    ) -> NormalizedWebhookEvent:
+        if not self.capabilities.supports_webhooks:
+            raise UnsupportedProviderOperation("webhook")
+        event = parse_mock_webhook_body(body)
+        if not is_supported_mock_event_type(event.event_type):
+            raise ValueError(f"Unsupported event type: {event.event_type}")
+        return event
+
 
 class MockSuccessProvider(MockProvider):
     def __init__(self) -> None:
-        super().__init__("simulated", ProviderOutcome.SUCCESS)
+        super().__init__("simulated", ProviderOutcome.SUCCESS, supports_webhooks=True)
 
 
 class MockPendingProvider(MockProvider):
     def __init__(self) -> None:
-        super().__init__("simulated_pending", ProviderOutcome.PENDING)
+        super().__init__("simulated_pending", ProviderOutcome.PENDING, supports_webhooks=True)
 
 
 class MockFailureProvider(MockProvider):

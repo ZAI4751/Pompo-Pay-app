@@ -101,6 +101,32 @@ class QRStatus(str, enum.Enum):
     CONSUMED = "consumed"
 
 
+class WebhookProcessingStatus(str, enum.Enum):
+    """Lifecycle for inbound provider webhook events."""
+
+    RECEIVED = "received"
+    QUEUED = "queued"
+    PROCESSING = "processing"
+    PROCESSED = "processed"
+    DUPLICATE = "duplicate"
+    FAILED = "failed"
+    REJECTED = "rejected"
+    RECONCILIATION = "reconciliation"
+
+
+class WebhookFailureCategory(str, enum.Enum):
+    """Classification for webhook ingestion/processing failures."""
+
+    INVALID_SIGNATURE = "invalid_signature"
+    MALFORMED = "malformed"
+    UNKNOWN_PROVIDER = "unknown_provider"
+    UNKNOWN_PAYMENT = "unknown_payment"
+    PROVIDER_MISMATCH = "provider_mismatch"
+    STATE_CONFLICT = "state_conflict"
+    UNSUPPORTED_EVENT = "unsupported_event"
+    INFRASTRUCTURE = "infrastructure"
+
+
 class UserRoleCode(str, enum.Enum):
     """Well-known role codes seeded by default.
 

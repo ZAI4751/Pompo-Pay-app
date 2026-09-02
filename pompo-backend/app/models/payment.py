@@ -37,6 +37,8 @@ from app.models.enums import (
     QRStatus,
     QRType,
     TransactionStatus,
+    WebhookFailureCategory,
+    WebhookProcessingStatus,
 )
 
 
@@ -216,22 +218,65 @@ class WebhookEvent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """An inbound webhook notification from a payment provider."""
 
     __tablename__ = "webhook_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider_id",
+            "provider_event_id",
+            name="uq_webhook_provider_event",
+        ),
+    )
 
+    public_identifier: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
     provider_id: Mapped[uuid.UUID] = mapped_column(
         GUID(), ForeignKey("payment_providers.id", ondelete="RESTRICT"), nullable=False, index=True
     )
+    provider_event_id: Mapped[str] = mapped_column(String(128), nullable=False)
     transaction_id: Mapped[uuid.UUID | None] = mapped_column(
         GUID(), ForeignKey("transactions.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    payment_attempt_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("payment_attempts.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    event_version: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    payment_reference: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    provider_transaction_reference: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     signature_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    timestamp_validated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    processing_status: Mapped[WebhookProcessingStatus] = mapped_column(
+        SAEnum(
+            WebhookProcessingStatus,
+            name="webhook_processing_status",
+            native_enum=False,
+            length=32,
+            values_callable=_enum_values,
+        ),
+        default=WebhookProcessingStatus.RECEIVED,
+        nullable=False,
+        index=True,
+    )
+    processing_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     processed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     processed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None, nullable=True
     )
+    failure_category: Mapped[WebhookFailureCategory | None] = mapped_column(
+        SAEnum(
+            WebhookFailureCategory,
+            name="webhook_failure_category",
+            native_enum=False,
+            length=32,
+            values_callable=_enum_values,
+        ),
+        nullable=True,
+    )
+    failure_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     transaction: Mapped[Transaction | None] = relationship(back_populates="webhook_events")
+    payment_attempt: Mapped[PaymentAttempt | None] = relationship()
+    provider: Mapped[PaymentProvider] = relationship()
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<WebhookEvent id={self.id} type={self.event_type!r}>"

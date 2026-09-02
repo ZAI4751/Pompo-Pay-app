@@ -8,6 +8,7 @@ import json
 import uuid
 from dataclasses import asdict
 from datetime import UTC, datetime
+from enum import StrEnum
 from time import monotonic
 from typing import Any
 
@@ -28,7 +29,7 @@ from app.models import (
     Transaction,
     User,
 )
-from app.models.enums import PaymentAttemptStatus, QRStatus, QRType, TransactionStatus
+from app.models.enums import PaymentAttemptStatus, QRStatus, QRType, TERMINAL_TRANSACTION_STATUSES, TransactionStatus
 from app.payments.providers import ProviderError, ProviderOutcome, ProviderPaymentRequest
 from app.payments.registry import ProviderRegistry
 from app.payments.retry import should_open_new_attempt
@@ -43,6 +44,13 @@ from app.repositories.rbac import AuthorizationRepository
 from app.services.authorization import AuthorizationService
 
 logger = get_logger(__name__)
+
+
+class WebhookApplyOutcome(StrEnum):
+    APPLIED = "applied"
+    DUPLICATE = "duplicate"
+    RECONCILIATION = "reconciliation"
+    NO_OP = "no_op"
 
 
 class PaymentError(Exception):
@@ -359,6 +367,62 @@ class PaymentService:
         )
         return transaction
 
+    async def apply_webhook_outcome(
+        self,
+        *,
+        transaction: Transaction,
+        attempt: PaymentAttempt,
+        outcome: ProviderOutcome,
+        provider_event_id: str,
+        webhook_event_id: uuid.UUID,
+        failure_reason: str | None = None,
+    ) -> WebhookApplyOutcome:
+        """Apply a verified provider webhook outcome through the payment state machine."""
+
+        target = {
+            ProviderOutcome.SUCCESS: TransactionStatus.SUCCESS,
+            ProviderOutcome.PENDING: TransactionStatus.PENDING,
+            ProviderOutcome.FAILED: TransactionStatus.FAILED,
+            ProviderOutcome.REJECTED: TransactionStatus.FAILED,
+            ProviderOutcome.TIMEOUT: TransactionStatus.TIMEOUT,
+        }[outcome]
+
+        if transaction.status in TERMINAL_TRANSACTION_STATUSES:
+            if transaction.status is target:
+                return WebhookApplyOutcome.DUPLICATE
+            return WebhookApplyOutcome.RECONCILIATION
+
+        attempt.provider_status = outcome.value
+        attempt.status = self._attempt_status(outcome)
+        attempt.completed_at = datetime.now(UTC)
+        if failure_reason:
+            attempt.failure_reason = failure_reason
+        response = attempt.provider_response or {}
+        response.update(
+            {
+                "webhook_event_id": str(webhook_event_id),
+                "provider_event_id": provider_event_id,
+                "webhook_outcome": outcome.value,
+            }
+        )
+        attempt.provider_response = response
+
+        await self._advance_to(transaction, target)
+        if failure_reason and target is TransactionStatus.FAILED:
+            transaction.failure_reason = failure_reason
+        await self._mark_dynamic_qr_consumed(transaction, target)
+        await self._audit_system(
+            "transaction_transitioned",
+            transaction.id,
+            None,
+            {
+                "status": target.value,
+                "source": "webhook",
+                "webhook_event_id": str(webhook_event_id),
+            },
+        )
+        return WebhookApplyOutcome.APPLIED
+
     async def _attempt_for_processing(self, transaction: Transaction) -> PaymentAttempt:
         attempt = transaction.attempts[-1]
         if attempt.status is PaymentAttemptStatus.INITIATED:
@@ -537,6 +601,26 @@ class PaymentService:
                 created_at=datetime.now(UTC),
                 actor_user_id=actor.id,
                 merchant_id=actor.merchant_id,
+                action=action,
+                entity_type="payment",
+                entity_id=str(entity_id),
+                before_state=before,
+                after_state=after,
+            )
+        )
+
+    async def _audit_system(
+        self,
+        action: str,
+        entity_id: uuid.UUID,
+        before: dict[str, Any] | None,
+        after: dict[str, Any] | None,
+    ) -> None:
+        self._session.add(
+            AuditLog(
+                created_at=datetime.now(UTC),
+                actor_user_id=None,
+                merchant_id=None,
                 action=action,
                 entity_type="payment",
                 entity_id=str(entity_id),

@@ -34,7 +34,7 @@ SANDBOX_CAPABILITIES = asdict(
         supports_status_query=True,
         supports_cancel=True,
         supports_refund=False,
-        supports_webhooks=False,
+        supports_webhooks=True,
         supports_qr=False,
     )
 )

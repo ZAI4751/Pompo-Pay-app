@@ -85,3 +85,17 @@ class PaymentAttemptRepository(BaseRepository[PaymentAttempt]):
         )
         current = result.scalar_one_or_none()
         return 1 if current is None else current + 1
+
+    async def find_by_provider_reference(
+        self, provider_id: uuid.UUID, provider_reference: str
+    ) -> PaymentAttempt | None:
+        result = await self._session.execute(
+            select(PaymentAttempt)
+            .where(
+                PaymentAttempt.provider_id == provider_id,
+                PaymentAttempt.provider_reference == provider_reference,
+            )
+            .order_by(PaymentAttempt.attempt_number.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()

@@ -23,7 +23,7 @@ export const API_CAPABILITIES = {
   providers: "live",
   health: "live",
   tills: "live",
-  webhooks: "unavailable",
+  webhooks: "live",
   auditLogs: "unavailable",
   apiKeys: "unavailable",
   reports: "unavailable",
