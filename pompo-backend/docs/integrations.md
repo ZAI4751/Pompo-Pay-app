@@ -201,6 +201,10 @@ No stack traces. Cross-tenant payment lookups return `payment_not_found`.
 See `scripts/pos_simulator.py` for a sandbox client that authenticates, creates
 a dynamic QR payment, polls status, and verifies webhook signatures.
 
+`scripts/verify_m013_sandbox.py` runs the full M013 checks against a live API
+(create client, QR payment, customer scan, simulated process, idempotency,
+outbound events, revoke, insufficient scope). It never prints secrets.
+
 ## Migration
 
 `0013_m013_integrations` — after `0012_m012_mobile`.
