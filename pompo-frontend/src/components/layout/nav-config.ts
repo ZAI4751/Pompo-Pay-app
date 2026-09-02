@@ -23,6 +23,8 @@ import {
   HeartPulse,
   Server,
   Activity,
+  Landmark,
+  Scale,
 } from "lucide-react";
 
 export interface NavItem {
@@ -53,6 +55,8 @@ export const navGroups: NavGroup[] = [
       { label: "QR Codes", href: "/qr-codes", icon: QrCode, permission: "qr:read" },
       { label: "Providers", href: "/providers", icon: Plug, permission: "providers:read" },
       { label: "Webhooks", href: "/webhooks", icon: Webhook, permission: "webhooks:read" },
+      { label: "Settlements", href: "/settlements", icon: Landmark, permission: "settlements:read" },
+      { label: "Reconciliation", href: "/reconciliation", icon: Scale, permission: "reconciliation:read" },
       { label: "Exceptions", href: "/exceptions", icon: AlertOctagon, comingSoon: true },
     ],
   },

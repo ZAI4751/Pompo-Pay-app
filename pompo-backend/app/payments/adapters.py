@@ -108,6 +108,37 @@ class MockProvider:
             raise ValueError(f"Unsupported event type: {event.event_type}")
         return event
 
+    async def verify_settlement(
+        self,
+        *,
+        headers: dict[str, str],
+        body: bytes,
+        credentials: ProviderCredentials,
+    ) -> WebhookVerificationResult:
+        if not self.capabilities.supports_webhooks:
+            return WebhookVerificationResult(
+                False, failure_reason="Provider does not support settlement ingestion"
+            )
+        from app.payments.settlement import verify_mock_settlement
+
+        return verify_mock_settlement(
+            headers=headers,
+            body=body,
+            secret=credentials.webhook_secret(),
+        )
+
+    async def parse_settlement(
+        self,
+        *,
+        headers: dict[str, str],
+        body: bytes,
+    ):
+        if not self.capabilities.supports_webhooks:
+            raise UnsupportedProviderOperation("settlement")
+        from app.payments.settlement import parse_mock_settlement_body
+
+        return parse_mock_settlement_body(body)
+
 
 class MockSuccessProvider(MockProvider):
     def __init__(self) -> None:

@@ -127,6 +127,67 @@ class WebhookFailureCategory(str, enum.Enum):
     INFRASTRUCTURE = "infrastructure"
 
 
+class FeeType(str, enum.Enum):
+    """Supported pricing components. Forward-compatible; not a billing platform."""
+
+    ZERO = "zero"
+    FIXED = "fixed"
+    PERCENTAGE = "percentage"
+
+
+class SettlementStatus(str, enum.Enum):
+    """Lifecycle of a provider settlement record. Independent of payment status."""
+
+    RECEIVED = "received"
+    PROCESSING = "processing"
+    SETTLED = "settled"
+    RECONCILED = "reconciled"
+    EXCEPTION = "exception"
+
+
+class SettlementBatchStatus(str, enum.Enum):
+    """Lifecycle of an ingested provider settlement batch."""
+
+    RECEIVED = "received"
+    PROCESSING = "processing"
+    SETTLED = "settled"
+    FAILED = "failed"
+
+
+class ReconciliationStatus(str, enum.Enum):
+    """Comparison outcome between POMPO expected records and provider settlement."""
+
+    MATCHED = "matched"
+    PARTIAL_MATCH = "partial_match"
+    UNMATCHED = "unmatched"
+    DISCREPANCY = "discrepancy"
+    INVESTIGATION = "investigation"
+    RESOLVED = "resolved"
+
+
+class MismatchCategory(str, enum.Enum):
+    """Why expected and actual financial records differ. Never auto-corrected."""
+
+    AMOUNT_MISMATCH = "amount_mismatch"
+    CURRENCY_MISMATCH = "currency_mismatch"
+    PROVIDER_REFERENCE_MISMATCH = "provider_reference_mismatch"
+    MISSING_POMPO_TRANSACTION = "missing_pompo_transaction"
+    MISSING_SETTLEMENT = "missing_settlement"
+    DUPLICATE_SETTLEMENT = "duplicate_settlement"
+    FEE_MISMATCH = "fee_mismatch"
+    STATUS_MISMATCH = "status_mismatch"
+    TIMING_DISCREPANCY = "timing_discrepancy"
+
+
+class ReconciliationRunStatus(str, enum.Enum):
+    """Lifecycle of a provider reconciliation window."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class UserRoleCode(str, enum.Enum):
     """Well-known role codes seeded by default.
 
