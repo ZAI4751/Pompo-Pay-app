@@ -22,11 +22,12 @@ from app.models import (
     Merchant,
     PaymentAttempt,
     PaymentProvider,
+    QRCode,
     Till,
     Transaction,
     User,
 )
-from app.models.enums import PaymentAttemptStatus, TransactionStatus
+from app.models.enums import PaymentAttemptStatus, QRStatus, QRType, TransactionStatus
 from app.payments.providers import ProviderError, ProviderOutcome, ProviderPaymentRequest
 from app.payments.registry import ProviderRegistry
 from app.payments.retry import should_open_new_attempt
@@ -335,6 +336,7 @@ class PaymentService:
             ProviderOutcome.TIMEOUT: TransactionStatus.TIMEOUT,
         }[result.outcome]
         await self._advance_to(transaction, target)
+        await self._mark_dynamic_qr_consumed(transaction, target)
         await self._session.commit()
         logger.info(
             "provider_success" if result.outcome is ProviderOutcome.SUCCESS else "provider_payment_result",
@@ -374,6 +376,21 @@ class PaymentService:
             await self._session.flush()
             return nxt
         raise PaymentInvalidError("Retry is not permitted for this payment")
+
+    async def _mark_dynamic_qr_consumed(
+        self, transaction: Transaction, target: TransactionStatus
+    ) -> None:
+        if target is not TransactionStatus.SUCCESS:
+            return
+        qr = await self._session.scalar(
+            select(QRCode).where(
+                QRCode.transaction_id == transaction.id,
+                QRCode.qr_type == QRType.DYNAMIC,
+            )
+        )
+        if qr is not None:
+            qr.status = QRStatus.CONSUMED
+            qr.is_used = True
 
     async def _advance_to(self, transaction: Transaction, target: TransactionStatus) -> None:
         if transaction.status is target:

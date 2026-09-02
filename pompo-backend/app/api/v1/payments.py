@@ -16,6 +16,8 @@ from app.schemas.payment import (
     ProviderCatalogResponse,
     ProviderCatalogUpdate,
 )
+from app.schemas.qr import PaymentFromQRRequest
+from app.services.qr import QRError as QRServiceError, QRService
 from app.services.payment import (
     PaymentConflictError,
     PaymentError,
@@ -49,6 +51,32 @@ def get_provider_catalog_service(session: DbSessionDep) -> ProviderCatalogServic
 ProviderCatalogServiceDep = Annotated[
     ProviderCatalogService, Depends(get_provider_catalog_service)
 ]
+
+
+def get_qr_service(session: DbSessionDep) -> QRService:
+    return QRService(session)
+
+
+QRServiceDep = Annotated[QRService, Depends(get_qr_service)]
+
+
+def _qr_payment_error(exc: QRServiceError) -> HTTPException:
+    from app.services.qr import (
+        QRConflictError,
+        QRForbiddenError,
+        QRInvalidError,
+        QRNotFoundError,
+    )
+
+    if isinstance(exc, QRNotFoundError):
+        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    if isinstance(exc, QRConflictError):
+        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    if isinstance(exc, QRForbiddenError):
+        return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    if isinstance(exc, QRInvalidError):
+        return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
 def _catalog_error(exc: ProviderCatalogError) -> HTTPException:
@@ -88,6 +116,26 @@ async def create_payment(
         return await service.create_payment(current_user, payload.model_dump())
     except PaymentError as exc:
         raise _error(exc) from exc
+
+
+@router.post(
+    "/from-qr",
+    response_model=PaymentResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_permission("transactions:create"))],
+)
+async def create_payment_from_qr(
+    payload: PaymentFromQRRequest,
+    current_user: CurrentUserDep,
+    qr_service: QRServiceDep,
+) -> PaymentResponse:
+    try:
+        transaction = await qr_service.initiate_payment_from_qr(
+            current_user, payload.model_dump(exclude_none=True)
+        )
+    except QRServiceError as exc:
+        raise _qr_payment_error(exc) from exc
+    return transaction
 
 
 @router.post(

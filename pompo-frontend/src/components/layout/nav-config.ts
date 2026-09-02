@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  QrCode,
   LayoutDashboard,
   ArrowLeftRight,
   CreditCard,
@@ -49,6 +50,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { label: "Transactions", href: "/transactions", icon: ArrowLeftRight, comingSoon: true },
       { label: "Payments", href: "/payments", icon: CreditCard, permission: "transactions:read" },
+      { label: "QR Codes", href: "/qr-codes", icon: QrCode, permission: "qr:read" },
       { label: "Providers", href: "/providers", icon: Plug, permission: "providers:read" },
       { label: "Webhooks", href: "/webhooks", icon: Webhook, comingSoon: true },
       { label: "Exceptions", href: "/exceptions", icon: AlertOctagon, comingSoon: true },

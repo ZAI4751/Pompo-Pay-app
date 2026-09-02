@@ -30,7 +30,7 @@ from app.models import (
     User,
 )
 from app.models.base import Base
-from app.models.enums import PaymentAttemptStatus, ProviderCode, TransactionStatus
+from app.models.enums import PaymentAttemptStatus, ProviderCode, QRStatus, QRType, TransactionStatus
 
 
 @pytest.fixture
@@ -127,8 +127,18 @@ async def test_payment_attempt_and_qr_and_receipt_link_to_transaction(
         initiated_at=datetime.now(timezone.utc),
     )
     qr = QRCode(
+        public_identifier=f"QR{uuid.uuid4().hex[:12].upper()}",
+        merchant_id=txn.merchant_id,
+        branch_id=txn.branch_id,
+        till_id=txn.till_id,
+        qr_type=QRType.DYNAMIC,
+        status=QRStatus.ACTIVE,
+        version=1,
         transaction_id=txn.id,
-        payload="pompo://pay/demo",
+        payment_reference=txn.reference,
+        amount=txn.amount,
+        currency=txn.currency,
+        payload="POMPO:1:dynamic:QRTEST000000:250000:MWK:9999999999:REF:abcdefghijklmnopqr",
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
     )
     receipt = Receipt(
@@ -142,7 +152,7 @@ async def test_payment_attempt_and_qr_and_receipt_link_to_transaction(
     fetched = await session.get(Transaction, txn.id)
     await session.refresh(fetched, attribute_names=["attempts", "qr_code", "receipt"])
     assert len(fetched.attempts) == 1
-    assert fetched.qr_code.payload == "pompo://pay/demo"
+    assert fetched.qr_code.payload.startswith("POMPO:")
     assert fetched.receipt.receipt_number == receipt.receipt_number
 
 

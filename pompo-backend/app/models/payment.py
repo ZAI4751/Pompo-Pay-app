@@ -34,6 +34,8 @@ from app.models.enums import (
     ProviderCode,
     ProviderHealthState,
     ProviderType,
+    QRStatus,
+    QRType,
     TransactionStatus,
 )
 
@@ -236,21 +238,58 @@ class WebhookEvent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class QRCode(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """A generated QR payload for a checkout, scoped 1:1 to a Transaction."""
+    """Versioned, signed POMPO QR identity for static or dynamic checkout."""
 
     __tablename__ = "qr_codes"
-
-    transaction_id: Mapped[uuid.UUID] = mapped_column(
-        GUID(), ForeignKey("transactions.id", ondelete="CASCADE"), nullable=False, unique=True
+    __table_args__ = (
+        UniqueConstraint("public_identifier", name="uq_qr_codes_public_identifier"),
     )
-    payload: Mapped[str] = mapped_column(String(2000), nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    is_used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    transaction: Mapped[Transaction] = relationship(back_populates="qr_code")
+    public_identifier: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    merchant_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("merchants.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    branch_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("branches.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    till_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("tills.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    qr_type: Mapped[QRType] = mapped_column(
+        SAEnum(QRType, name="qr_type", native_enum=False, length=16),
+        nullable=False,
+        index=True,
+    )
+    status: Mapped[QRStatus] = mapped_column(
+        SAEnum(QRStatus, name="qr_status", native_enum=False, length=16),
+        default=QRStatus.ACTIVE,
+        nullable=False,
+        index=True,
+    )
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    transaction_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("transactions.id", ondelete="SET NULL"), nullable=True, unique=True
+    )
+    payment_reference: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    currency: Mapped[str] = mapped_column(String(3), default="MWK", nullable=False)
+    payload: Mapped[str] = mapped_column(String(2000), nullable=False)
+    payload_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None, nullable=True
+    )
+    is_used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None, nullable=True
+    )
+
+    merchant: Mapped[Merchant] = relationship()
+    branch: Mapped[Branch] = relationship()
+    till: Mapped[Till] = relationship()
+    transaction: Mapped[Transaction | None] = relationship(back_populates="qr_code")
 
     def __repr__(self) -> str:  # pragma: no cover
-        return f"<QRCode id={self.id} transaction_id={self.transaction_id}>"
+        return f"<QRCode public_id={self.public_identifier!r} type={self.qr_type!r}>"
 
 
 class Receipt(UUIDPrimaryKeyMixin, TimestampMixin, Base):

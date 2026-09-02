@@ -84,6 +84,23 @@ class ProviderHealthState(str, enum.Enum):
     UNAVAILABLE = "unavailable"
 
 
+class QRType(str, enum.Enum):
+    """POMPO QR code classification."""
+
+    STATIC = "static"
+    DYNAMIC = "dynamic"
+
+
+class QRStatus(str, enum.Enum):
+    """Operational lifecycle for a merchant QR code."""
+
+    ACTIVE = "active"
+    DISABLED = "disabled"
+    REVOKED = "revoked"
+    EXPIRED = "expired"
+    CONSUMED = "consumed"
+
+
 class UserRoleCode(str, enum.Enum):
     """Well-known role codes seeded by default.
 
