@@ -87,7 +87,7 @@ services:
       dockerfile: docker/Dockerfile
     container_name: pompo-celery-worker
     restart: unless-stopped
-    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
+    command: ["worker"]
     env_file:
       - .env
     environment:
@@ -101,6 +101,11 @@ services:
         condition: service_healthy
       backend:
         condition: service_healthy
+    volumes:
+      - ./app:/app/app
+      - ./tests:/app/tests
+      - ./migrations:/app/migrations
+      - ./scripts:/app/scripts
     healthcheck:
       # Overrides the image-level HEALTHCHECK baked into docker/Dockerfile
       # (curl against port 8000), which this service inherits by default
