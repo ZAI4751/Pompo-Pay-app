@@ -8,7 +8,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.models import APIKey, IntegrationClient, OutboundWebhookDelivery
+from app.models import APIKey, IntegrationClient, IntegrationWebhookEndpoint, OutboundWebhookDelivery
 from app.models.enums import OutboundWebhookStatus
 from app.repositories.base import BaseRepository
 
@@ -20,7 +20,10 @@ class IntegrationClientRepository(BaseRepository[IntegrationClient]):
         stmt = (
             select(IntegrationClient)
             .where(IntegrationClient.public_id == public_id)
-            .options(selectinload(IntegrationClient.api_keys))
+            .options(
+                selectinload(IntegrationClient.api_keys),
+                selectinload(IntegrationClient.webhook_endpoints),
+            )
         )
         return await self._session.scalar(stmt)
 
@@ -28,7 +31,10 @@ class IntegrationClientRepository(BaseRepository[IntegrationClient]):
         stmt = (
             select(IntegrationClient)
             .where(IntegrationClient.id == client_id)
-            .options(selectinload(IntegrationClient.api_keys))
+            .options(
+                selectinload(IntegrationClient.api_keys),
+                selectinload(IntegrationClient.webhook_endpoints),
+            )
         )
         return await self._session.scalar(stmt)
 
@@ -41,7 +47,10 @@ class IntegrationClientRepository(BaseRepository[IntegrationClient]):
     ) -> list[IntegrationClient]:
         stmt = (
             select(IntegrationClient)
-            .options(selectinload(IntegrationClient.api_keys))
+            .options(
+                selectinload(IntegrationClient.api_keys),
+                selectinload(IntegrationClient.webhook_endpoints),
+            )
             .order_by(IntegrationClient.created_at.desc())
             .limit(limit)
             .offset(offset)
@@ -71,8 +80,58 @@ class APIKeyRepository(BaseRepository[APIKey]):
         return list(await self._session.scalars(stmt))
 
 
+class IntegrationWebhookEndpointRepository(BaseRepository[IntegrationWebhookEndpoint]):
+    model = IntegrationWebhookEndpoint
+
+    async def list_for_client(
+        self, client_id: uuid.UUID, *, active_only: bool = False
+    ) -> list[IntegrationWebhookEndpoint]:
+        stmt = (
+            select(IntegrationWebhookEndpoint)
+            .where(IntegrationWebhookEndpoint.client_id == client_id)
+            .order_by(IntegrationWebhookEndpoint.created_at.asc())
+        )
+        if active_only:
+            stmt = stmt.where(IntegrationWebhookEndpoint.is_active.is_(True))
+        return list(await self._session.scalars(stmt))
+
+    async def get_for_client(
+        self, client_id: uuid.UUID, endpoint_id: uuid.UUID
+    ) -> IntegrationWebhookEndpoint | None:
+        stmt = select(IntegrationWebhookEndpoint).where(
+            IntegrationWebhookEndpoint.id == endpoint_id,
+            IntegrationWebhookEndpoint.client_id == client_id,
+        )
+        return await self._session.scalar(stmt)
+
+    async def get_by_client_and_url(
+        self, client_id: uuid.UUID, destination_url: str
+    ) -> IntegrationWebhookEndpoint | None:
+        stmt = select(IntegrationWebhookEndpoint).where(
+            IntegrationWebhookEndpoint.client_id == client_id,
+            IntegrationWebhookEndpoint.destination_url == destination_url,
+        )
+        return await self._session.scalar(stmt)
+
+
 class OutboundWebhookDeliveryRepository(BaseRepository[OutboundWebhookDelivery]):
     model = OutboundWebhookDelivery
+
+    async def get_by_identity(
+        self,
+        *,
+        client_id: uuid.UUID,
+        transaction_id: uuid.UUID,
+        event_type: str,
+        destination_url: str,
+    ) -> OutboundWebhookDelivery | None:
+        stmt = select(OutboundWebhookDelivery).where(
+            OutboundWebhookDelivery.client_id == client_id,
+            OutboundWebhookDelivery.transaction_id == transaction_id,
+            OutboundWebhookDelivery.event_type == event_type,
+            OutboundWebhookDelivery.destination_url == destination_url,
+        )
+        return await self._session.scalar(stmt)
 
     async def get_by_event_id(self, public_event_id: str) -> OutboundWebhookDelivery | None:
         stmt = select(OutboundWebhookDelivery).where(

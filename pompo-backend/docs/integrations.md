@@ -1,5 +1,9 @@
 # M013 — POS + Developer Platform
 
+Canonical partner docs: [docs/integrations/](../../docs/integrations/README.md).
+
+This file remains as a backend pointer. Do not duplicate a second payment engine.
+
 POMPO exposes a machine integration layer for merchant POS systems, developer
 applications, and partner software. This is not a second payment engine.
 `PaymentService`, QR payloads, provider routing, and inbound provider webhooks

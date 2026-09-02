@@ -30,10 +30,14 @@ from app.integrations.scopes import (
     has_scope,
     normalize_scopes,
 )
-from app.models import APIKey, AuditLog, Branch, IntegrationClient, Merchant, Till, User
+from app.models import APIKey, AuditLog, Branch, IntegrationClient, IntegrationWebhookEndpoint, Merchant, Till, User
 from app.models.enums import APIClientEnvironment, APIClientStatus, APIClientType
 from app.payments.webhooks import constant_time_compare
-from app.repositories.integration import APIKeyRepository, IntegrationClientRepository
+from app.repositories.integration import (
+    APIKeyRepository,
+    IntegrationClientRepository,
+    IntegrationWebhookEndpointRepository,
+)
 from app.repositories.rbac import AuthorizationRepository
 from app.services.authorization import AuthorizationService
 
@@ -88,6 +92,7 @@ class IntegrationService:
         self._session = session
         self._clients = IntegrationClientRepository(session)
         self._keys = APIKeyRepository(session)
+        self._endpoints = IntegrationWebhookEndpointRepository(session)
         self._authorization = AuthorizationService(AuthorizationRepository(session))
         self._settings = get_settings()
 
@@ -108,13 +113,13 @@ class IntegrationService:
         if record.key_prefix != key_prefix(presented):
             raise IntegrationAPIError("invalid_api_key", "Invalid API key")
         if record.revoked_at is not None or not record.is_active:
-            raise IntegrationAPIError("api_key_revoked", "API key has been revoked")
+            raise IntegrationAPIError("revoked_api_key", "API key has been revoked")
         if record.expires_at is not None:
             expires = record.expires_at
             if expires.tzinfo is None:
                 expires = expires.replace(tzinfo=UTC)
             if expires <= datetime.now(UTC):
-                raise IntegrationAPIError("api_key_expired", "API key has expired")
+                raise IntegrationAPIError("expired_api_key", "API key has expired")
 
         client = record.client
         if client is None and record.client_id is not None:
@@ -122,13 +127,28 @@ class IntegrationService:
         if client is None:
             raise IntegrationAPIError("invalid_api_key", "Invalid API key")
         if client.status is APIClientStatus.REVOKED or client.revoked_at is not None:
-            raise IntegrationAPIError("api_key_revoked", "API key has been revoked")
+            raise IntegrationAPIError("revoked_api_key", "API key has been revoked")
         if client.status is not APIClientStatus.ACTIVE:
             raise IntegrationAPIError("api_key_inactive", "Integration client is disabled")
 
+        first_use = record.last_used_at is None
         now = datetime.now(UTC)
         record.last_used_at = now
         client.last_used_at = now
+        if first_use:
+            self._session.add(
+                AuditLog(
+                    created_at=now,
+                    actor_user_id=None,
+                    api_client_id=client.id,
+                    merchant_id=client.merchant_id,
+                    action="integration_authenticated",
+                    entity_type="api_key",
+                    entity_id=str(record.id),
+                    before_state=None,
+                    after_state={"key_prefix": record.key_prefix, "client_public_id": client.public_id},
+                )
+            )
         await self._session.commit()
         logger.info(
             "integration_authenticated",
@@ -176,7 +196,10 @@ class IntegrationService:
             self._settings.secret_key, client.id, client.webhook_secret_version
         )
         client.webhook_secret_prefix = webhook_secret_prefix(signing_secret)
-        raw_key, api_key = self._issue_key(client, name="primary")
+        raw_key, api_key = self._issue_key(
+            client, name="primary", expires_at=values.get("key_expires_at")
+        )
+        await self._sync_endpoint(client, webhook_url)
         await self._audit(
             actor,
             "api_client_created",
@@ -192,7 +215,9 @@ class IntegrationService:
             merchant_id=merchant.id,
         )
         await self._session.commit()
-        await self._session.refresh(client, attribute_names=["api_keys", "merchant", "branch", "till"])
+        await self._session.refresh(
+            client, attribute_names=["api_keys", "webhook_endpoints", "merchant", "branch", "till"]
+        )
         logger.info(
             "api_client_created",
             client_id=str(client.id),
@@ -245,7 +270,13 @@ class IntegrationService:
             except ValueError as exc:
                 raise IntegrationInvalidError(str(exc)) from exc
         if "webhook_url" in values:
+            previous = client.webhook_url
             client.webhook_url = self._normalize_webhook_url(values["webhook_url"], allow_empty=True)
+            if previous and previous != client.webhook_url:
+                old = await self._endpoints.get_by_client_and_url(client.id, previous)
+                if old is not None:
+                    old.is_active = False
+            await self._sync_endpoint(client, client.webhook_url)
         if "rate_limit_requests" in values:
             client.rate_limit_requests = values["rate_limit_requests"]
         if values.get("disabled") is True and client.status is APIClientStatus.ACTIVE:
@@ -279,7 +310,12 @@ class IntegrationService:
         return client
 
     async def rotate_key(
-        self, actor: User, client_id: uuid.UUID, *, revoke_others: bool = True
+        self,
+        actor: User,
+        client_id: uuid.UUID,
+        *,
+        revoke_others: bool = True,
+        expires_at: datetime | None = None,
     ) -> tuple[IntegrationClient, str]:
         await self._require_admin(actor, "api_keys:create")
         client = await self.get_client(actor, client_id)
@@ -291,7 +327,7 @@ class IntegrationService:
                 if existing.is_active and existing.revoked_at is None:
                     existing.is_active = False
                     existing.revoked_at = now
-        raw_key, api_key = self._issue_key(client, name="rotated")
+        raw_key, api_key = self._issue_key(client, name="rotated", expires_at=expires_at)
         await self._audit(
             actor,
             "api_key_rotated",
@@ -390,25 +426,30 @@ class IntegrationService:
 
         client = principal.client
         if merchant_id is not None and merchant_id != client.merchant_id:
-            raise IntegrationAPIError("invalid_till", "Merchant is outside client scope")
+            raise IntegrationAPIError("invalid_merchant_context", "Merchant is outside client scope")
         resolved_branch = client.branch_id or branch_id
         resolved_till = client.till_id or till_id
         if client.branch_id is not None and branch_id is not None and branch_id != client.branch_id:
-            raise IntegrationAPIError("invalid_till", "Branch is outside client scope")
+            raise IntegrationAPIError("invalid_branch_context", "Branch is outside client scope")
         if client.till_id is not None and till_id is not None and till_id != client.till_id:
-            raise IntegrationAPIError("invalid_till", "Till is outside client scope")
-        if resolved_branch is None or resolved_till is None:
-            raise IntegrationAPIError(
-                "invalid_till",
-                "Till context is required for this client",
-            )
+            raise IntegrationAPIError("invalid_till_context", "Till is outside client scope")
+        if resolved_branch is None:
+            raise IntegrationAPIError("invalid_branch_context", "Branch context is required for this client")
+        if resolved_till is None:
+            raise IntegrationAPIError("invalid_till_context", "Till context is required for this client")
         return client.merchant_id, resolved_branch, resolved_till
 
     def require_scope(self, principal: APIClientPrincipal, required: frozenset[str] | str) -> None:
         if not principal.has_scope(required):
             raise IntegrationAPIError("insufficient_scope", "Insufficient scope")
 
-    def _issue_key(self, client: IntegrationClient, *, name: str) -> tuple[str, APIKey]:
+    def _issue_key(
+        self,
+        client: IntegrationClient,
+        *,
+        name: str,
+        expires_at: datetime | None = None,
+    ) -> tuple[str, APIKey]:
         raw = generate_api_key(client.environment)
         record = APIKey(
             merchant_id=client.merchant_id,
@@ -418,9 +459,102 @@ class IntegrationService:
             hashed_key=hash_secret(self._settings.secret_key, raw),
             scopes=list(client.scopes or []),
             is_active=True,
+            expires_at=expires_at,
         )
         self._session.add(record)
         return raw, record
+
+    async def add_endpoint(
+        self, actor: User, client_id: uuid.UUID, destination_url: str
+    ) -> IntegrationWebhookEndpoint:
+        await self._require_admin(actor, "api_keys:create")
+        client = await self.get_client(actor, client_id)
+        url = self._normalize_webhook_url(destination_url)
+        if url is None:
+            raise IntegrationInvalidError("Webhook URL must be an absolute http(s) URL")
+        existing = await self._endpoints.get_by_client_and_url(client.id, url)
+        if existing is not None:
+            existing.is_active = True
+            endpoint = existing
+        else:
+            endpoint = IntegrationWebhookEndpoint(
+                client_id=client.id,
+                destination_url=url,
+                is_active=True,
+            )
+            self._session.add(endpoint)
+            await self._session.flush()
+        client.webhook_url = client.webhook_url or url
+        await self._audit(
+            actor,
+            "webhook_endpoint_created",
+            client.id,
+            None,
+            {"endpoint_id": str(endpoint.id), "destination_host": _host_only(url)},
+            merchant_id=client.merchant_id,
+        )
+        await self._session.commit()
+        await self._session.refresh(endpoint)
+        return endpoint
+
+    async def update_endpoint(
+        self,
+        actor: User,
+        client_id: uuid.UUID,
+        endpoint_id: uuid.UUID,
+        values: dict[str, Any],
+    ) -> IntegrationWebhookEndpoint:
+        await self._require_admin(actor, "api_keys:create")
+        client = await self.get_client(actor, client_id)
+        endpoint = await self._endpoints.get_for_client(client.id, endpoint_id)
+        if endpoint is None:
+            raise IntegrationNotFoundError("Webhook endpoint not found")
+        before = {"is_active": endpoint.is_active, "destination_url": endpoint.destination_url}
+        if "destination_url" in values and values["destination_url"]:
+            url = self._normalize_webhook_url(values["destination_url"])
+            if url is None:
+                raise IntegrationInvalidError("Webhook URL must be an absolute http(s) URL")
+            clash = await self._endpoints.get_by_client_and_url(client.id, url)
+            if clash is not None and clash.id != endpoint.id:
+                raise IntegrationConflictError("Webhook URL already configured for this client")
+            endpoint.destination_url = url
+        if "is_active" in values and values["is_active"] is not None:
+            endpoint.is_active = bool(values["is_active"])
+        await self._audit(
+            actor,
+            "webhook_endpoint_updated",
+            client.id,
+            before,
+            {
+                "endpoint_id": str(endpoint.id),
+                "is_active": endpoint.is_active,
+                "destination_host": _host_only(endpoint.destination_url),
+            },
+            merchant_id=client.merchant_id,
+        )
+        await self._session.commit()
+        return endpoint
+
+    async def list_endpoints(
+        self, actor: User, client_id: uuid.UUID
+    ) -> list[IntegrationWebhookEndpoint]:
+        client = await self.get_client(actor, client_id)
+        return await self._endpoints.list_for_client(client.id)
+
+    async def _sync_endpoint(self, client: IntegrationClient, url: str | None) -> None:
+        if not url:
+            return
+        existing = await self._endpoints.get_by_client_and_url(client.id, url)
+        if existing is not None:
+            existing.is_active = True
+            return
+        self._session.add(
+            IntegrationWebhookEndpoint(
+                client_id=client.id,
+                destination_url=url,
+                is_active=True,
+            )
+        )
 
     async def _validate_context(
         self,
@@ -524,3 +658,9 @@ class IntegrationService:
                 after_state=after,
             )
         )
+
+
+def _host_only(url: str | None) -> str | None:
+    if not url:
+        return None
+    return urlparse(url).netloc or None

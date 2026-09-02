@@ -9,6 +9,17 @@ export interface IntegrationApiKey {
   created_at: string;
 }
 
+export interface IntegrationWebhookEndpoint {
+  id: string;
+  destination_url: string;
+  is_active: boolean;
+  webhook_secret_prefix: string | null;
+  last_delivered_at: string | null;
+  last_failure_category: string | null;
+  last_response_status_code: number | null;
+  created_at: string;
+}
+
 export interface IntegrationClient {
   id: string;
   public_id: string;
@@ -27,6 +38,7 @@ export interface IntegrationClient {
   revoked_at: string | null;
   created_at: string;
   keys: IntegrationApiKey[];
+  endpoints?: IntegrationWebhookEndpoint[];
 }
 
 export interface IntegrationClientCreated extends IntegrationClient {

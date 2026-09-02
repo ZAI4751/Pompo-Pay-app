@@ -21,7 +21,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { usePermissions } from "@/lib/auth/usePermissions";
 import { useToast } from "@/components/ui/Toast";
 import type { Branch, Merchant, Till } from "@/lib/types/merchant";
-import type { IntegrationClient, OutboundWebhookDelivery } from "@/lib/types/integration";
+import type { IntegrationClient, IntegrationWebhookEndpoint, OutboundWebhookDelivery } from "@/lib/types/integration";
 import type { ApiResult } from "@/lib/types/common";
 
 const selectClass =
@@ -67,6 +67,8 @@ export default function ApiKeysPage() {
   const [disabling, setDisabling] = useState(false);
   const [selected, setSelected] = useState<IntegrationClient | null>(null);
   const [deliveries, setDeliveries] = useState<OutboundWebhookDelivery[] | null>(null);
+  const [endpoints, setEndpoints] = useState<IntegrationWebhookEndpoint[] | null>(null);
+  const [endpointUrl, setEndpointUrl] = useState("");
 
   useEffect(() => {
     void merchantsService.list().then((list) => {
@@ -197,8 +199,25 @@ export default function ApiKeysPage() {
 
   async function openDeliveries(row: IntegrationClient) {
     setSelected(row);
-    const listed = await integrationsService.listDeliveries(row.id);
+    const [listed, listedEndpoints] = await Promise.all([
+      integrationsService.listDeliveries(row.id),
+      integrationsService.listEndpoints(row.id),
+    ]);
     setDeliveries(listed.status === "success" ? listed.data : []);
+    setEndpoints(listedEndpoints.status === "success" ? listedEndpoints.data : []);
+  }
+
+  async function onAddEndpoint() {
+    if (!selected || !endpointUrl.trim()) return;
+    const created = await integrationsService.addEndpoint(selected.id, endpointUrl.trim());
+    if (created.status === "error") {
+      push(created.message, "error");
+      return;
+    }
+    setEndpointUrl("");
+    push("Webhook endpoint added", "success");
+    const listed = await integrationsService.listEndpoints(selected.id);
+    setEndpoints(listed.status === "success" ? listed.data : []);
   }
 
   return (
@@ -428,18 +447,49 @@ export default function ApiKeysPage() {
         onClose={() => {
           setSelected(null);
           setDeliveries(null);
+          setEndpoints(null);
+          setEndpointUrl("");
         }}
         title={selected ? `Deliveries · ${selected.name}` : "Deliveries"}
       >
+        {canCreate && (
+          <div className="mb-4 flex gap-2">
+            <Input
+              label="Add webhook URL"
+              value={endpointUrl}
+              onChange={(event) => setEndpointUrl(event.target.value)}
+              placeholder="https://pos.example.com/hooks"
+            />
+            <div className="flex items-end">
+              <Button size="sm" onClick={() => void onAddEndpoint()} disabled={!endpointUrl.trim()}>
+                Add
+              </Button>
+            </div>
+          </div>
+        )}
+        {endpoints && endpoints.length > 0 && (
+          <ul className="mb-4 space-y-2 text-sm">
+            {endpoints.map((row) => (
+              <li key={row.id} className="rounded-sm border border-border p-2">
+                <div className="truncate">{row.destination_url}</div>
+                <div className="text-xs text-text-muted">
+                  {row.is_active ? "active" : "inactive"}
+                  {row.last_failure_category ? ` · ${row.last_failure_category}` : ""}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
         {deliveries && deliveries.length === 0 && <p className="text-sm text-text-muted">No outbound events yet.</p>}
         {deliveries && deliveries.length > 0 && (
           <ul className="space-y-2 text-sm">
             {deliveries.map((row) => (
-              <li key={row.public_event_id} className="rounded-sm border border-border p-2">
+              <li key={`${row.public_event_id}:${row.destination_url}`} className="rounded-sm border border-border p-2">
                 <MonoId>{row.public_event_id}</MonoId>
                 <div>
                   {row.event_type} · {row.status} · attempts {row.attempt_count}
                 </div>
+                <div className="truncate text-xs text-text-muted">{row.destination_url}</div>
               </li>
             ))}
           </ul>

@@ -7,11 +7,13 @@ from fastapi.responses import JSONResponse
 
 INTEGRATION_ERROR_STATUS: dict[str, int] = {
     "invalid_api_key": 401,
-    "api_key_revoked": 401,
-    "api_key_expired": 401,
+    "revoked_api_key": 401,
+    "expired_api_key": 401,
     "api_key_inactive": 401,
     "insufficient_scope": 403,
-    "invalid_till": 422,
+    "invalid_merchant_context": 422,
+    "invalid_branch_context": 422,
+    "invalid_till_context": 422,
     "invalid_amount": 422,
     "invalid_request": 422,
     "unsupported_currency": 422,
@@ -19,6 +21,7 @@ INTEGRATION_ERROR_STATUS: dict[str, int] = {
     "idempotency_conflict": 409,
     "payment_not_found": 404,
     "client_not_found": 404,
+    "endpoint_not_found": 404,
     "rate_limited": 429,
     "webhook_not_configured": 422,
 }

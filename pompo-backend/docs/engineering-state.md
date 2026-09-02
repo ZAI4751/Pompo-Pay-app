@@ -39,8 +39,8 @@ PaymentService → select_provider → ProviderRegistry → ProviderAdapter
 ```
 
 ## DATABASE STATE
-PostgreSQL migration graph head is `0013_m013_integrations` (parent
-`0012_m012_mobile`).
+PostgreSQL migration graph head is `0014_m013_webhook_endpoints` (parent
+`0013_m013_integrations`).
 M008 required no schema change; attempt correlation metadata fits in existing
 `provider_request` / `provider_response` JSON.
 `0008` adds `provider_type`, `health_state`, `config_refs` on

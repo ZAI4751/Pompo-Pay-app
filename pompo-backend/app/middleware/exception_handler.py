@@ -130,8 +130,12 @@ def register_exception_handlers(app: FastAPI) -> None:
             ).lower()
             if "currency" in joined:
                 content["code"] = "unsupported_currency"
-            elif "till" in joined or "merchant" in joined or "branch" in joined:
-                content["code"] = "invalid_till"
+            elif "merchant" in joined:
+                content["code"] = "invalid_merchant_context"
+            elif "branch" in joined:
+                content["code"] = "invalid_branch_context"
+            elif "till" in joined:
+                content["code"] = "invalid_till_context"
             elif "amount" in joined:
                 content["code"] = "invalid_amount"
             else:

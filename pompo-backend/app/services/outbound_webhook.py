@@ -32,6 +32,7 @@ from app.models.enums import (
 from app.payments.webhooks import sanitize_payload
 from app.repositories.integration import (
     IntegrationClientRepository,
+    IntegrationWebhookEndpointRepository,
     OutboundWebhookDeliveryRepository,
 )
 
@@ -61,6 +62,7 @@ class OutboundWebhookService:
         self._session = session
         self._deliveries = OutboundWebhookDeliveryRepository(session)
         self._clients = IntegrationClientRepository(session)
+        self._endpoints = IntegrationWebhookEndpointRepository(session)
         self._settings = get_settings()
         self._http = http_client
 
@@ -71,13 +73,7 @@ class OutboundWebhookService:
         if event_type is None:
             return None
         client = await self._clients.get_by_id(transaction.api_client_id)
-        if client is None or not client.webhook_url:
-            logger.info(
-                "outbound_webhook_skipped",
-                client_id=str(transaction.api_client_id) if transaction.api_client_id else None,
-                reference=transaction.reference,
-                reason="webhook_not_configured",
-            )
+        if client is None:
             return None
 
         event_id = f"evt_{transaction.reference}_{event_type.split('.', 1)[-1]}"
@@ -97,43 +93,81 @@ class OutboundWebhookService:
                 },
             }
         )
-        delivery = OutboundWebhookDelivery(
-            public_event_id=event_id,
-            client_id=client.id,
-            transaction_id=transaction.id,
-            event_type=event_type,
-            destination_url=client.webhook_url,
-            payload=payload,
-            status=OutboundWebhookStatus.PENDING,
-            max_attempts=self._settings.outbound_webhook_max_attempts,
-            next_retry_at=datetime.now(UTC),
-        )
-        self._session.add(delivery)
-        try:
-            await self._session.commit()
-        except IntegrityError:
-            await self._session.rollback()
-            existing = await self._deliveries.get_by_event_id(event_id)
+        endpoints = await self._endpoints.list_for_client(client.id, active_only=True)
+        destinations: list[tuple[uuid.UUID | None, str]] = [
+            (endpoint.id, endpoint.destination_url) for endpoint in endpoints
+        ]
+        if not destinations and client.webhook_url:
+            destinations = [(None, client.webhook_url)]
+        if not destinations:
             logger.info(
-                "outbound_webhook_duplicate",
-                event_id=event_id,
+                "outbound_webhook_skipped",
                 client_id=str(client.id),
                 reference=transaction.reference,
+                reason="webhook_not_configured",
             )
-            return existing
-        await self._audit_system(
-            "outbound_webhook_queued",
-            delivery.id,
-            None,
-            {
-                "event_id": event_id,
-                "event_type": event_type,
-                "client_id": str(client.id),
-                "reference": transaction.reference,
-            },
-            merchant_id=transaction.merchant_id,
-            api_client_id=client.id,
-        )
+            return None
+
+        created: list[OutboundWebhookDelivery] = []
+        queued: list[OutboundWebhookDelivery] = []
+        for endpoint_id, destination_url in destinations:
+            existing = await self._deliveries.get_by_identity(
+                client_id=client.id,
+                transaction_id=transaction.id,
+                event_type=event_type,
+                destination_url=destination_url,
+            )
+            if existing is not None:
+                created.append(existing)
+                continue
+            delivery = OutboundWebhookDelivery(
+                public_event_id=event_id,
+                client_id=client.id,
+                endpoint_id=endpoint_id,
+                transaction_id=transaction.id,
+                event_type=event_type,
+                destination_url=destination_url,
+                payload=payload,
+                status=OutboundWebhookStatus.PENDING,
+                max_attempts=self._settings.outbound_webhook_max_attempts,
+                next_retry_at=datetime.now(UTC),
+            )
+            try:
+                async with self._session.begin_nested():
+                    self._session.add(delivery)
+                    await self._session.flush()
+            except IntegrityError:
+                existing = await self._deliveries.get_by_identity(
+                    client_id=client.id,
+                    transaction_id=transaction.id,
+                    event_type=event_type,
+                    destination_url=destination_url,
+                )
+                logger.info(
+                    "outbound_webhook_duplicate",
+                    event_id=event_id,
+                    client_id=str(client.id),
+                    reference=transaction.reference,
+                )
+                if existing is not None:
+                    created.append(existing)
+                continue
+            await self._audit_system(
+                "outbound_webhook_queued",
+                delivery.id,
+                None,
+                {
+                    "event_id": event_id,
+                    "event_type": event_type,
+                    "client_id": str(client.id),
+                    "reference": transaction.reference,
+                },
+                merchant_id=transaction.merchant_id,
+                api_client_id=client.id,
+            )
+            created.append(delivery)
+            queued.append(delivery)
+
         await self._session.commit()
         logger.info(
             "outbound_webhook_queued",
@@ -141,9 +175,11 @@ class OutboundWebhookService:
             client_id=str(client.id),
             reference=transaction.reference,
             request_id=_request_id(),
+            destinations=len(created),
         )
-        self._enqueue(delivery.id)
-        return delivery
+        for delivery in queued:
+            self._enqueue(delivery.id)
+        return created[0] if created else None
 
     async def deliver(self, delivery_id: uuid.UUID) -> OutboundWebhookDelivery:
         delivery = await self._deliveries.get_by_id(delivery_id)
@@ -218,6 +254,12 @@ class OutboundWebhookService:
             delivery.failure_category = None
             delivery.failure_code = None
             delivery.next_retry_at = None
+            if delivery.endpoint_id is not None:
+                endpoint = await self._endpoints.get_by_id(delivery.endpoint_id)
+                if endpoint is not None:
+                    endpoint.last_delivered_at = now
+                    endpoint.last_failure_category = None
+                    endpoint.last_response_status_code = response.status_code
             await self._audit_system(
                 "outbound_webhook_delivered",
                 delivery.id,
@@ -248,6 +290,11 @@ class OutboundWebhookService:
         delivery.failure_category = category
         delivery.failure_code = code
         delivery.next_retry_at = None
+        if delivery.endpoint_id is not None:
+            endpoint = await self._endpoints.get_by_id(delivery.endpoint_id)
+            if endpoint is not None:
+                endpoint.last_failure_category = category
+                endpoint.last_response_status_code = response.status_code
         await self._fail_audit(delivery, client)
         await self._session.commit()
         return delivery

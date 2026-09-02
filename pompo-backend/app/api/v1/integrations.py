@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
@@ -25,6 +26,9 @@ from app.schemas.integration import (
     IntegrationPaymentResponse,
     IntegrationQRResponse,
     OutboundWebhookDeliveryResponse,
+    WebhookEndpointCreate,
+    WebhookEndpointResponse,
+    WebhookEndpointUpdate,
     WebhookSecretCreatedResponse,
 )
 from app.services.integration import (
@@ -51,14 +55,14 @@ router = APIRouter(prefix="/integrations", tags=["Integrations"])
 _MACHINE_ERROR_RESPONSES = {
     401: {
         "model": IntegrationErrorBody,
-        "description": "invalid_api_key, api_key_revoked, api_key_expired, api_key_inactive",
+        "description": "invalid_api_key, revoked_api_key, expired_api_key, api_key_inactive",
     },
     403: {"model": IntegrationErrorBody, "description": "insufficient_scope"},
     404: {"model": IntegrationErrorBody, "description": "payment_not_found"},
     409: {"model": IntegrationErrorBody, "description": "idempotency_conflict"},
     422: {
         "model": IntegrationErrorBody,
-        "description": "invalid_till, invalid_amount, invalid_request, unsupported_currency",
+        "description": "invalid_merchant_context, invalid_branch_context, invalid_till_context, invalid_amount, invalid_request, unsupported_currency",
     },
     429: {"model": IntegrationErrorBody, "description": "rate_limited"},
 }
@@ -109,8 +113,13 @@ def _payment_error(exc: PaymentError | QRError) -> IntegrationAPIError:
         return IntegrationAPIError("idempotency_conflict", str(exc))
     if isinstance(exc, (PaymentForbiddenError, QRForbiddenError)):
         message = str(exc)
-        if "scope" in message.lower() or "till" in message.lower():
-            return IntegrationAPIError("invalid_till", message)
+        lowered = message.lower()
+        if "merchant" in lowered:
+            return IntegrationAPIError("invalid_merchant_context", message)
+        if "branch" in lowered:
+            return IntegrationAPIError("invalid_branch_context", message)
+        if "till" in lowered:
+            return IntegrationAPIError("invalid_till_context", message)
         return IntegrationAPIError("insufficient_scope", "Insufficient scope")
     if isinstance(exc, (PaymentInvalidError, QRInvalidError)):
         text = str(exc).lower()
@@ -118,13 +127,33 @@ def _payment_error(exc: PaymentError | QRError) -> IntegrationAPIError:
             return IntegrationAPIError("unsupported_currency", str(exc))
         if "amount" in text:
             return IntegrationAPIError("invalid_amount", str(exc))
-        if "till" in text or "branch" in text or "merchant" in text:
-            return IntegrationAPIError("invalid_till", str(exc))
+        if "merchant" in text:
+            return IntegrationAPIError("invalid_merchant_context", str(exc))
+        if "branch" in text:
+            return IntegrationAPIError("invalid_branch_context", str(exc))
+        if "till" in text:
+            return IntegrationAPIError("invalid_till_context", str(exc))
         return IntegrationAPIError("invalid_request", str(exc))
     return IntegrationAPIError("invalid_request", str(exc))
 
 
+def _endpoint_response(endpoint, *, secret_prefix: str | None) -> WebhookEndpointResponse:
+    return WebhookEndpointResponse(
+        id=endpoint.id,
+        destination_url=endpoint.destination_url,
+        is_active=endpoint.is_active,
+        webhook_secret_prefix=secret_prefix,
+        last_delivered_at=endpoint.last_delivered_at,
+        last_failure_category=(
+            endpoint.last_failure_category.value if endpoint.last_failure_category else None
+        ),
+        last_response_status_code=endpoint.last_response_status_code,
+        created_at=endpoint.created_at,
+    )
+
+
 def _client_response(client) -> IntegrationClientResponse:
+    prefix = client.webhook_secret_prefix
     return IntegrationClientResponse(
         id=client.id,
         public_id=client.public_id,
@@ -137,7 +166,7 @@ def _client_response(client) -> IntegrationClientResponse:
         till_id=client.till_id,
         scopes=list(client.scopes or []),
         webhook_url=client.webhook_url,
-        webhook_secret_prefix=client.webhook_secret_prefix,
+        webhook_secret_prefix=prefix,
         rate_limit_requests=client.rate_limit_requests,
         last_used_at=client.last_used_at,
         revoked_at=client.revoked_at,
@@ -154,6 +183,10 @@ def _client_response(client) -> IntegrationClientResponse:
                 "created_at": key.created_at,
             }
             for key in (client.api_keys or [])
+        ],
+        endpoints=[
+            _endpoint_response(endpoint, secret_prefix=prefix)
+            for endpoint in (getattr(client, "webhook_endpoints", None) or [])
         ],
     )
 
@@ -331,10 +364,14 @@ async def rotate_integration_key(
     current_user: CurrentUserDep,
     service: IntegrationServiceDep,
     revoke_others: bool = True,
+    expires_at: datetime | None = Query(default=None),
 ) -> APIKeyCreatedResponse:
     try:
         client, raw_key = await service.rotate_key(
-            current_user, client_id, revoke_others=revoke_others
+            current_user,
+            client_id,
+            revoke_others=revoke_others,
+            expires_at=expires_at,
         )
     except IntegrationError as exc:
         raise _admin_error(exc) from exc
@@ -396,6 +433,66 @@ async def rotate_webhook_secret(
         webhook_secret_prefix=client.webhook_secret_prefix or "",
         webhook_signing_secret=secret,
     )
+
+
+@router.post(
+    "/clients/{client_id}/endpoints",
+    response_model=WebhookEndpointResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_permission("api_keys:create"))],
+)
+async def add_webhook_endpoint(
+    client_id: uuid.UUID,
+    payload: WebhookEndpointCreate,
+    current_user: CurrentUserDep,
+    service: IntegrationServiceDep,
+) -> WebhookEndpointResponse:
+    try:
+        client = await service.get_client(current_user, client_id)
+        endpoint = await service.add_endpoint(current_user, client_id, payload.destination_url)
+    except IntegrationError as exc:
+        raise _admin_error(exc) from exc
+    return _endpoint_response(endpoint, secret_prefix=client.webhook_secret_prefix)
+
+
+@router.get(
+    "/clients/{client_id}/endpoints",
+    response_model=list[WebhookEndpointResponse],
+    dependencies=[Depends(require_permission("api_keys:read"))],
+)
+async def list_webhook_endpoints(
+    client_id: uuid.UUID,
+    current_user: CurrentUserDep,
+    service: IntegrationServiceDep,
+) -> list[WebhookEndpointResponse]:
+    try:
+        client = await service.get_client(current_user, client_id)
+        rows = await service.list_endpoints(current_user, client_id)
+    except IntegrationError as exc:
+        raise _admin_error(exc) from exc
+    return [_endpoint_response(row, secret_prefix=client.webhook_secret_prefix) for row in rows]
+
+
+@router.patch(
+    "/clients/{client_id}/endpoints/{endpoint_id}",
+    response_model=WebhookEndpointResponse,
+    dependencies=[Depends(require_permission("api_keys:create"))],
+)
+async def update_webhook_endpoint(
+    client_id: uuid.UUID,
+    endpoint_id: uuid.UUID,
+    payload: WebhookEndpointUpdate,
+    current_user: CurrentUserDep,
+    service: IntegrationServiceDep,
+) -> WebhookEndpointResponse:
+    try:
+        client = await service.get_client(current_user, client_id)
+        endpoint = await service.update_endpoint(
+            current_user, client_id, endpoint_id, payload.model_dump(exclude_unset=True)
+        )
+    except IntegrationError as exc:
+        raise _admin_error(exc) from exc
+    return _endpoint_response(endpoint, secret_prefix=client.webhook_secret_prefix)
 
 
 @router.get(

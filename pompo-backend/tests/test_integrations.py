@@ -31,7 +31,7 @@ from app.models import (
     User,
 )
 from app.payments.catalog import seed_provider_catalog
-from app.payments.webhooks import SIGNATURE_HEADER, TIMESTAMP_HEADER, compute_mock_signature
+from app.payments.webhooks import SIGNATURE_HEADER, TIMESTAMP_HEADER, compute_mock_signature, verify_mock_signature
 
 
 PERMISSION_CODES = (
@@ -321,7 +321,7 @@ async def test_revoked_expired_and_insufficient_scope(
         },
     )
     assert revoked.status_code == 401
-    assert revoked.json()["code"] == "api_key_revoked"
+    assert revoked.json()["code"] == "revoked_api_key"
 
     await client.post(f"/api/v1/integrations/clients/{client_id}/revoke", headers=headers)
     dead = await client.get(
@@ -445,7 +445,7 @@ async def test_merchant_and_till_isolation(client: AsyncClient, platform_admin: 
         },
     )
     assert hijack.status_code == 422
-    assert hijack.json()["code"] == "invalid_till"
+    assert hijack.json()["code"] == "invalid_merchant_context"
 
 
 @pytest.mark.asyncio
@@ -742,7 +742,7 @@ async def test_expired_key_invalid_amount_currency_rate_limit_and_openapi(
         "/api/v1/integrations/payments/PMP-X", headers={"X-API-Key": raw_key}
     )
     assert expired.status_code == 401
-    assert expired.json()["code"] == "api_key_expired"
+    assert expired.json()["code"] == "expired_api_key"
 
     from fastapi import FastAPI
 
@@ -765,3 +765,95 @@ async def test_expired_key_invalid_amount_currency_rate_limit_and_openapi(
     for code in ("401", "403", "404", "409", "422", "429"):
         assert code in post_responses
     assert "IntegrationErrorBody" in dumped or "invalid_api_key" in dumped
+
+
+@pytest.mark.asyncio
+async def test_webhook_endpoints_share_stable_event_id(
+    client: AsyncClient, platform_admin: User, db_session: AsyncSession
+) -> None:
+    token = await _login(client, platform_admin.email)
+    headers = {"Authorization": f"Bearer {token}"}
+    suffix = uuid.uuid4().hex[:8]
+    merchant_id, branch_id, till_id = await _merchant_tree(client, headers, suffix)
+    created = await client.post(
+        "/api/v1/integrations/clients",
+        headers=headers,
+        json={
+            "name": "Multi hook POS",
+            "client_type": "merchant_pos",
+            "merchant_id": merchant_id,
+            "branch_id": branch_id,
+            "till_id": till_id,
+            "webhook_url": "https://pos-a.example.test/hooks",
+        },
+    )
+    assert created.status_code == 201, created.text
+    client_id = created.json()["id"]
+    raw_key = created.json()["api_key"]
+    webhook_secret = created.json()["webhook_signing_secret"]
+    added = await client.post(
+        f"/api/v1/integrations/clients/{client_id}/endpoints",
+        headers=headers,
+        json={"destination_url": "https://pos-b.example.test/hooks"},
+    )
+    assert added.status_code == 201, added.text
+    listed = await client.get(
+        f"/api/v1/integrations/clients/{client_id}/endpoints", headers=headers
+    )
+    assert listed.status_code == 200
+    assert len(listed.json()) == 2
+    dumped = json.dumps(listed.json())
+    assert webhook_secret not in dumped
+    assert all(item.get("webhook_secret_prefix") != webhook_secret for item in listed.json())
+    payment = await client.post(
+        "/api/v1/integrations/payments",
+        headers={"X-API-Key": raw_key},
+        json={
+            "amount": "15.00",
+            "currency": "MWK",
+            "payment_method": "mobile_money",
+            "idempotency_key": f"multi-{suffix}",
+            "generate_qr": False,
+        },
+    )
+    assert payment.status_code == 201, payment.text
+    await db_session.commit()
+    rows = list(
+        await db_session.scalars(
+            select(OutboundWebhookDelivery).where(
+                OutboundWebhookDelivery.client_id == uuid.UUID(client_id)
+            )
+        )
+    )
+    assert len(rows) == 2
+    event_ids = {row.public_event_id for row in rows}
+    assert len(event_ids) == 1
+    assert next(iter(event_ids)).startswith("evt_")
+
+
+def test_webhook_signature_replay_window() -> None:
+    secret = "whsec_test"
+    body = b'{"event_id":"evt_1","event_type":"payment.success"}'
+    fresh = str(int(time.time()))
+    signature = compute_mock_signature(secret, fresh, body)
+    ok = verify_mock_signature(
+        headers={"x-pompo-signature": signature, "x-pompo-timestamp": fresh},
+        body=body,
+        secret=secret,
+    )
+    assert ok.verified
+    stale = str(int(time.time()) - 301)
+    stale_sig = compute_mock_signature(secret, stale, body)
+    replay = verify_mock_signature(
+        headers={"x-pompo-signature": stale_sig, "x-pompo-timestamp": stale},
+        body=body,
+        secret=secret,
+    )
+    assert not replay.verified
+    tampered = verify_mock_signature(
+        headers={"x-pompo-signature": signature, "x-pompo-timestamp": fresh},
+        body=b'{"event_id":"evt_1","event_type":"payment.failed"}',
+        secret=secret,
+    )
+    assert not tampered.verified
+

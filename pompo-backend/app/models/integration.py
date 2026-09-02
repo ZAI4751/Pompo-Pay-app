@@ -110,6 +110,9 @@ class IntegrationClient(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     api_keys: Mapped[list["APIKey"]] = relationship(
         back_populates="client", cascade="all, delete-orphan"
     )
+    webhook_endpoints: Mapped[list["IntegrationWebhookEndpoint"]] = relationship(
+        back_populates="client", cascade="all, delete-orphan"
+    )
     deliveries: Mapped[list["OutboundWebhookDelivery"]] = relationship(
         back_populates="client", cascade="all, delete-orphan"
     )
@@ -118,25 +121,75 @@ class IntegrationClient(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         return f"<IntegrationClient public_id={self.public_id!r} type={self.client_type!r}>"
 
 
+class IntegrationWebhookEndpoint(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Partner/POS destination URL for outbound payment events."""
+
+    __tablename__ = "integration_webhook_endpoints"
+    __table_args__ = (
+        UniqueConstraint(
+            "client_id",
+            "destination_url",
+            name="uq_integration_webhook_endpoint_url",
+        ),
+    )
+
+    client_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(),
+        ForeignKey("integration_clients.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    destination_url: Mapped[str] = mapped_column(String(1000), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    last_delivered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None, nullable=True
+    )
+    last_failure_category: Mapped[OutboundWebhookFailureCategory | None] = mapped_column(
+        SAEnum(
+            OutboundWebhookFailureCategory,
+            name="webhook_endpoint_failure_category",
+            native_enum=False,
+            length=32,
+            values_callable=_enum_values,
+        ),
+        nullable=True,
+    )
+    last_response_status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    client: Mapped[IntegrationClient] = relationship(back_populates="webhook_endpoints")
+    deliveries: Mapped[list["OutboundWebhookDelivery"]] = relationship(
+        back_populates="endpoint"
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<IntegrationWebhookEndpoint id={self.id} active={self.is_active}>"
+
+
 class OutboundWebhookDelivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """Persistent delivery record for POMPO → partner/POS webhooks."""
 
     __tablename__ = "outbound_webhook_deliveries"
     __table_args__ = (
-        UniqueConstraint("public_event_id", name="uq_outbound_webhook_event_id"),
         UniqueConstraint(
             "client_id",
             "transaction_id",
             "event_type",
-            name="uq_outbound_webhook_client_txn_type",
+            "destination_url",
+            name="uq_outbound_webhook_client_txn_type_dest",
         ),
     )
 
-    public_event_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    public_event_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     client_id: Mapped[uuid.UUID] = mapped_column(
         GUID(),
         ForeignKey("integration_clients.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
+    )
+    endpoint_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(),
+        ForeignKey("integration_webhook_endpoints.id", ondelete="SET NULL"),
+        nullable=True,
         index=True,
     )
     transaction_id: Mapped[uuid.UUID] = mapped_column(
@@ -182,6 +235,9 @@ class OutboundWebhookDelivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     failure_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     client: Mapped[IntegrationClient] = relationship(back_populates="deliveries")
+    endpoint: Mapped[IntegrationWebhookEndpoint | None] = relationship(
+        back_populates="deliveries"
+    )
     transaction: Mapped["Transaction"] = relationship()
 
     def __repr__(self) -> str:  # pragma: no cover

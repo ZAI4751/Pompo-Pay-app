@@ -20,7 +20,11 @@ from app.models.payment import (
     Transaction,
     WebhookEvent,
 )
-from app.models.integration import IntegrationClient, OutboundWebhookDelivery
+from app.models.integration import (
+    IntegrationClient,
+    IntegrationWebhookEndpoint,
+    OutboundWebhookDelivery,
+)
 from app.models.audit import APIKey, AuditLog
 from app.models.settlement import (
     PricingSchedule,
@@ -49,6 +53,7 @@ __all__ = [
     "APIKey",
     "AuditLog",
     "IntegrationClient",
+    "IntegrationWebhookEndpoint",
     "OutboundWebhookDelivery",
     "PricingSchedule",
     "SettlementBatch",

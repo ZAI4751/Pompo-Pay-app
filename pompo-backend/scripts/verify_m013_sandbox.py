@@ -262,7 +262,7 @@ async def main() -> int:
         result.record(
             "revoked api key rejected",
             dead.status_code == 401
-            and _code(await _json(dead)) in {"api_key_revoked", "api_key_inactive", "invalid_api_key"},
+            and _code(await _json(dead)) in {"revoked_api_key", "api_key_inactive", "invalid_api_key"},
             f"http_{dead.status_code} code={_code(await _json(dead))}",
         )
 

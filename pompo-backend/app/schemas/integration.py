@@ -19,6 +19,7 @@ class IntegrationClientCreate(BaseModel):
     scopes: list[str] | None = None
     webhook_url: str | None = Field(default=None, max_length=1000)
     rate_limit_requests: int | None = Field(default=None, ge=1, le=10000)
+    key_expires_at: datetime | None = None
 
 
 class IntegrationClientUpdate(BaseModel):
@@ -27,6 +28,33 @@ class IntegrationClientUpdate(BaseModel):
     webhook_url: str | None = Field(default=None, max_length=1000)
     rate_limit_requests: int | None = Field(default=None, ge=1, le=10000)
     disabled: bool | None = None
+
+
+class APIKeyRotateRequest(BaseModel):
+    expires_at: datetime | None = None
+    revoke_others: bool = True
+
+
+class WebhookEndpointCreate(BaseModel):
+    destination_url: str = Field(min_length=8, max_length=1000)
+
+
+class WebhookEndpointUpdate(BaseModel):
+    is_active: bool | None = None
+    destination_url: str | None = Field(default=None, min_length=8, max_length=1000)
+
+
+class WebhookEndpointResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    destination_url: str
+    is_active: bool
+    webhook_secret_prefix: str | None = None
+    last_delivered_at: datetime | None = None
+    last_failure_category: str | None = None
+    last_response_status_code: int | None = None
+    created_at: datetime
 
 
 class APIKeyMetadata(BaseModel):
@@ -62,6 +90,7 @@ class IntegrationClientResponse(BaseModel):
     revoked_at: datetime | None
     created_at: datetime
     keys: list[APIKeyMetadata] = Field(default_factory=list)
+    endpoints: list[WebhookEndpointResponse] = Field(default_factory=list)
 
 
 class IntegrationClientCreatedResponse(IntegrationClientResponse):

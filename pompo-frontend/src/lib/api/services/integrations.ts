@@ -6,6 +6,7 @@ import type {
   IntegrationClientCreate,
   IntegrationClientCreated,
   OutboundWebhookDelivery,
+  IntegrationWebhookEndpoint,
 } from "@/lib/types/integration";
 
 const DEMO_UNAVAILABLE: ApiResult<never> = {
@@ -69,6 +70,36 @@ export const integrationsService = {
     if (USE_MOCKS) return DEMO_UNAVAILABLE;
     return apiRequest<OutboundWebhookDelivery[]>(
       `/integrations/clients/${encodeURIComponent(clientId)}/deliveries`,
+    );
+  },
+
+  async listEndpoints(clientId: string): Promise<ApiResult<IntegrationWebhookEndpoint[]>> {
+    if (USE_MOCKS) return DEMO_UNAVAILABLE;
+    return apiRequest<IntegrationWebhookEndpoint[]>(
+      `/integrations/clients/${encodeURIComponent(clientId)}/endpoints`,
+    );
+  },
+
+  async addEndpoint(
+    clientId: string,
+    destinationUrl: string,
+  ): Promise<ApiResult<IntegrationWebhookEndpoint>> {
+    if (USE_MOCKS) return DEMO_UNAVAILABLE;
+    return apiRequest<IntegrationWebhookEndpoint>(
+      `/integrations/clients/${encodeURIComponent(clientId)}/endpoints`,
+      { method: "POST", body: { destination_url: destinationUrl } },
+    );
+  },
+
+  async setEndpointActive(
+    clientId: string,
+    endpointId: string,
+    isActive: boolean,
+  ): Promise<ApiResult<IntegrationWebhookEndpoint>> {
+    if (USE_MOCKS) return DEMO_UNAVAILABLE;
+    return apiRequest<IntegrationWebhookEndpoint>(
+      `/integrations/clients/${encodeURIComponent(clientId)}/endpoints/${encodeURIComponent(endpointId)}`,
+      { method: "PATCH", body: { is_active: isActive } },
     );
   },
 };
