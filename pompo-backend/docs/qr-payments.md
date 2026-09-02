@@ -76,8 +76,16 @@ Static QR payments use the existing `(merchant_id, idempotency_key)` constraint
 via `PaymentService.create_payment`.
 
 Dynamic QR returns the linked transaction; repeated scans with the same QR
-advance `qr_generated → pending` once. Successful completion marks the QR
-`consumed`.
+advance `qr_generated → pending` once. Terminal payment outcomes mark the QR
+`consumed` (success, failure, cancel, timeout, refund).
+
+### Signing key separation (future)
+
+Today QR HMAC uses the application `SECRET_KEY`. That is acceptable for the
+current single-service architecture, but **long-term production hardening**
+should introduce a dedicated `QR_SIGNING_KEY` (or KMS-backed secret) so QR
+payload rotation does not require rotating JWT/session signing material.
+Do not change production secrets without an explicit migration plan.
 
 ## Migration
 

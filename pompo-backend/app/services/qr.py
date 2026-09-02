@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.base import get_settings
@@ -116,6 +117,10 @@ class QRService:
             "idempotency_key": values["idempotency_key"],
         }
         transaction = await self._payments.create_payment(actor, payment_values)
+        existing_qr = await self._qr_codes.get_by_transaction_id(transaction.id)
+        if existing_qr is not None:
+            return existing_qr
+
         validate_transition(transaction.status, TransactionStatus.QR_GENERATED)
         transaction.status = TransactionStatus.QR_GENERATED
 
@@ -155,7 +160,14 @@ class QRService:
                 "amount": str(values["amount"]),
             },
         )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except IntegrityError:
+            await self._session.rollback()
+            raced = await self._qr_codes.get_by_transaction_id(transaction.id)
+            if raced is not None:
+                return raced
+            raise
         await self._session.refresh(qr, attribute_names=["merchant", "branch", "till", "transaction"])
         logger.info(
             "qr_dynamic_created",
@@ -220,6 +232,11 @@ class QRService:
             await self._audit_invalid(actor, parsed.public_identifier, "unknown_qr")
             raise QRNotFoundError("QR code not found")
 
+        if qr.qr_type is QRType.DYNAMIC:
+            qr = await self._qr_codes.get_by_public_identifier_for_update(parsed.public_identifier)
+            if qr is None:
+                raise QRNotFoundError("QR code not found")
+
         if qr.payload != raw_payload.strip():
             await self._audit_invalid(actor, parsed.public_identifier, "payload_mismatch")
             raise QRInvalidError("QR payload does not match server record")
@@ -227,6 +244,12 @@ class QRService:
         await self._refresh_expiry_if_needed(qr)
         if qr.status is not QRStatus.ACTIVE:
             raise QRInvalidError(f"QR code is {qr.status.value}")
+
+        if qr.qr_type is QRType.DYNAMIC:
+            client_amount = values.get("amount")
+            if client_amount is not None and qr.amount is not None and client_amount != qr.amount:
+                await self._audit_invalid(actor, qr.public_identifier, "dynamic_amount_override")
+                raise QRInvalidError("Amount cannot be modified for dynamic QR")
 
         if qr.qr_type is QRType.STATIC:
             return await self._pay_from_static_qr(actor, qr, values, idempotency_key)
@@ -243,7 +266,11 @@ class QRService:
             qr = transaction.qr_code
         if qr is None or qr.qr_type is not QRType.DYNAMIC:
             return
-        if transaction.status is TransactionStatus.SUCCESS:
+        self._finalize_dynamic_qr_for_terminal(qr, transaction.status)
+
+    @staticmethod
+    def _finalize_dynamic_qr_for_terminal(qr: QRCode, status: TransactionStatus) -> None:
+        if status in TERMINAL_TRANSACTION_STATUSES:
             qr.status = QRStatus.CONSUMED
             qr.is_used = True
         elif qr.expires_at and qr.expires_at <= datetime.now(UTC):
@@ -301,10 +328,14 @@ class QRService:
         parsed: Any,
         idempotency_key: str,
     ) -> Transaction:
-        if qr.expires_at and qr.expires_at <= datetime.now(UTC):
-            qr.status = QRStatus.EXPIRED
-            await self._session.commit()
-            raise QRInvalidError("QR code has expired")
+        if qr.expires_at:
+            expires_at = qr.expires_at
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=UTC)
+            if expires_at <= datetime.now(UTC):
+                qr.status = QRStatus.EXPIRED
+                await self._session.commit()
+                raise QRInvalidError("QR code has expired")
 
         if parsed.amount is None or parsed.payment_reference is None:
             raise QRInvalidError("Invalid dynamic QR context")
@@ -312,8 +343,8 @@ class QRService:
         if qr.amount != parsed.amount or qr.payment_reference != parsed.payment_reference:
             raise QRInvalidError("QR payment context was tampered")
 
-        client_amount = None  # dynamic amount is server-authoritative; never read from client
-        _ = client_amount
+        if parsed.currency is not None and parsed.currency != qr.currency:
+            raise QRInvalidError("QR currency was tampered")
 
         if qr.transaction_id is None:
             raise QRInvalidError("Dynamic QR has no linked payment")
@@ -323,10 +354,8 @@ class QRService:
             raise QRNotFoundError("Linked payment not found")
 
         if transaction.status in TERMINAL_TRANSACTION_STATUSES:
-            if transaction.status is TransactionStatus.SUCCESS:
-                qr.status = QRStatus.CONSUMED
-                qr.is_used = True
-                await self._session.commit()
+            self._finalize_dynamic_qr_for_terminal(qr, transaction.status)
+            await self._session.commit()
             raise QRInvalidError("QR payment is no longer available")
 
         existing = await self._transactions.get_by_idempotency(qr.merchant_id, idempotency_key)
@@ -388,12 +417,12 @@ class QRService:
         return merchant, branch, till
 
     async def _refresh_expiry_if_needed(self, qr: QRCode) -> None:
-        if (
-            qr.qr_type is QRType.DYNAMIC
-            and qr.status is QRStatus.ACTIVE
-            and qr.expires_at
-            and qr.expires_at <= datetime.now(UTC)
-        ):
+        if qr.qr_type is not QRType.DYNAMIC or qr.status is not QRStatus.ACTIVE or not qr.expires_at:
+            return
+        expires_at = qr.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        if expires_at <= datetime.now(UTC):
             qr.status = QRStatus.EXPIRED
             await self._session.flush()
 

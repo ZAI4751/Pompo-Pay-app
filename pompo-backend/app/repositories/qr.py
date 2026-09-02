@@ -15,16 +15,34 @@ from app.repositories.base import BaseRepository
 class QRCodeRepository(BaseRepository[QRCode]):
     model = QRCode
 
+    def _base_query(self):
+        return select(QRCode).options(
+            selectinload(QRCode.merchant),
+            selectinload(QRCode.branch),
+            selectinload(QRCode.till),
+            selectinload(QRCode.transaction),
+        )
+
     async def get_by_public_identifier(self, public_identifier: str) -> QRCode | None:
         result = await self._session.execute(
-            select(QRCode)
+            self._base_query().where(QRCode.public_identifier == public_identifier)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_public_identifier_for_update(
+        self, public_identifier: str
+    ) -> QRCode | None:
+        """Load QR under row lock for initiation paths that must be single-flight."""
+        result = await self._session.execute(
+            self._base_query()
             .where(QRCode.public_identifier == public_identifier)
-            .options(
-                selectinload(QRCode.merchant),
-                selectinload(QRCode.branch),
-                selectinload(QRCode.till),
-                selectinload(QRCode.transaction),
-            )
+            .with_for_update()
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_transaction_id(self, transaction_id: uuid.UUID) -> QRCode | None:
+        result = await self._session.execute(
+            self._base_query().where(QRCode.transaction_id == transaction_id)
         )
         return result.scalar_one_or_none()
 

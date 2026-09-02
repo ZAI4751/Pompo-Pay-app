@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import uuid
@@ -122,7 +123,14 @@ class PaymentService:
             status=TransactionStatus.CREATED,
         )
         self._session.add(transaction)
-        await self._session.flush()
+        try:
+            await self._session.flush()
+        except IntegrityError:
+            await self._session.rollback()
+            self._session.expire_all()
+            return await self._resolve_idempotency_race(
+                merchant_id, values["idempotency_key"], fingerprint
+            )
         attempt = PaymentAttempt(
             transaction_id=transaction.id,
             provider_id=provider.id,
@@ -137,21 +145,24 @@ class PaymentService:
         )
         try:
             await self._session.commit()
-        except IntegrityError as exc:
+        except IntegrityError:
             await self._session.rollback()
-            existing = await self._transactions.get_by_idempotency(
-                merchant_id, values["idempotency_key"]
+            self._session.expire_all()
+            return await self._resolve_idempotency_race(
+                merchant_id, values["idempotency_key"], fingerprint
             )
-            if existing is not None and existing.request_fingerprint == fingerprint:
-                return existing
-            raise PaymentConflictError(
-                "Payment request conflicts with an existing transaction"
-            ) from exc
-        await self._session.refresh(transaction, attribute_names=["attempts"])
-        logger.info(
-            "payment_created", transaction_id=str(transaction.id), reference=transaction.reference
+        committed = await self._transactions.get_by_idempotency(
+            merchant_id, values["idempotency_key"]
         )
-        return transaction
+        if committed is None:
+            return await self._resolve_idempotency_race(
+                merchant_id, values["idempotency_key"], fingerprint
+            )
+        await self._session.refresh(committed, attribute_names=["attempts"])
+        logger.info(
+            "payment_created", transaction_id=str(committed.id), reference=committed.reference
+        )
+        return committed
 
     async def get_payment(self, actor: User, reference: str) -> Transaction:
         await self._require(actor, "transactions:read")
@@ -194,6 +205,7 @@ class PaymentService:
             {"status": before},
             {"status": target.value},
         )
+        await self._mark_dynamic_qr_consumed(transaction, target)
         await self._session.commit()
         logger.info("transaction_transitioned", reference=reference, status=target.value)
         return transaction
@@ -380,7 +392,14 @@ class PaymentService:
     async def _mark_dynamic_qr_consumed(
         self, transaction: Transaction, target: TransactionStatus
     ) -> None:
-        if target is not TransactionStatus.SUCCESS:
+        """Align dynamic QR status with terminal payment outcomes (payment is authoritative)."""
+        if target not in {
+            TransactionStatus.SUCCESS,
+            TransactionStatus.FAILED,
+            TransactionStatus.TIMEOUT,
+            TransactionStatus.CANCELLED,
+            TransactionStatus.REFUNDED,
+        }:
             return
         qr = await self._session.scalar(
             select(QRCode).where(
@@ -477,6 +496,24 @@ class PaymentService:
     async def _is_platform_admin(self, actor: User) -> bool:
         role = await self._authorization.get_user_role(actor)
         return role is not None and role.code == "platform_admin"
+
+    async def _resolve_idempotency_race(
+        self,
+        merchant_id: uuid.UUID,
+        idempotency_key: str,
+        fingerprint: str,
+    ) -> Transaction:
+        """Wait briefly for a concurrent creator to commit, then return the winner."""
+        for attempt in range(5):
+            existing = await self._transactions.get_by_idempotency(merchant_id, idempotency_key)
+            if existing is not None:
+                if existing.request_fingerprint != fingerprint:
+                    raise PaymentConflictError("Idempotency key was used with a different request")
+                await self._session.refresh(existing, attribute_names=["attempts"])
+                return existing
+            if attempt < 4:
+                await asyncio.sleep(0.02)
+        raise PaymentConflictError("Payment request conflicts with an existing transaction")
 
     async def _require(self, actor: User, permission: str) -> None:
         if not await self._authorization.has_permission(actor, permission):
