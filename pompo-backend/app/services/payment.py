@@ -718,9 +718,16 @@ class PaymentService:
     async def _queue_outbound(self, transaction: Transaction) -> None:
         if transaction.api_client_id is None:
             return
-        from app.services.outbound_webhook import OutboundWebhookService
+        try:
+            from app.services.outbound_webhook import OutboundWebhookService
 
-        await OutboundWebhookService(self._session).queue_for_transaction(transaction)
+            await OutboundWebhookService(self._session).queue_for_transaction(transaction)
+        except Exception:
+            logger.exception(
+                "outbound_webhook_queue_failed",
+                reference=transaction.reference,
+                client_id=str(transaction.api_client_id),
+            )
 
     async def _audit_system(
         self,

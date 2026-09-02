@@ -22,6 +22,7 @@ except ImportError:
 API_BASE = os.getenv("POMPO_API_BASE", "http://127.0.0.1:8000/api/v1").rstrip("/")
 ADMIN_EMAIL = os.getenv("POMPO_ADMIN_EMAIL")
 ADMIN_PASSWORD = os.getenv("POMPO_ADMIN_PASSWORD")
+WEBHOOK_URL = os.getenv("POMPO_WEBHOOK_URL", "https://example.com/pompo/hooks")
 
 
 class Result:
@@ -112,7 +113,7 @@ async def main() -> int:
                 "merchant_id": merchant_id,
                 "branch_id": branch_id,
                 "till_id": till_id,
-                "webhook_url": "https://example.com/pompo/hooks",
+                "webhook_url": WEBHOOK_URL,
             },
         )
         body = await _json(created)
@@ -237,22 +238,38 @@ async def main() -> int:
             f"status={status_body.get('status')}",
         )
 
-        deliveries = await client.get(
-            f"{API_BASE}/integrations/clients/{client_id}/deliveries",
-            headers=headers,
-        )
-        rows = await _json(deliveries)
+        import asyncio as _asyncio
+
+        rows: list[Any] = []
+        for _ in range(8):
+            deliveries = await client.get(
+                f"{API_BASE}/integrations/clients/{client_id}/deliveries",
+                headers=headers,
+            )
+            rows = await _json(deliveries) if deliveries.status_code == 200 else []
+            if isinstance(rows, list) and any(row.get("status") == "sent" for row in rows if isinstance(row, dict)):
+                break
+            await _asyncio.sleep(0.5)
         event_ids = [row.get("public_event_id") for row in rows] if isinstance(rows, list) else []
         result.record(
             "outbound webhook events queued",
             deliveries.status_code == 200 and len(event_ids) >= 1,
             f"count={len(event_ids)}",
         )
-        unique_ids = set(event_ids)
+        unique_types = (
+            {(row.get("public_event_id"), row.get("destination_url")) for row in rows}
+            if isinstance(rows, list)
+            else set()
+        )
         result.record(
-            "duplicate webhook identity unique",
-            len(event_ids) == len(unique_ids),
-            f"events={len(event_ids)} unique={len(unique_ids)}",
+            "stable event identity per destination",
+            len(event_ids) == len(unique_types),
+            f"events={len(event_ids)} identities={len(unique_types)}",
+        )
+        result.record(
+            "outbound webhook delivered",
+            isinstance(rows, list) and any(row.get("status") == "sent" for row in rows if isinstance(row, dict)),
+            f"statuses={[row.get('status') for row in rows] if isinstance(rows, list) else []}",
         )
 
         await client.post(f"{API_BASE}/integrations/clients/{client_id}/revoke", headers=headers)
