@@ -128,6 +128,12 @@ class Transaction(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     cashier_id: Mapped[uuid.UUID | None] = mapped_column(
         GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    api_client_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(),
+        ForeignKey("integration_clients.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     reference: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     idempotency_key: Mapped[str] = mapped_column(

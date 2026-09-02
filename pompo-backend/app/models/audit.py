@@ -12,21 +12,28 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, GUID, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from app.models.integration import IntegrationClient
     from app.models.organization import Merchant
     from app.models.user import User
 
 
 class APIKey(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """A hashed API key issued to a merchant for server-to-server integration.
+    """A hashed API key issued to an integration client.
 
-    The raw key is never stored — only ``key_prefix`` (shown to the merchant
-    for identification) and ``hashed_key`` (for verification) persist.
+    The raw key is never stored — only ``key_prefix`` (shown for operational
+    identification) and ``hashed_key`` (for verification) persist.
     """
 
     __tablename__ = "api_keys"
 
     merchant_id: Mapped[uuid.UUID] = mapped_column(
         GUID(), ForeignKey("merchants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    client_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(),
+        ForeignKey("integration_clients.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     key_prefix: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
@@ -39,8 +46,12 @@ class APIKey(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None, nullable=True
     )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None, nullable=True
+    )
 
     merchant: Mapped["Merchant"] = relationship(back_populates="api_keys")
+    client: Mapped["IntegrationClient | None"] = relationship(back_populates="api_keys")
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<APIKey id={self.id} prefix={self.key_prefix!r}>"
@@ -60,6 +71,12 @@ class AuditLog(UUIDPrimaryKeyMixin, Base):
     )
     actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
         GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    api_client_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(),
+        ForeignKey("integration_clients.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     merchant_id: Mapped[uuid.UUID | None] = mapped_column(
         GUID(), ForeignKey("merchants.id", ondelete="SET NULL"), nullable=True, index=True

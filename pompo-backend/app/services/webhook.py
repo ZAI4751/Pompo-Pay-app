@@ -306,6 +306,10 @@ class WebhookService:
             {"processing_status": event.processing_status.value},
         )
         await self._session.commit()
+        if apply_result is WebhookApplyOutcome.APPLIED:
+            from app.services.outbound_webhook import OutboundWebhookService
+
+            await OutboundWebhookService(self._session).queue_for_transaction(transaction)
         return event
 
     async def get_event(self, actor: User, event_id: uuid.UUID) -> WebhookEvent:

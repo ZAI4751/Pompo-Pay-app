@@ -32,7 +32,7 @@ def create_celery_app(settings: BaseAppSettings | None = None) -> Celery:
         task_time_limit=300,
         worker_prefetch_multiplier=1,
         broker_connection_retry_on_startup=True,
-        imports=["app.tasks.sample", "app.tasks.webhooks"],
+        imports=["app.tasks.sample", "app.tasks.webhooks", "app.tasks.outbound_webhooks"],
     )
 
     _celery_app = app

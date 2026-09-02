@@ -21,6 +21,7 @@ class TransactionRepository(BaseRepository[Transaction]):
             selectinload(Transaction.merchant),
             selectinload(Transaction.branch),
             selectinload(Transaction.till),
+            selectinload(Transaction.qr_code),
         )
 
     async def get_active_by_reference(self, reference: str) -> Transaction | None:

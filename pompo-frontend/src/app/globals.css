@@ -192,6 +192,41 @@
   .dark .pompo-glass {
     background-color: rgb(15 23 42 / 0.72);
   }
+  .pompo-mesh {
+    background-color: #f4eefe;
+    background-image:
+      radial-gradient(at 8% 0%, rgb(196 181 253 / 0.85) 0, transparent 42%),
+      radial-gradient(at 92% 8%, rgb(253 164 175 / 0.7) 0, transparent 38%),
+      radial-gradient(at 80% 100%, rgb(147 197 253 / 0.7) 0, transparent 42%),
+      radial-gradient(at 0% 78%, rgb(253 186 116 / 0.55) 0, transparent 36%);
+  }
+  .dark .pompo-mesh {
+    background-color: #020617;
+    background-image:
+      radial-gradient(at 10% 0%, rgb(76 29 149 / 0.55) 0, transparent 46%),
+      radial-gradient(at 90% 10%, rgb(190 24 93 / 0.28) 0, transparent 40%),
+      radial-gradient(at 70% 100%, rgb(30 64 175 / 0.4) 0, transparent 45%);
+  }
+  .pompo-orb {
+    background:
+      radial-gradient(circle at 32% 28%, #dbeafe 0%, #60a5fa 28%, #2563eb 62%, #1e3a8a 100%);
+    box-shadow:
+      0 0 0 12px rgb(37 99 235 / 0.12),
+      0 18px 40px -12px rgb(37 99 235 / 0.55);
+    animation: pompo-orb-pulse 3.2s ease-in-out infinite;
+  }
+}
+
+@keyframes pompo-orb-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: saturate(1);
+  }
+  50% {
+    transform: scale(1.04);
+    filter: saturate(1.15);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

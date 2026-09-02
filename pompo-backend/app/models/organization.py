@@ -12,6 +12,7 @@ from app.models.base import Base, GUID, SoftDeleteMixin, TimestampMixin, UUIDPri
 
 if TYPE_CHECKING:
     from app.models.audit import APIKey
+    from app.models.integration import IntegrationClient
     from app.models.payment import Transaction
     from app.models.user import User
 
@@ -33,6 +34,9 @@ class Merchant(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     )
     users: Mapped[list["User"]] = relationship(back_populates="merchant")
     api_keys: Mapped[list["APIKey"]] = relationship(back_populates="merchant")
+    integration_clients: Mapped[list["IntegrationClient"]] = relationship(
+        back_populates="merchant"
+    )
     transactions: Mapped[list["Transaction"]] = relationship(back_populates="merchant")
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid

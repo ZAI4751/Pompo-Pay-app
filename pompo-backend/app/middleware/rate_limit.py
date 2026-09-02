@@ -6,6 +6,7 @@ from starlette.responses import JSONResponse, Response
 
 from app.core.config.base import BaseAppSettings
 from app.core.logging import get_logger
+from app.integrations.keys import key_prefix, looks_like_api_key
 from app.services.redis import RedisService
 
 logger = get_logger(__name__)
@@ -36,25 +37,39 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         client_ip = request.client.host if request.client else "unknown"
-        key = f"rate_limit:{client_ip}"
+        buckets = [f"rate_limit:{client_ip}"]
+        presented = request.headers.get("x-api-key")
+        if not presented:
+            auth = request.headers.get("authorization", "")
+            if auth.lower().startswith("bearer "):
+                presented = auth.split(" ", 1)[1].strip()
+        if looks_like_api_key(presented):
+            buckets.append(f"rate_limit:key:{key_prefix(presented)}")
 
         try:
-            current = await self._redis.increment(key)
-            if current == 1:
-                await self._redis.expire(key, self._window_seconds)
+            limited = False
+            remaining = self._max_requests
+            for key in buckets:
+                current = await self._redis.increment(key)
+                if current == 1:
+                    await self._redis.expire(key, self._window_seconds)
+                if current > self._max_requests:
+                    limited = True
+                remaining = min(remaining, max(0, self._max_requests - current))
 
-            if current > self._max_requests:
+            if limited:
                 request_id = getattr(request.state, "request_id", "unknown")
                 logger.warning(
                     "rate_limit_exceeded",
                     request_id=request_id,
                     client_ip=client_ip,
-                    count=current,
+                    buckets=len(buckets),
                 )
                 return JSONResponse(
                     status_code=429,
                     content={
                         "detail": "Rate limit exceeded",
+                        "code": "rate_limited",
                         "request_id": request_id,
                     },
                     headers={
@@ -65,9 +80,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 )
 
             response = await call_next(request)
-            remaining = max(0, self._max_requests - current)
             response.headers["X-RateLimit-Limit"] = str(self._max_requests)
-            response.headers["X-RateLimit-Remaining"] = str(remaining)
+            response.headers["X-RateLimit-Remaining"] = str(max(0, remaining))
             return response
 
         except Exception as exc:

@@ -11,6 +11,7 @@ from starlette.responses import Response
 from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
 
 from app.core.logging import get_logger
+from app.integrations.errors import IntegrationAPIError
 
 logger = get_logger(__name__)
 
@@ -124,4 +125,32 @@ def register_exception_handlers(app: FastAPI) -> None:
                 "request_id": request_id,
                 "errors": errors,
             },
+        )
+
+    @app.exception_handler(IntegrationAPIError)
+    async def integration_exception_handler(
+        request: Request,
+        exc: IntegrationAPIError,
+    ) -> JSONResponse:
+        request_id = _request_id(request)
+        logger.warning(
+            "integration_api_error",
+            request_id=request_id,
+            status_code=exc.status_code,
+            code=exc.code,
+            path=request.url.path,
+        )
+        headers = None
+        if exc.status_code == 401:
+            headers = {"WWW-Authenticate": "ApiKey"}
+        elif exc.status_code == 429:
+            headers = {"Retry-After": "60"}
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "detail": exc.message,
+                "code": exc.code,
+                "request_id": request_id,
+            },
+            headers=headers,
         )

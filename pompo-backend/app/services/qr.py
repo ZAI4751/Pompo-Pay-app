@@ -13,7 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.base import get_settings
 from app.core.logging import get_logger
-from app.models import AuditLog, Branch, Merchant, QRCode, Till, Transaction, User
+from app.integrations.scopes import CREATE_QR_SCOPES, has_scope
+from app.models import AuditLog, Branch, IntegrationClient, Merchant, QRCode, Till, Transaction, User
 from app.models.enums import QRStatus, QRType, TERMINAL_TRANSACTION_STATUSES, TransactionStatus
 from app.payments.state_machine import validate_transition
 from app.qr.payload import QRPayloadError, QRPayloadService
@@ -173,6 +174,104 @@ class QRService:
             "qr_dynamic_created",
             public_identifier=public_id,
             payment_reference=transaction.reference,
+        )
+        return qr
+
+    async def create_dynamic_qr_for_client(
+        self, api_client: IntegrationClient, values: dict[str, Any]
+    ) -> QRCode:
+        if not has_scope(api_client.scopes or [], CREATE_QR_SCOPES):
+            raise QRForbiddenError("Insufficient authority")
+        merchant_id = values["merchant_id"]
+        branch_id = values["branch_id"]
+        till_id = values["till_id"]
+        merchant, branch, till = await self._validate_context(merchant_id, branch_id, till_id)
+        if merchant_id != api_client.merchant_id:
+            raise QRForbiddenError("QR is outside actor scope")
+        if api_client.branch_id is not None and branch_id != api_client.branch_id:
+            raise QRForbiddenError("QR is outside actor scope")
+        if api_client.till_id is not None and till_id != api_client.till_id:
+            raise QRForbiddenError("QR is outside actor scope")
+
+        ttl = int(values.get("expires_in_seconds", DEFAULT_DYNAMIC_TTL_SECONDS))
+        expires_at = datetime.now(UTC) + timedelta(seconds=ttl)
+        payment_values = {
+            "merchant_id": merchant_id,
+            "branch_id": branch_id,
+            "till_id": till_id,
+            "amount": values["amount"],
+            "currency": values["currency"],
+            "payment_method": values["payment_method"],
+            "provider_code": values.get("provider_code"),
+            "customer_phone": values.get("customer_phone"),
+            "description": values.get("description"),
+            "idempotency_key": values["idempotency_key"],
+        }
+        transaction = await self._payments.create_payment(
+            None, payment_values, api_client=api_client
+        )
+        existing_qr = await self._qr_codes.get_by_transaction_id(transaction.id)
+        if existing_qr is not None:
+            return existing_qr
+
+        validate_transition(transaction.status, TransactionStatus.QR_GENERATED)
+        transaction.status = TransactionStatus.QR_GENERATED
+        public_id = self._new_public_id()
+        encoded = self._payload.encode_dynamic(
+            public_identifier=public_id,
+            amount=values["amount"],
+            currency=values["currency"],
+            expires_at=expires_at,
+            payment_reference=transaction.reference,
+        )
+        qr = QRCode(
+            public_identifier=public_id,
+            merchant_id=merchant.id,
+            branch_id=branch.id,
+            till_id=till.id,
+            qr_type=QRType.DYNAMIC,
+            status=QRStatus.ACTIVE,
+            version=1,
+            transaction_id=transaction.id,
+            payment_reference=transaction.reference,
+            amount=values["amount"],
+            currency=values["currency"],
+            payload=encoded,
+            expires_at=expires_at,
+            payload_metadata={"created_by_client": str(api_client.id)},
+        )
+        self._session.add(qr)
+        self._session.add(
+            AuditLog(
+                created_at=datetime.now(UTC),
+                actor_user_id=None,
+                api_client_id=api_client.id,
+                merchant_id=api_client.merchant_id,
+                action="qr_dynamic_created",
+                entity_type="qr_code",
+                entity_id=str(qr.id),
+                before_state=None,
+                after_state={
+                    "public_identifier": public_id,
+                    "payment_reference": transaction.reference,
+                    "amount": str(values["amount"]),
+                },
+            )
+        )
+        try:
+            await self._session.commit()
+        except IntegrityError:
+            await self._session.rollback()
+            raced = await self._qr_codes.get_by_transaction_id(transaction.id)
+            if raced is not None:
+                return raced
+            raise
+        await self._session.refresh(qr, attribute_names=["merchant", "branch", "till", "transaction"])
+        logger.info(
+            "qr_dynamic_created",
+            public_identifier=public_id,
+            payment_reference=transaction.reference,
+            client_id=str(api_client.id),
         )
         return qr
 

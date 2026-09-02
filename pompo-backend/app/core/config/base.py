@@ -57,6 +57,9 @@ class BaseAppSettings(BaseSettings):
 
     rate_limit_requests: int = Field(default=100, ge=1)
     rate_limit_window_seconds: int = Field(default=60, ge=1)
+    rate_limit_auth_failures: int = Field(default=20, ge=1)
+    outbound_webhook_timeout_seconds: int = Field(default=10, ge=1, le=60)
+    outbound_webhook_max_attempts: int = Field(default=5, ge=1, le=20)
 
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     log_json: bool = False

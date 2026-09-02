@@ -188,6 +188,48 @@ class ReconciliationRunStatus(str, enum.Enum):
     FAILED = "failed"
 
 
+class APIClientType(str, enum.Enum):
+    """Machine-client identity. Distinct from human UserRoleCode."""
+
+    DEVELOPER = "developer"
+    MERCHANT_POS = "merchant_pos"
+    PARTNER = "partner"
+
+
+class APIClientStatus(str, enum.Enum):
+    """Operational lifecycle for an integration application."""
+
+    ACTIVE = "active"
+    DISABLED = "disabled"
+    REVOKED = "revoked"
+
+
+class APIClientEnvironment(str, enum.Enum):
+    """Credential environment stamped into issued API keys."""
+
+    SANDBOX = "sandbox"
+    LIVE = "live"
+
+
+class OutboundWebhookStatus(str, enum.Enum):
+    """Delivery lifecycle for partner/POS outbound webhooks."""
+
+    PENDING = "pending"
+    RETRYING = "retrying"
+    SENT = "sent"
+    FAILED = "failed"
+
+
+class OutboundWebhookFailureCategory(str, enum.Enum):
+    """Why an outbound partner webhook delivery stopped or will retry."""
+
+    NETWORK = "network"
+    TIMEOUT = "timeout"
+    HTTP_ERROR = "http_error"
+    INVALID_DESTINATION = "invalid_destination"
+    EXHAUSTED = "exhausted"
+
+
 class UserRoleCode(str, enum.Enum):
     """Well-known role codes seeded by default.
 

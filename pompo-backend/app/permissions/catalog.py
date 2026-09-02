@@ -59,6 +59,7 @@ PERMISSIONS: tuple[PermissionDefinition, ...] = (
     PermissionDefinition("api_keys:read", "View API keys."),
     PermissionDefinition("api_keys:create", "Create API keys."),
     PermissionDefinition("api_keys:revoke", "Revoke API keys."),
+    PermissionDefinition("webhooks:read", "View inbound provider webhook events."),
 )
 
 PERMISSION_BY_CODE = {permission.code: permission for permission in PERMISSIONS}
@@ -104,6 +105,7 @@ SYSTEM_ROLES: dict[str, tuple[str, str, frozenset[str]]] = {
                 "api_keys:read",
                 "api_keys:create",
                 "api_keys:revoke",
+                "webhooks:read",
             }
         ),
     ),

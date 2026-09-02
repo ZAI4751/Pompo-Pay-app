@@ -18,9 +18,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from structlog.contextvars import get_contextvars
 
 from app.core.logging import get_logger
+from app.integrations.scopes import CREATE_PAYMENT_SCOPES, READ_PAYMENT_SCOPES, has_scope
 from app.models import (
     AuditLog,
     Branch,
+    IntegrationClient,
     Merchant,
     PaymentAttempt,
     PaymentProvider,
@@ -83,14 +85,32 @@ class PaymentService:
         self._registry = registry or ProviderRegistry()
 
     async def create_payment(
-        self, actor: User, values: dict[str, Any], *, require_merchant_scope: bool = True
+        self,
+        actor: User | None,
+        values: dict[str, Any],
+        *,
+        require_merchant_scope: bool = True,
+        api_client: IntegrationClient | None = None,
     ) -> Transaction:
-        await self._require(actor, "transactions:create")
         merchant_id = values["merchant_id"]
-        if require_merchant_scope:
-            await self._validate_scope(actor, merchant_id, values["branch_id"], values["till_id"])
-        else:
+        if api_client is not None:
+            if not has_scope(api_client.scopes or [], CREATE_PAYMENT_SCOPES):
+                raise PaymentForbiddenError("Insufficient authority")
+            if merchant_id != api_client.merchant_id:
+                raise PaymentForbiddenError("Payment is outside actor scope")
+            if api_client.branch_id is not None and values["branch_id"] != api_client.branch_id:
+                raise PaymentForbiddenError("Payment is outside actor scope")
+            if api_client.till_id is not None and values["till_id"] != api_client.till_id:
+                raise PaymentForbiddenError("Payment is outside actor scope")
             await self._validate_destination(merchant_id, values["branch_id"], values["till_id"])
+        else:
+            if actor is None:
+                raise PaymentForbiddenError("Insufficient authority")
+            await self._require(actor, "transactions:create")
+            if require_merchant_scope:
+                await self._validate_scope(actor, merchant_id, values["branch_id"], values["till_id"])
+            else:
+                await self._validate_destination(merchant_id, values["branch_id"], values["till_id"])
         fingerprint = self._fingerprint(values)
         existing = await self._transactions.get_by_idempotency(
             merchant_id, values["idempotency_key"]
@@ -123,7 +143,8 @@ class PaymentService:
             merchant_id=merchant_id,
             branch_id=values["branch_id"],
             till_id=values["till_id"],
-            cashier_id=actor.id,
+            cashier_id=actor.id if actor is not None else None,
+            api_client_id=api_client.id if api_client is not None else None,
             provider_id=provider.id,
             reference=f"PMP-{uuid.uuid4().hex.upper()}",
             idempotency_key=values["idempotency_key"],
@@ -153,9 +174,22 @@ class PaymentService:
         )
         attempt.transaction = transaction
         self._session.add(attempt)
-        await self._audit(
-            actor, "payment_created", transaction.id, None, {"reference": transaction.reference}
-        )
+        if actor is not None:
+            await self._audit(
+                actor, "payment_created", transaction.id, None, {"reference": transaction.reference}
+            )
+        else:
+            await self._audit_system(
+                "payment_created",
+                transaction.id,
+                None,
+                {
+                    "reference": transaction.reference,
+                    "api_client_id": str(api_client.id) if api_client is not None else None,
+                },
+                merchant_id=api_client.merchant_id if api_client is not None else None,
+                api_client_id=api_client.id if api_client is not None else None,
+            )
         try:
             await self._session.commit()
         except IntegrityError:
@@ -173,8 +207,12 @@ class PaymentService:
             )
         await self._session.refresh(committed, attribute_names=["attempts"])
         logger.info(
-            "payment_created", transaction_id=str(committed.id), reference=committed.reference
+            "payment_created",
+            transaction_id=str(committed.id),
+            reference=committed.reference,
+            client_id=str(committed.api_client_id) if committed.api_client_id else None,
         )
+        await self._queue_outbound(committed)
         return committed
 
     async def get_payment(self, actor: User, reference: str) -> Transaction:
@@ -183,6 +221,22 @@ class PaymentService:
         if transaction is None:
             raise PaymentNotFoundError("Payment not found")
         await self._assert_can_view_payment(actor, transaction)
+        return transaction
+
+    async def get_payment_for_client(
+        self, api_client: IntegrationClient, reference: str
+    ) -> Transaction:
+        if not has_scope(api_client.scopes or [], READ_PAYMENT_SCOPES):
+            raise PaymentForbiddenError("Insufficient authority")
+        transaction = await self._transactions.get_active_by_reference(reference)
+        if transaction is None:
+            raise PaymentNotFoundError("Payment not found")
+        if transaction.merchant_id != api_client.merchant_id:
+            raise PaymentNotFoundError("Payment not found")
+        if api_client.branch_id is not None and transaction.branch_id != api_client.branch_id:
+            raise PaymentNotFoundError("Payment not found")
+        if api_client.till_id is not None and transaction.till_id != api_client.till_id:
+            raise PaymentNotFoundError("Payment not found")
         return transaction
 
     async def list_merchant_payments(
@@ -363,6 +417,7 @@ class PaymentService:
                 retryable=exc.retryable,
                 retry_class=exc.retry_class.value,
             )
+            await self._queue_outbound(transaction)
             return transaction
         attempt.duration_ms = int((monotonic() - started) * 1000)
         attempt.completed_at = datetime.now(UTC)
@@ -399,6 +454,7 @@ class PaymentService:
             attempt_number=attempt.attempt_number,
             outcome=result.outcome.value,
         )
+        await self._queue_outbound(transaction)
         return transaction
 
     async def apply_webhook_outcome(
@@ -659,18 +715,29 @@ class PaymentService:
             )
         )
 
+    async def _queue_outbound(self, transaction: Transaction) -> None:
+        if transaction.api_client_id is None:
+            return
+        from app.services.outbound_webhook import OutboundWebhookService
+
+        await OutboundWebhookService(self._session).queue_for_transaction(transaction)
+
     async def _audit_system(
         self,
         action: str,
         entity_id: uuid.UUID,
         before: dict[str, Any] | None,
         after: dict[str, Any] | None,
+        *,
+        merchant_id: uuid.UUID | None = None,
+        api_client_id: uuid.UUID | None = None,
     ) -> None:
         self._session.add(
             AuditLog(
                 created_at=datetime.now(UTC),
                 actor_user_id=None,
-                merchant_id=None,
+                api_client_id=api_client_id,
+                merchant_id=merchant_id,
                 action=action,
                 entity_type="payment",
                 entity_id=str(entity_id),
