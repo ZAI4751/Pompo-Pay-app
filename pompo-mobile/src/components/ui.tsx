@@ -1,28 +1,12 @@
-import { useEffect, useState, type ReactNode } from "react";
-import {
-  Appearance,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  type PressableProps,
-  type TextStyle,
-  type ViewStyle,
-} from "react-native";
+import { type ReactNode } from "react";
+import { StyleSheet, Text, View, type PressableProps, type TextStyle, type ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { currentScheme, getTheme, type Theme } from "@/theme";
+import { Atmosphere, GlassCard, GlassInput, PressScale } from "@/components/glass";
+import { radius, useTheme } from "@/theme";
 
-export function useTheme(): Theme {
-  const [scheme, setScheme] = useState(currentScheme);
-  useEffect(() => {
-    const sub = Appearance.addChangeListener(({ colorScheme }) => {
-      setScheme(colorScheme === "dark" ? "dark" : "light");
-    });
-    return () => sub.remove();
-  }, []);
-  return getTheme(scheme);
-}
+export { useTheme } from "@/theme";
+export { GlassInput };
 
 export function Screen({
   children,
@@ -34,6 +18,7 @@ export function Screen({
   const theme = useTheme();
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={["top", "left", "right"]}>
+      <Atmosphere />
       <View style={[styles.body, padded && styles.padded]}>{children}</View>
     </SafeAreaView>
   );
@@ -58,45 +43,44 @@ export function PrimaryButton({
   const theme = useTheme();
   const isDisabled = Boolean(disabled || loading);
   return (
-    <Pressable
+    <PressScale
       accessibilityRole="button"
       disabled={isDisabled}
-      style={({ pressed }) => [
-        styles.button,
-        { backgroundColor: theme.primary, opacity: isDisabled ? 0.55 : pressed ? 0.86 : 1 },
-      ]}
       {...rest}
+      style={[
+        styles.button,
+        {
+          backgroundColor: theme.primary,
+          opacity: isDisabled ? 0.55 : 1,
+          shadowColor: theme.primary,
+        },
+      ]}
     >
       <Text style={[styles.buttonLabel, { color: theme.primaryForeground }]}>
         {loading ? "Please wait…" : label}
       </Text>
-    </Pressable>
+    </PressScale>
   );
 }
 
 export function SecondaryButton({ label, ...rest }: PressableProps & { label: string }) {
   const theme = useTheme();
   return (
-    <Pressable
+    <PressScale
       accessibilityRole="button"
-      style={({ pressed }) => [
-        styles.secondary,
-        { borderColor: theme.border, backgroundColor: theme.surface, opacity: pressed ? 0.86 : 1 },
-      ]}
       {...rest}
+      style={[
+        styles.secondary,
+        { borderColor: theme.glassBorder, backgroundColor: theme.glassFill },
+      ]}
     >
       <Text style={[styles.secondaryLabel, { color: theme.text }]}>{label}</Text>
-    </Pressable>
+    </PressScale>
   );
 }
 
 export function Card({ children, style }: { children: ReactNode; style?: ViewStyle }) {
-  const theme = useTheme();
-  return (
-    <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }, style]}>
-      {children}
-    </View>
-  );
+  return <GlassCard style={style}>{children}</GlassCard>;
 }
 
 export function ErrorBanner({ message, requestId }: { message: string; requestId?: string }) {
@@ -132,14 +116,21 @@ export function formatMoney(amount: string, currency = "MWK"): string {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   body: { flex: 1 },
-  padded: { paddingHorizontal: 20, paddingTop: 12 },
-  title: { fontSize: 28, fontWeight: "700", letterSpacing: -0.4 },
+  padded: { paddingHorizontal: 20, paddingTop: 12, gap: 14 },
+  title: { fontSize: 30, fontWeight: "700", letterSpacing: -0.6 },
   muted: { fontSize: 15, lineHeight: 22 },
-  button: { borderRadius: 16, paddingVertical: 16, alignItems: "center" },
+  button: {
+    borderRadius: radius.md,
+    paddingVertical: 16,
+    alignItems: "center",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    elevation: 5,
+  },
   buttonLabel: { fontSize: 16, fontWeight: "700" },
-  secondary: { borderRadius: 16, paddingVertical: 14, alignItems: "center", borderWidth: 1 },
+  secondary: { borderRadius: radius.md, paddingVertical: 14, alignItems: "center", borderWidth: 1 },
   secondaryLabel: { fontSize: 15, fontWeight: "600" },
-  card: { borderRadius: 20, padding: 18, borderWidth: 1, gap: 8 },
   error: { borderRadius: 14, padding: 12, gap: 4 },
   errorText: { fontSize: 14, fontWeight: "600" },
   requestId: { fontSize: 12 },

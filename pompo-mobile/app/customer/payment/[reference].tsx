@@ -2,8 +2,9 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 
+import { AmountDisplay, StatusPill } from "@/components/glass";
 import { Card, ErrorBanner, formatMoney, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
-import { paymentStatusLabel } from "@/domain/paymentStatus";
+import { mapPaymentStatus, paymentStatusLabel } from "@/domain/paymentStatus";
 import { useAuth } from "@/state/AuthProvider";
 import type { Payment } from "@/types";
 
@@ -28,17 +29,18 @@ export default function CustomerPaymentDetail() {
     });
   }, [api, reference]);
 
+  const phase = payment ? mapPaymentStatus(payment.status) : "unknown";
+  const tone = phase === "success" ? "success" : phase === "failed" || phase === "timeout" ? "error" : "pending";
+
   return (
     <Screen>
       <Title>Payment</Title>
       {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
       {payment ? (
         <Card>
-          <Text style={{ color: theme.text, fontSize: 22, fontWeight: "800" }}>
-            {formatMoney(payment.amount, payment.currency)}
-          </Text>
+          <StatusPill label={paymentStatusLabel(payment.status)} tone={tone} />
+          <AmountDisplay value={formatMoney(payment.amount, payment.currency)} />
           <Text style={{ color: theme.muted }}>{payment.merchant_name ?? "Merchant"}</Text>
-          <Text style={{ color: theme.text }}>{paymentStatusLabel(payment.status)}</Text>
           <View style={{ gap: 4, marginTop: 8 }}>
             <Text style={{ color: theme.subtle }}>Reference {payment.reference}</Text>
             {payment.created_at ? (

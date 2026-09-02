@@ -1,7 +1,8 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Text } from "react-native";
+import { Text } from "react-native";
 
+import { ProcessingPulse } from "@/components/glass";
 import { ErrorBanner, Screen, Title, useTheme } from "@/components/ui";
 import { isTerminalPayment } from "@/domain/paymentStatus";
 import { useAuth } from "@/state/AuthProvider";
@@ -92,8 +93,8 @@ export default function ProcessingScreen() {
   return (
     <Screen>
       <Title>Paying</Title>
-      <ActivityIndicator color={theme.primary} style={{ marginVertical: 24 }} />
-      <Text style={{ color: theme.muted, textAlign: "center" }}>{message}</Text>
+      <ProcessingPulse />
+      <Text style={{ color: theme.muted, textAlign: "center", marginTop: 16 }}>{message}</Text>
       {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
     </Screen>
   );

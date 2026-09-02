@@ -1,9 +1,10 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Share, Text } from "react-native";
+import { Share, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 
-import { Card, ErrorBanner, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
+import { GlassSurface } from "@/components/glass";
+import { ErrorBanner, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
 import { useAuth } from "@/state/AuthProvider";
 import type { QrRecord } from "@/types";
 
@@ -30,8 +31,10 @@ export default function MerchantQrDetail() {
       <Title>QR detail</Title>
       {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
       {qr ? (
-        <Card style={{ alignItems: "center" }}>
-          <QRCode value={qr.encoded_payload} size={180} />
+        <GlassSurface style={{ alignItems: "center", gap: 10 }}>
+          <View style={{ backgroundColor: "#ffffff", padding: 14, borderRadius: 16 }}>
+            <QRCode value={qr.encoded_payload} size={180} backgroundColor="#ffffff" color="#0f172a" />
+          </View>
           <Text style={{ color: theme.text, fontWeight: "700" }}>{qr.public_identifier}</Text>
           <Text style={{ color: theme.muted }}>
             {qr.qr_type} · {qr.status}
@@ -40,7 +43,7 @@ export default function MerchantQrDetail() {
             label="Share"
             onPress={() => void Share.share({ message: qr.encoded_payload })}
           />
-        </Card>
+        </GlassSurface>
       ) : null}
       <SecondaryButton label="Back" onPress={() => router.back()} />
     </Screen>

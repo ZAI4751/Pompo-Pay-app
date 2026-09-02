@@ -1,7 +1,8 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
+import { AmountDisplay, FadeIn, GlassInput } from "@/components/glass";
 import { Card, ErrorBanner, formatMoney, Muted, PrimaryButton, Screen, Title, useTheme } from "@/components/ui";
 import { useCheckout } from "@/state/CheckoutProvider";
 
@@ -28,29 +29,29 @@ export default function PreviewScreen() {
     <Screen>
       <Title>Verify</Title>
       <Muted>Confirm this is the right merchant before you pay.</Muted>
-      <Card>
-        <Text style={[styles.merchant, { color: theme.text }]}>{session.inspect.merchant_name}</Text>
-        <Text style={{ color: theme.muted }}>
-          {session.inspect.branch_name} · {session.inspect.till_name}
-        </Text>
-        {isDynamic ? (
-          <Text style={[styles.amount, { color: theme.darkBlue }]}>
-            {formatMoney(displayAmount, session.inspect.currency)}
+      <FadeIn>
+        <Card>
+          <Text style={{ color: theme.subtle, fontSize: 12, fontWeight: "700", letterSpacing: 0.8 }}>MERCHANT</Text>
+          <Text style={[styles.merchant, { color: theme.text }]}>{session.inspect.merchant_name}</Text>
+          <Text style={{ color: theme.muted }}>
+            {session.inspect.branch_name} · {session.inspect.till_name}
           </Text>
-        ) : (
-          <View style={{ gap: 8 }}>
-            <Muted>Enter the amount to pay.</Muted>
-            <TextInput
-              keyboardType="decimal-pad"
-              value={amount}
-              onChangeText={setAmount}
-              placeholder="0.00"
-              placeholderTextColor={theme.subtle}
-              style={[styles.input, { borderColor: theme.border, color: theme.text }]}
-            />
-          </View>
-        )}
-      </Card>
+          {isDynamic ? (
+            <AmountDisplay value={formatMoney(displayAmount, session.inspect.currency)} />
+          ) : (
+            <View style={{ gap: 8 }}>
+              <Muted>Enter the amount to pay.</Muted>
+              <GlassInput
+                keyboardType="decimal-pad"
+                value={amount}
+                onChangeText={setAmount}
+                placeholder="0.00"
+                style={styles.input}
+              />
+            </View>
+          )}
+        </Card>
+      </FadeIn>
       {error ? <ErrorBanner message={error} /> : null}
       <PrimaryButton
         label="Continue"
@@ -72,6 +73,5 @@ export default function PreviewScreen() {
 
 const styles = StyleSheet.create({
   merchant: { fontSize: 22, fontWeight: "700" },
-  amount: { fontSize: 32, fontWeight: "800", marginTop: 8 },
-  input: { borderWidth: 1, borderRadius: 14, padding: 14, fontSize: 24, fontWeight: "700" },
+  input: { fontSize: 24, fontWeight: "700" },
 });

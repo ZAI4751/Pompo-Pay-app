@@ -1,20 +1,12 @@
 import { randomUUID } from "expo-crypto";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { Share, Text, TextInput, View } from "react-native";
+import { Share, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 
+import { AmountDisplay, GlassInput, GlassSurface } from "@/components/glass";
 import { BottomNav } from "@/components/nav";
-import {
-  Card,
-  ErrorBanner,
-  formatMoney,
-  PrimaryButton,
-  Screen,
-  SecondaryButton,
-  Title,
-  useTheme,
-} from "@/components/ui";
+import { Card, ErrorBanner, formatMoney, PrimaryButton, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
 import { canCreateQr, canRevokeQr } from "@/domain/roles";
 import { useAuth } from "@/state/AuthProvider";
 import type { QrRecord, Till } from "@/types";
@@ -106,14 +98,33 @@ export default function MerchantQrScreen() {
         <Title>QR</Title>
         {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
         {active ? (
-          <Card style={{ alignItems: "center" }}>
-            <QRCode value={active.encoded_payload} size={200} />
-            <Text style={{ color: theme.text, fontWeight: "700", marginTop: 12 }}>
-              {active.qr_type === "dynamic"
-                ? formatMoney(active.amount ?? "0", active.currency)
-                : "Static · customer enters amount"}
-            </Text>
-            <Text style={{ color: theme.subtle }}>{active.status}</Text>
+          <GlassSurface style={{ alignItems: "center", gap: 12 }}>
+            <View
+              style={{
+                backgroundColor: "#ffffff",
+                padding: 16,
+                borderRadius: 16,
+                shadowColor: theme.primary,
+                shadowOpacity: active.qr_type === "dynamic" ? 0.22 : 0.08,
+                shadowRadius: 18,
+                shadowOffset: { width: 0, height: 0 },
+              }}
+            >
+              <QRCode value={active.encoded_payload} size={200} backgroundColor="#ffffff" color="#0f172a" />
+            </View>
+            <Text style={{ color: theme.text, fontWeight: "700" }}>{active.merchant_name}</Text>
+            {active.qr_type === "dynamic" ? (
+              <AmountDisplay value={formatMoney(active.amount ?? "0", active.currency)} />
+            ) : (
+              <Text style={{ color: theme.muted }}>Static · customer enters amount</Text>
+            )}
+            {tillContext ? (
+              <Text style={{ color: theme.subtle }}>
+                {tillContext.till.name} · {active.status}
+              </Text>
+            ) : (
+              <Text style={{ color: theme.subtle }}>{active.status}</Text>
+            )}
             <SecondaryButton
               label="Share"
               onPress={() =>
@@ -135,7 +146,7 @@ export default function MerchantQrScreen() {
                 }}
               />
             ) : null}
-          </Card>
+          </GlassSurface>
         ) : (
           <Card>
             <Text style={{ color: theme.muted }}>No QR codes yet.</Text>
@@ -143,18 +154,7 @@ export default function MerchantQrScreen() {
         )}
         {canCreate ? (
           <View style={{ gap: 10 }}>
-            <TextInput
-              value={amount}
-              onChangeText={setAmount}
-              keyboardType="decimal-pad"
-              style={{
-                borderWidth: 1,
-                borderColor: theme.border,
-                borderRadius: 14,
-                padding: 12,
-                color: theme.text,
-              }}
-            />
+            <GlassInput value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
             <PrimaryButton label="New dynamic QR" loading={busy} onPress={() => void create("dynamic")} />
             <SecondaryButton label="New static QR" onPress={() => void create("static")} />
           </View>

@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 
+import { FadeIn, PressScale } from "@/components/glass";
 import { BottomNav, ModeSwitch } from "@/components/nav";
 import { Card, ErrorBanner, Muted, PrimaryButton, Screen, Title, useTheme } from "@/components/ui";
 import { useAuth } from "@/state/AuthProvider";
@@ -31,8 +32,10 @@ export default function MerchantHome() {
     <Screen padded={false}>
       <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 12, gap: 14 }}>
         <ModeSwitch />
-        <Title>Till</Title>
-        <Muted>Generate a QR, then watch payments land.</Muted>
+        <FadeIn>
+          <Title>Till</Title>
+          <Muted>Generate a QR, then watch payments land.</Muted>
+        </FadeIn>
         {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
         <Card>
           <Text style={{ color: theme.subtle }}>Business</Text>
@@ -41,7 +44,15 @@ export default function MerchantHome() {
           </Text>
           <Text style={{ color: theme.muted }}>{user?.full_name}</Text>
         </Card>
-        <PrimaryButton label="Show QR" onPress={() => router.push("/merchant/qr")} />
+        <PressScale onPress={() => router.push("/merchant/qr")}>
+          <View style={{ backgroundColor: theme.primary, borderRadius: 24, padding: 20 }}>
+            <Text style={{ color: theme.primaryForeground, fontSize: 18, fontWeight: "800" }}>Show QR</Text>
+            <Text style={{ color: theme.primaryForeground, opacity: 0.86, marginTop: 4 }}>
+              Display a code for customers to scan
+            </Text>
+          </View>
+        </PressScale>
+        <PrimaryButton label="Payment activity" onPress={() => router.push("/merchant/activity")} />
       </View>
       <BottomNav active="home" />
     </Screen>

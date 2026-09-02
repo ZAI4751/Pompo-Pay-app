@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { GlassSurface, ScanLine } from "@/components/glass";
 import { ErrorBanner, PrimaryButton, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
 import { extractPublicIdentifier } from "@/domain/qrPayload";
 import { useAuth } from "@/state/AuthProvider";
@@ -71,13 +72,19 @@ export default function ScanScreen() {
         <Title>Scan QR</Title>
         <Text style={{ color: theme.muted }}>Point at a POMPO code. We verify it with the server.</Text>
       </View>
-      <View style={styles.cameraWrap}>
+      <View style={[styles.cameraWrap, { borderColor: busy ? theme.success : theme.primary }]}>
         <CameraView
           style={StyleSheet.absoluteFill}
           barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
           onBarcodeScanned={busy ? undefined : (event) => void onScan(event.data)}
         />
-        <View style={styles.frame} />
+        <View style={styles.frameMask} pointerEvents="none" />
+        {!busy ? <ScanLine /> : null}
+        {busy ? (
+          <GlassSurface solid style={styles.detected}>
+            <Text style={{ color: theme.text, fontWeight: "700" }}>Code found</Text>
+          </GlassSurface>
+        ) : null}
       </View>
       {error ? (
         <View style={styles.errorWrap}>
@@ -101,13 +108,20 @@ export default function ScanScreen() {
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingTop: 12, gap: 6 },
-  cameraWrap: { flex: 1, margin: 20, borderRadius: 24, overflow: "hidden" },
-  frame: {
-    ...StyleSheet.absoluteFill,
-    borderWidth: 3,
-    borderColor: "rgba(37,99,235,0.9)",
-    borderRadius: 24,
+  cameraWrap: {
+    flex: 1,
+    margin: 20,
+    borderRadius: 28,
+    overflow: "hidden",
+    backgroundColor: "#020617",
+    borderWidth: 2,
   },
+  frameMask: {
+    ...StyleSheet.absoluteFill,
+    borderWidth: 22,
+    borderColor: "rgba(2, 6, 23, 0.45)",
+  },
+  detected: { position: "absolute", bottom: 16, alignSelf: "center" },
   errorWrap: { paddingHorizontal: 20, gap: 10 },
   footer: { padding: 20 },
 });
