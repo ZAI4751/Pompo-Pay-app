@@ -36,6 +36,11 @@ SANDBOX_CAPABILITIES = asdict(
         supports_refund=False,
         supports_webhooks=True,
         supports_qr=False,
+        supports_payment_instruments=True,
+        supports_instrument_enroll=True,
+        supports_instrument_charge=True,
+        supports_instrument_verify=True,
+        supports_instrument_remove=True,
     )
 )
 
@@ -89,7 +94,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogDefinition, ...] = (
         health_state=ProviderHealthState.ACTIVE,
         priority=1,
         supported_currencies=("MWK",),
-        supported_payment_methods=("mobile_money", "bank"),
+        supported_payment_methods=("mobile_money", "bank", "card"),
         capabilities=SANDBOX_CAPABILITIES,
         config_refs=_refs("simulated"),
     ),

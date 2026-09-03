@@ -49,6 +49,11 @@ class ProviderCapabilities:
     supports_refund: bool = False
     supports_webhooks: bool = False
     supports_qr: bool = False
+    supports_payment_instruments: bool = False
+    supports_instrument_enroll: bool = False
+    supports_instrument_charge: bool = False
+    supports_instrument_verify: bool = False
+    supports_instrument_remove: bool = False
 
 
 @dataclass(frozen=True)
@@ -176,6 +181,11 @@ def require_capability(adapter: ProviderAdapter, operation: str) -> None:
         "status_query": adapter.capabilities.supports_status_query,
         "cancel": adapter.capabilities.supports_cancel,
         "refund": adapter.capabilities.supports_refund,
+        "payment_instruments": adapter.capabilities.supports_payment_instruments,
+        "instrument_enroll": adapter.capabilities.supports_instrument_enroll,
+        "instrument_charge": adapter.capabilities.supports_instrument_charge,
+        "instrument_verify": adapter.capabilities.supports_instrument_verify,
+        "instrument_remove": adapter.capabilities.supports_instrument_remove,
     }
     if operation not in mapping:
         raise UnsupportedProviderOperation(operation)

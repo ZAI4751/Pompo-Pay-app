@@ -22,7 +22,7 @@ from app.repositories.qr import QRCodeRepository
 from app.repositories.payment import TransactionRepository
 from app.repositories.rbac import AuthorizationRepository
 from app.services.authorization import AuthorizationService
-from app.services.payment import PaymentError, PaymentService
+from app.services.payment import PaymentConflictError, PaymentError, PaymentService
 
 logger = get_logger(__name__)
 
@@ -340,14 +340,28 @@ class QRService:
 
     async def initiate_payment_from_qr(self, actor: User, values: dict[str, Any]) -> Transaction:
         await self._require(actor, "transactions:create")
-        raw_payload = values["payload"]
+        raw_payload = values.get("payload")
+        public_identifier = values.get("public_identifier")
         idempotency_key = values["idempotency_key"]
+
+        if not raw_payload:
+            if not public_identifier:
+                raise QRInvalidError("payload or public_identifier is required")
+            stored = await self._qr_codes.get_by_public_identifier(str(public_identifier))
+            if stored is None:
+                await self._audit_invalid(actor, str(public_identifier), "unknown_qr")
+                raise QRNotFoundError("QR code not found")
+            raw_payload = stored.payload
 
         try:
             parsed = self._payload.parse(raw_payload)
         except QRPayloadError as exc:
-            await self._audit_invalid(actor, raw_payload, str(exc))
+            await self._audit_invalid(actor, str(raw_payload), str(exc))
             raise QRInvalidError(str(exc)) from exc
+
+        if public_identifier and parsed.public_identifier != public_identifier:
+            await self._audit_invalid(actor, parsed.public_identifier, "public_identifier_mismatch")
+            raise QRInvalidError("QR identifier does not match payload")
 
         qr = await self._qr_codes.get_by_public_identifier(parsed.public_identifier)
         if qr is None:
@@ -375,7 +389,7 @@ class QRService:
 
         if qr.qr_type is QRType.STATIC:
             return await self._pay_from_static_qr(actor, qr, values, idempotency_key)
-        return await self._pay_from_dynamic_qr(actor, qr, parsed, idempotency_key)
+        return await self._pay_from_dynamic_qr(actor, qr, parsed, values, idempotency_key)
 
     async def mark_consumed_if_terminal(self, transaction: Transaction) -> None:
         if transaction.status not in TERMINAL_TRANSACTION_STATUSES:
@@ -422,6 +436,7 @@ class QRService:
             "customer_phone": values.get("customer_phone"),
             "description": values.get("description"),
             "idempotency_key": idempotency_key,
+            "payment_instrument_id": values.get("payment_instrument_id"),
         }
         try:
             transaction = await self._payments.create_payment(
@@ -447,7 +462,7 @@ class QRService:
             )
         )
         await self._session.commit()
-        await self._session.refresh(transaction, attribute_names=["attempts"])
+        await self._session.refresh(transaction, attribute_names=["attempts", "payment_instrument"])
         logger.info(
             "payment_from_static_qr",
             public_identifier=public_identifier,
@@ -460,6 +475,7 @@ class QRService:
         actor: User,
         qr: QRCode,
         parsed: Any,
+        values: dict[str, Any],
         idempotency_key: str,
     ) -> Transaction:
         if qr.expires_at:
@@ -509,6 +525,17 @@ class QRService:
         ):
             raise QRConflictError("QR payment is already in progress")
 
+        if values.get("payment_instrument_id"):
+            await self._session.refresh(transaction, attribute_names=["attempts", "payment_instrument"])
+            try:
+                await self._payments.bind_instrument(
+                    actor, transaction, str(values["payment_instrument_id"])
+                )
+            except PaymentConflictError as exc:
+                raise QRConflictError(str(exc)) from exc
+            except PaymentError as exc:
+                raise QRInvalidError(str(exc)) from exc
+
         await self._audit(
             actor,
             "payment_initiated_from_qr",
@@ -521,7 +548,7 @@ class QRService:
             },
         )
         await self._session.commit()
-        await self._session.refresh(transaction, attribute_names=["attempts"])
+        await self._session.refresh(transaction, attribute_names=["attempts", "payment_instrument"])
         logger.info(
             "payment_from_dynamic_qr",
             public_identifier=qr.public_identifier,

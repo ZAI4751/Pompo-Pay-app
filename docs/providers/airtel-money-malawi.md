@@ -220,3 +220,10 @@ PROVIDER_AIRTEL_MONEY_TIMEOUT_SECONDS=15
 
 Production uses `https://openapi.airtel.mw` and `PROVIDER_AIRTEL_MONEY_ENVIRONMENT=production`.
 Never put these values in mobile or frontend bundles.
+
+## Payment instruments (M016)
+
+Collection APIs 2.0 swagger still does not document a reusable customer-account
+token. POMPO therefore does **not** enroll live Airtel Money as a saved payment
+method and does not store Airtel PINs. Sandbox "Test Airtel Money" instruments
+use the simulated provider only. See `pompo-backend/docs/payment-instruments.md`.

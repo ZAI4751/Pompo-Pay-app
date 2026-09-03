@@ -41,6 +41,11 @@ class MockProvider:
             supports_status_query=True,
             supports_push_payment=True,
             supports_webhooks=supports_webhooks,
+            supports_payment_instruments=True,
+            supports_instrument_enroll=True,
+            supports_instrument_charge=True,
+            supports_instrument_verify=True,
+            supports_instrument_remove=True,
         )
 
     async def initiate_payment(self, request: ProviderPaymentRequest) -> ProviderResult:

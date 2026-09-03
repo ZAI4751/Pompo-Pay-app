@@ -34,6 +34,11 @@ export interface ProviderCapabilities {
   supports_refund: boolean;
   supports_webhooks: boolean;
   supports_qr: boolean;
+  supports_payment_instruments?: boolean;
+  supports_instrument_enroll?: boolean;
+  supports_instrument_charge?: boolean;
+  supports_instrument_verify?: boolean;
+  supports_instrument_remove?: boolean;
 }
 
 export interface ProviderHealth {

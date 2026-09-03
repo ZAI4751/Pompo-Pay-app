@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class StaticQRCreate(BaseModel):
@@ -38,13 +38,21 @@ class DynamicQRCreate(BaseModel):
 
 
 class PaymentFromQRRequest(BaseModel):
-    payload: str = Field(min_length=10, max_length=2000)
+    payload: str | None = Field(default=None, min_length=10, max_length=2000)
+    public_identifier: str | None = Field(default=None, min_length=8, max_length=40)
     idempotency_key: str = Field(min_length=1, max_length=128)
     amount: Decimal | None = Field(default=None, gt=0, max_digits=18, decimal_places=2)
     payment_method: str = Field(default="mobile_money", min_length=1, max_length=32)
     provider_code: str | None = Field(default="simulated", max_length=32)
+    payment_instrument_id: str | None = Field(default=None, max_length=40)
     customer_phone: str | None = Field(default=None, max_length=32)
     description: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def require_payload_or_identifier(self) -> PaymentFromQRRequest:
+        if not self.payload and not self.public_identifier:
+            raise ValueError("payload or public_identifier is required")
+        return self
 
 
 class QRInspectResponse(BaseModel):

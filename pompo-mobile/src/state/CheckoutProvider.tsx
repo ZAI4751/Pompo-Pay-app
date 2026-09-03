@@ -4,16 +4,19 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from "re
 import type { Payment, QrInspect } from "@/types";
 
 export interface CheckoutSession {
-  payload: string;
+  payload: string | null;
+  publicIdentifier: string;
   inspect: QrInspect;
   amount: string;
   idempotencyKey: string;
   payment: Payment | null;
+  paymentMethodId: string | null;
 }
 
 interface CheckoutState {
   session: CheckoutSession | null;
-  begin: (payload: string, inspect: QrInspect, amount: string) => void;
+  begin: (raw: string, inspect: QrInspect, amount: string) => void;
+  selectPaymentMethod: (id: string | null) => void;
   setPayment: (payment: Payment) => void;
   clear: () => void;
 }
@@ -26,14 +29,24 @@ export function CheckoutProvider({ children }: { children: ReactNode }) {
   const value = useMemo<CheckoutState>(
     () => ({
       session,
-      begin(payload, inspect, amount) {
-        setSession({
-          payload,
-          inspect,
-          amount,
-          idempotencyKey: randomUUID(),
-          payment: null,
+      begin(raw, inspect, amount) {
+        const trimmed = raw.trim();
+        const isPayload = trimmed.startsWith("POMPO:");
+        setSession((current) => {
+          const sameQr = current?.inspect.public_identifier === inspect.public_identifier;
+          return {
+            payload: isPayload ? trimmed : sameQr ? current?.payload ?? null : null,
+            publicIdentifier: inspect.public_identifier,
+            inspect,
+            amount,
+            idempotencyKey: sameQr && current ? current.idempotencyKey : randomUUID(),
+            payment: null,
+            paymentMethodId: sameQr && current ? current.paymentMethodId : null,
+          };
         });
+      },
+      selectPaymentMethod(id) {
+        setSession((current) => (current ? { ...current, paymentMethodId: id } : current));
       },
       setPayment(payment) {
         setSession((current) => (current ? { ...current, payment } : current));

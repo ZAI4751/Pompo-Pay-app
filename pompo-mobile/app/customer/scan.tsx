@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { CircleButton, GlassSurface, ScanFrame, ScanLine } from "@/components/glass";
-import { ErrorBanner, PrimaryButton, Screen, SecondaryButton, useTheme } from "@/components/ui";
+import { ErrorBanner, GlassInput, PrimaryButton, Screen, SecondaryButton, useTheme } from "@/components/ui";
 import { extractPublicIdentifier } from "@/domain/qrPayload";
 import { useAuth } from "@/state/AuthProvider";
 import { useCheckout } from "@/state/CheckoutProvider";
@@ -18,6 +18,7 @@ export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [error, setError] = useState<{ message: string; requestId?: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [manualCode, setManualCode] = useState("");
   const locked = useRef(false);
 
   async function onScan(raw: string) {
@@ -107,7 +108,19 @@ export default function ScanScreen() {
             />
           </View>
         ) : (
-          <Text style={styles.footerHint}>Align the code inside the frame</Text>
+          <View style={styles.manualWrap}>
+            <Text style={styles.footerHint}>Align the code inside the frame</Text>
+            <GlassInput
+              placeholder="Enter QR code manually"
+              value={manualCode}
+              autoCapitalize="characters"
+              onChangeText={setManualCode}
+            />
+            <SecondaryButton
+              label="Enter QR code manually"
+              onPress={() => void onScan(manualCode)}
+            />
+          </View>
         )}
       </View>
     </Screen>
@@ -146,6 +159,7 @@ const styles = StyleSheet.create({
   },
   detected: { position: "absolute", bottom: 18, alignSelf: "center" },
   errorWrap: { paddingHorizontal: 20, paddingBottom: 20, gap: 10 },
+  manualWrap: { paddingHorizontal: 20, paddingBottom: 20, gap: 10 },
   footerHint: {
     textAlign: "center",
     color: "#94a3b8",

@@ -6,6 +6,7 @@ from app.api.v1 import (
     auth,
     customers,
     health,
+    instruments,
     integrations,
     notifications,
     organization,
@@ -27,6 +28,7 @@ api_v1_router.include_router(rbac.router)
 api_v1_router.include_router(organization.router)
 api_v1_router.include_router(providers.router)
 api_v1_router.include_router(payments.router)
+api_v1_router.include_router(instruments.router)
 api_v1_router.include_router(payment_requests.router)
 api_v1_router.include_router(notifications.router)
 api_v1_router.include_router(support.router)

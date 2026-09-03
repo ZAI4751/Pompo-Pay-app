@@ -53,6 +53,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { label: "Transactions", href: "/transactions", icon: ArrowLeftRight, comingSoon: true },
       { label: "Payments", href: "/payments", icon: CreditCard, permission: "transactions:read" },
+      { label: "Payment methods", href: "/payment-methods", icon: CreditCard, permission: "users:read" },
       { label: "QR Codes", href: "/qr-codes", icon: QrCode, permission: "qr:read" },
       { label: "Providers", href: "/providers", icon: Plug, permission: "providers:read" },
       { label: "Webhooks", href: "/webhooks", icon: Webhook, permission: "webhooks:read" },

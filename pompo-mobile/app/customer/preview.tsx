@@ -75,7 +75,7 @@ export default function PreviewScreen() {
                 setError("Enter a valid amount.");
                 return;
               }
-              begin(session.payload, session.inspect, Number(parsed).toFixed(2));
+              begin(session.payload ?? session.publicIdentifier, session.inspect, Number(parsed).toFixed(2));
             }
             router.push("/customer/confirm");
           }}

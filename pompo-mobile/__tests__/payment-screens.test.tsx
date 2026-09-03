@@ -28,10 +28,12 @@ const inspect: QrInspect = {
 function session(overrides: Partial<CheckoutSession> = {}): CheckoutSession {
   return {
     payload: "POMPO:1:dynamic:QRABC123456789:body:sig",
+    publicIdentifier: "QRABC123456789",
     inspect,
     amount: "150.00",
     idempotencyKey: "idemp-1",
     payment: null,
+    paymentMethodId: "PIM-TEST",
     ...overrides,
   };
 }
@@ -42,8 +44,35 @@ jest.mock("@/state/CheckoutProvider", () => ({
   useCheckout: () => ({
     session: mockCheckout,
     begin: jest.fn(),
+    selectPaymentMethod: jest.fn(),
     setPayment: jest.fn(),
     clear: jest.fn(),
+  }),
+}));
+
+jest.mock("@/state/AuthProvider", () => ({
+  useAuth: () => ({
+    api: {
+      listPaymentMethods: async () => ({
+        ok: true,
+        data: [
+          {
+            id: "PIM-TEST",
+            provider_code: "simulated",
+            provider_display_name: "Simulated sandbox",
+            instrument_type: "mobile_money",
+            display_name: "Test Airtel Money",
+            masked_identifier: "+265 88•• ••21",
+            status: "active",
+            authorization_state: "completed",
+            is_default: true,
+            is_sandbox: true,
+            last_used_at: null,
+            created_at: "2026-09-03T00:00:00Z",
+          },
+        ],
+      }),
+    },
   }),
 }));
 
@@ -62,14 +91,15 @@ describe("QR and payment screens", () => {
     expect(screen.getByText(/150\.00/)).toBeTruthy();
   });
 
-  it("confirms the server amount before paying", () => {
+  it("confirms the server amount before paying", async () => {
     render(
       <SafeAreaProvider>
         <ConfirmScreen />
       </SafeAreaProvider>,
     );
-    expect(screen.getByText("Pay now")).toBeTruthy();
-    expect(screen.getByText("Chikondi Shop")).toBeTruthy();
+    expect(await screen.findByText("How would you like to pay?")).toBeTruthy();
+    expect(screen.getAllByText("Chikondi Shop").length).toBeGreaterThan(0);
+    expect(await screen.findByText("Test Airtel Money")).toBeTruthy();
   });
 
   it("renders payment success from backend status", () => {

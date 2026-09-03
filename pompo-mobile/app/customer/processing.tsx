@@ -31,9 +31,11 @@ export default function ProcessingScreen() {
       const amount = session.inspect.qr_type === "dynamic" ? undefined : session.amount;
       setMessage("Creating payment…");
       const initiated = await api.payFromQr({
-        payload: session.payload,
+        payload: session.payload ?? undefined,
+        publicIdentifier: session.payload ? undefined : session.publicIdentifier,
         idempotencyKey: session.idempotencyKey,
         amount,
+        paymentInstrumentId: session.paymentMethodId ?? undefined,
       });
       if (cancelled) {
         return;

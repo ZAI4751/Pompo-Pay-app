@@ -18,10 +18,12 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy import (
     Enum as SAEnum,
@@ -31,6 +33,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import GUID, Base, SoftDeleteMixin, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import (
     PaymentAttemptStatus,
+    PaymentInstrumentStatus,
+    PaymentInstrumentType,
+    ProviderAuthorizationState,
     ProviderCode,
     ProviderHealthState,
     ProviderType,
@@ -103,6 +108,93 @@ class PaymentProvider(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         return f"<PaymentProvider code={self.code!r}>"
 
 
+class PaymentInstrument(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Saved customer payment method. Not a wallet and not a credential store.
+
+    ``token_reference`` is an HMAC digest of a provider/sandbox token. PINs,
+    CVVs, PANs, and provider passwords are never persisted.
+    """
+
+    __tablename__ = "payment_instruments"
+    __table_args__ = (
+        UniqueConstraint("public_identifier", name="uq_payment_instruments_public_id"),
+        Index(
+            "uq_payment_instruments_one_default",
+            "customer_id",
+            unique=True,
+            postgresql_where=text("is_default IS TRUE AND status = 'active' AND revoked_at IS NULL"),
+            sqlite_where=text("is_default = 1 AND status = 'active' AND revoked_at IS NULL"),
+        ),
+        Index(
+            "uq_payment_instruments_customer_provider_mask",
+            "customer_id",
+            "provider_id",
+            "instrument_type",
+            "masked_identifier",
+            unique=True,
+            postgresql_where=text("status != 'revoked'"),
+            sqlite_where=text("status != 'revoked'"),
+        ),
+    )
+
+    customer_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("payment_providers.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    public_identifier: Mapped[str] = mapped_column(String(40), nullable=False)
+    instrument_type: Mapped[PaymentInstrumentType] = mapped_column(
+        SAEnum(
+            PaymentInstrumentType,
+            name="payment_instrument_type",
+            native_enum=False,
+            length=32,
+            values_callable=_enum_values,
+        ),
+        nullable=False,
+    )
+    display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    masked_identifier: Mapped[str] = mapped_column(String(64), nullable=False)
+    token_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_customer_reference: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    status: Mapped[PaymentInstrumentStatus] = mapped_column(
+        SAEnum(
+            PaymentInstrumentStatus,
+            name="payment_instrument_status",
+            native_enum=False,
+            length=16,
+            values_callable=_enum_values,
+        ),
+        default=PaymentInstrumentStatus.ACTIVE,
+        nullable=False,
+        index=True,
+    )
+    authorization_state: Mapped[ProviderAuthorizationState] = mapped_column(
+        SAEnum(
+            ProviderAuthorizationState,
+            name="provider_authorization_state",
+            native_enum=False,
+            length=32,
+            values_callable=_enum_values,
+        ),
+        default=ProviderAuthorizationState.COMPLETED,
+        nullable=False,
+    )
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_sandbox: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    safe_metadata: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    customer: Mapped[User] = relationship()
+    provider: Mapped[PaymentProvider] = relationship()
+    transactions: Mapped[list[Transaction]] = relationship(back_populates="payment_instrument")
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<PaymentInstrument public_id={self.public_identifier!r}>"
+
+
 class Transaction(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     """A single payment lifecycle from checkout creation to settlement."""
 
@@ -127,6 +219,9 @@ class Transaction(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     )
     cashier_id: Mapped[uuid.UUID | None] = mapped_column(
         GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    payment_instrument_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("payment_instruments.id", ondelete="SET NULL"), nullable=True, index=True
     )
     api_client_id: Mapped[uuid.UUID | None] = mapped_column(
         GUID(),
@@ -163,6 +258,9 @@ class Transaction(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     branch: Mapped[Branch] = relationship()
     till: Mapped[Till] = relationship()
     cashier: Mapped[User | None] = relationship()
+    payment_instrument: Mapped[PaymentInstrument | None] = relationship(
+        back_populates="transactions"
+    )
     attempts: Mapped[list[PaymentAttempt]] = relationship(
         back_populates="transaction",
         cascade="all, delete-orphan",

@@ -32,8 +32,10 @@ Dynamic: POMPO:1:dynamic:<public_id>:<amount_minor>:<currency>:<exp_unix>:<payme
 - `signature` — first 22 chars of URL-safe Base64(HMAC-SHA256(signing_key, canonical_body))
 - Signing key — application `SECRET_KEY` (never embedded in payloads)
 
-The server stores the canonical payload on the `qr_codes` row and rejects scans
-when the presented string does not match (tamper detection).
+`POST /payments/from-qr` accepts the signed `payload` or the public identifier
+for manual entry. Manual entry still loads and HMAC-parses the stored payload.
+Optional `payment_instrument_id` selects a saved method; the server derives the
+provider. See `docs/payment-instruments.md`.
 
 ## Database model (`qr_codes`)
 
