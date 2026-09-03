@@ -14,6 +14,26 @@ jest.mock("expo-camera", () => ({
   useCameraPermissions: () => [{ granted: true }, jest.fn()],
 }));
 
+jest.mock("expo-linear-gradient", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const React = require("react");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { View } = require("react-native");
+  return {
+    LinearGradient: ({ children, style }: { children: unknown; style?: unknown }) =>
+      React.createElement(View, { style }, children),
+  };
+});
+
+jest.mock("@expo/vector-icons", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const React = require("react");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { Text } = require("react-native");
+  const Icon = ({ name }: { name?: string }) => React.createElement(Text, null, name ?? "icon");
+  return { Ionicons: Icon };
+});
+
 jest.mock("react-native-qrcode-svg", () => "QRCode");
 
 jest.mock("react-native-safe-area-context", () => ({
@@ -21,4 +41,3 @@ jest.mock("react-native-safe-area-context", () => ({
   SafeAreaView: ({ children }: { children: unknown }) => children,
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
-

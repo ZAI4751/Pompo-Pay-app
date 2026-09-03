@@ -2,8 +2,8 @@ import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from "react-native";
 
-import { Atmosphere, FadeIn, GlassInput, GlassSurface } from "@/components/glass";
-import { ErrorBanner, PrimaryButton, Title, useTheme } from "@/components/ui";
+import { Atmosphere, FadeIn, GlassInput, HeroCard } from "@/components/glass";
+import { ErrorBanner, PrimaryButton, useTheme } from "@/components/ui";
 import { defaultMode } from "@/domain/roles";
 import { useAuth } from "@/state/AuthProvider";
 
@@ -28,14 +28,22 @@ export default function LoginScreen() {
       <Atmosphere />
       <View style={styles.inner}>
         <FadeIn>
-          <Text style={[styles.brand, { color: theme.darkBlue }]}>POMPO</Text>
-          <Title>Sign in</Title>
-          <Text style={{ color: theme.muted, marginBottom: 20 }}>
-            Pay merchants or run your till — one app, two modes.
+          <HeroCard style={styles.hero}>
+            <Text style={styles.brand}>POMPO</Text>
+            <View>
+              <Text style={styles.heroTitle}>Pay in a scan.</Text>
+              <Text style={styles.heroHint}>Merchants and customers, one app.</Text>
+            </View>
+          </HeroCard>
+        </FadeIn>
+        <FadeIn delay={80}>
+          <Text style={[styles.title, { color: theme.text }]}>Sign in</Text>
+          <Text style={{ color: theme.muted, marginBottom: 8 }}>
+            Use your POMPO account. Nothing is stored in this screen.
           </Text>
         </FadeIn>
         {error ? <ErrorBanner message={error} /> : null}
-        <GlassSurface>
+        <View style={[styles.fields, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <GlassInput
             autoCapitalize="none"
             autoComplete="email"
@@ -51,9 +59,8 @@ export default function LoginScreen() {
             placeholder="Password"
             value={password}
             onChangeText={setPassword}
-            style={styles.field}
           />
-        </GlassSurface>
+        </View>
         <PrimaryButton
           label="Continue"
           loading={loading}
@@ -76,7 +83,12 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  inner: { flex: 1, justifyContent: "center", padding: 24, gap: 12 },
-  brand: { fontSize: 14, fontWeight: "800", letterSpacing: 3, marginBottom: 8 },
-  field: { marginBottom: 10 },
+  inner: { flex: 1, justifyContent: "center", padding: 24, gap: 14 },
+  hero: { minHeight: 140, marginBottom: 8 },
+  brand: { color: "rgba(255,255,255,0.72)", fontSize: 12, fontWeight: "800", letterSpacing: 2 },
+  heroTitle: { color: "#ffffff", fontSize: 26, fontWeight: "800", letterSpacing: -0.5 },
+  heroHint: { color: "rgba(255,255,255,0.8)", fontSize: 13, fontWeight: "600", marginTop: 4 },
+  title: { fontSize: 22, fontWeight: "800" },
+  fields: { borderWidth: 1, borderRadius: 20, padding: 12, gap: 10 },
+  field: { marginBottom: 0 },
 });

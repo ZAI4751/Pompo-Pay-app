@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   Animated,
   Pressable,
@@ -13,8 +14,8 @@ import {
   type ViewStyle,
 } from "react-native";
 
-import { duration, pressIn, pressOut } from "@/motion";
-import { radius, space, useTheme } from "@/theme";
+import { duration, pressIn, pressOut, slideUp } from "@/motion";
+import { heroGradient, radius, space, useTheme } from "@/theme";
 
 export function Atmosphere({ children }: { children?: ReactNode }) {
   const theme = useTheme();
@@ -22,7 +23,6 @@ export function Atmosphere({ children }: { children?: ReactNode }) {
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <View style={[styles.glow, styles.glowA, { backgroundColor: theme.glowA }]} />
       <View style={[styles.glow, styles.glowB, { backgroundColor: theme.glowB }]} />
-      <View style={[styles.glow, styles.glowC, { backgroundColor: theme.glowC }]} />
       {children}
     </View>
   );
@@ -71,6 +71,22 @@ export function GlassCard({ children, style }: { children: ReactNode; style?: St
     >
       {children}
     </View>
+  );
+}
+
+export function HeroCard({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
+  const theme = useTheme();
+  return (
+    <LinearGradient
+      colors={theme.scheme === "dark" ? heroGradient.dark : heroGradient.light}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[styles.hero, style]}
+    >
+      <View style={styles.heroOrbA} />
+      <View style={styles.heroOrbB} />
+      <View style={styles.heroBody}>{children}</View>
+    </LinearGradient>
   );
 }
 
@@ -138,6 +154,36 @@ export function GlassPill({
   );
 }
 
+export function CircleButton({
+  children,
+  onPress,
+  accessibilityLabel,
+}: {
+  children: ReactNode;
+  onPress?: () => void;
+  accessibilityLabel?: string;
+}) {
+  const theme = useTheme();
+  const inner = (
+    <View
+      style={[
+        styles.circle,
+        { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: theme.shadow },
+      ]}
+    >
+      {children}
+    </View>
+  );
+  if (!onPress) {
+    return inner;
+  }
+  return (
+    <PressScale accessibilityRole="button" accessibilityLabel={accessibilityLabel} onPress={onPress} hitSlop={8}>
+      {inner}
+    </PressScale>
+  );
+}
+
 export function GlassInput(props: TextInputProps) {
   const theme = useTheme();
   return (
@@ -183,31 +229,98 @@ export function StatusPill({ label, tone }: { label: string; tone: "success" | "
   );
 }
 
+export function InitialsAvatar({
+  name,
+  size = 40,
+  active = false,
+}: {
+  name: string;
+  size?: number;
+  active?: boolean;
+}) {
+  const theme = useTheme();
+  const letters = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: active ? theme.primary : theme.scheme === "dark" ? "#1e293b" : "#e2e8f0",
+      }}
+    >
+      <Text
+        style={{
+          color: active ? theme.primaryForeground : theme.muted,
+          fontSize: size * 0.34,
+          fontWeight: "800",
+        }}
+      >
+        {letters || "P"}
+      </Text>
+    </View>
+  );
+}
+
+export function IconWell({
+  children,
+  background,
+  size = 40,
+}: {
+  children: ReactNode;
+  background: string;
+  size?: number;
+}) {
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: 12,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: background,
+      }}
+    >
+      {children}
+    </View>
+  );
+}
+
 export function FadeIn({ children, delay = 0 }: { children: ReactNode; delay?: number }) {
   const [opacity] = useState(() => new Animated.Value(0));
-  const [translate] = useState(() => new Animated.Value(10));
+  const [translate] = useState(() => new Animated.Value(14));
   useEffect(() => {
     const timer = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: duration.component,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translate, {
-          toValue: 0,
-          duration: duration.component,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      slideUp(opacity, translate);
     }, delay);
     return () => clearTimeout(timer);
   }, [delay, opacity, translate]);
   return <Animated.View style={{ opacity, transform: [{ translateY: translate }] }}>{children}</Animated.View>;
 }
 
-export function ScanLine() {
+export function ScanFrame() {
   const theme = useTheme();
+  const color = theme.scheme === "dark" ? "#93c5fd" : "#ffffff";
+  return (
+    <View pointerEvents="none" style={styles.scanFrame}>
+      <View style={[styles.corner, styles.cornerTL, { borderColor: color }]} />
+      <View style={[styles.corner, styles.cornerTR, { borderColor: color }]} />
+      <View style={[styles.corner, styles.cornerBL, { borderColor: color }]} />
+      <View style={[styles.corner, styles.cornerBR, { borderColor: color }]} />
+    </View>
+  );
+}
+
+export function ScanLine() {
   const [y] = useState(() => new Animated.Value(0));
   useEffect(() => {
     const loop = Animated.loop(
@@ -219,11 +332,11 @@ export function ScanLine() {
     loop.start();
     return () => loop.stop();
   }, [y]);
-  const translateY = y.interpolate({ inputRange: [0, 1], outputRange: [8, 168] });
+  const translateY = y.interpolate({ inputRange: [0, 1], outputRange: [28, 196] });
   return (
     <Animated.View
       pointerEvents="none"
-      style={[styles.scanLine, { backgroundColor: theme.primary, transform: [{ translateY }] }]}
+      style={[styles.scanLine, { transform: [{ translateY }] }]}
     />
   );
 }
@@ -265,29 +378,38 @@ export function SuccessMark() {
   const theme = useTheme();
   const [scale] = useState(() => new Animated.Value(0.6));
   const [opacity] = useState(() => new Animated.Value(0));
+  const [glow] = useState(() => new Animated.Value(0.2));
   useEffect(() => {
     Animated.parallel([
       Animated.spring(scale, { toValue: 1, friction: 6, tension: 80, useNativeDriver: true }),
       Animated.timing(opacity, { toValue: 1, duration: duration.component, useNativeDriver: true }),
+      Animated.timing(glow, { toValue: 1, duration: duration.screen, useNativeDriver: true }),
     ]).start();
-  }, [opacity, scale]);
+  }, [glow, opacity, scale]);
   return (
-    <Animated.View
-      style={[
-        styles.successMark,
-        { backgroundColor: theme.successBg, opacity, transform: [{ scale }] },
-      ]}
-    >
-      <Text style={[styles.successGlyph, { color: theme.success }]}>✓</Text>
-    </Animated.View>
+    <View style={styles.successWrap}>
+      <Animated.View
+        style={[
+          styles.successGlow,
+          { backgroundColor: theme.success, opacity: glow.interpolate({ inputRange: [0, 1], outputRange: [0.08, 0.18] }) },
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.successMark,
+          { backgroundColor: theme.successBg, opacity, transform: [{ scale }] },
+        ]}
+      >
+        <Text style={[styles.successGlyph, { color: theme.success }]}>✓</Text>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   glow: { position: "absolute", borderRadius: 999 },
-  glowA: { width: 340, height: 340, top: -120, left: -80 },
-  glowB: { width: 280, height: 280, top: -40, right: -90 },
-  glowC: { width: 260, height: 260, bottom: 80, right: -40 },
+  glowA: { width: 280, height: 280, top: -140, left: -90 },
+  glowB: { width: 220, height: 220, top: -60, right: -80 },
   glass: {
     borderWidth: 1,
     borderRadius: radius.lg,
@@ -299,11 +421,40 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: 18,
     gap: 8,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.18,
-    shadowRadius: 24,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 1,
+    shadowRadius: 18,
+    elevation: 3,
   },
+  hero: {
+    borderRadius: radius.xl,
+    overflow: "hidden",
+    minHeight: 168,
+    shadowColor: "#1d4ed8",
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.28,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  heroOrbA: {
+    position: "absolute",
+    width: 128,
+    height: 128,
+    borderRadius: 64,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    right: -32,
+    top: -32,
+  },
+  heroOrbB: {
+    position: "absolute",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    right: -8,
+    top: 56,
+  },
+  heroBody: { padding: 20, minHeight: 168, justifyContent: "space-between" },
   pill: {
     alignSelf: "flex-start",
     borderRadius: radius.pill,
@@ -312,6 +463,18 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   pillLabel: { fontSize: 13, fontWeight: "600" },
+  circle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    elevation: 2,
+  },
   input: {
     borderWidth: 1,
     borderRadius: radius.sm,
@@ -322,17 +485,35 @@ const styles = StyleSheet.create({
   amount: { fontSize: 34, fontWeight: "800", letterSpacing: -0.8 },
   status: { alignSelf: "flex-start", borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
   statusLabel: { fontSize: 12, fontWeight: "700" },
-  scanLine: { position: "absolute", left: 18, right: 18, height: 2, borderRadius: 2, opacity: 0.85 },
+  scanFrame: { position: "absolute", top: 36, right: 36, bottom: 36, left: 36 },
+  corner: { position: "absolute", width: 28, height: 28 },
+  cornerTL: { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 8 },
+  cornerTR: { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 8 },
+  cornerBL: { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 8 },
+  cornerBR: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 8 },
+  scanLine: {
+    position: "absolute",
+    left: 52,
+    right: 52,
+    height: 2,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    shadowColor: "#93c5fd",
+    shadowOpacity: 0.9,
+    shadowRadius: 8,
+    elevation: 4,
+  },
   pulseWrap: { width: 96, height: 96, alignItems: "center", justifyContent: "center", alignSelf: "center" },
   pulse: { position: "absolute", width: 96, height: 96, borderRadius: 48, borderWidth: 3 },
   pulseCore: { width: 18, height: 18, borderRadius: 9 },
+  successWrap: { width: 112, height: 112, alignItems: "center", justifyContent: "center", alignSelf: "center" },
+  successGlow: { position: "absolute", width: 112, height: 112, borderRadius: 56 },
   successMark: {
     width: 72,
     height: 72,
     borderRadius: 36,
     alignItems: "center",
     justifyContent: "center",
-    alignSelf: "center",
   },
   successGlyph: { fontSize: 34, fontWeight: "800" },
 });

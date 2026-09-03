@@ -31,6 +31,7 @@ jest.mock("@/state/AuthProvider", () => ({
           is_active: true,
         },
       }),
+      listMerchantPayments: async () => ({ ok: true, data: [] }),
     },
     logout: jest.fn(),
     login: jest.fn(),
@@ -56,6 +57,7 @@ describe("Merchant mode", () => {
     );
     expect(await screen.findByText("Chikondi Shop")).toBeTruthy();
     expect(screen.getByText("Show QR")).toBeTruthy();
+    expect(await screen.findByText("Waiting for the first scan")).toBeTruthy();
     fireEvent.press(screen.getByText("Merchant · switch"));
   });
 });

@@ -19,7 +19,7 @@ export function pressOut(value: Animated.Value) {
   Animated.spring(value, {
     toValue: 1,
     friction: 7,
-    tension: 140,
+    tension: 160,
     useNativeDriver: true,
   }).start();
 }
@@ -31,4 +31,25 @@ export function fadeIn(value: Animated.Value, ms = duration.component) {
     easing: Easing.out(Easing.cubic),
     useNativeDriver: true,
   }).start();
+}
+
+export function slideUp(
+  opacity: Animated.Value,
+  translate: Animated.Value,
+  ms = duration.component,
+) {
+  Animated.parallel([
+    Animated.timing(opacity, {
+      toValue: 1,
+      duration: ms,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }),
+    Animated.timing(translate, {
+      toValue: 0,
+      duration: ms,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }),
+  ]).start();
 }

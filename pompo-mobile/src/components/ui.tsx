@@ -1,5 +1,12 @@
 import { type ReactNode } from "react";
-import { StyleSheet, Text, View, type PressableProps, type TextStyle, type ViewStyle } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  type PressableProps,
+  type TextStyle,
+  type ViewStyle,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Atmosphere, GlassCard, GlassInput, PressScale } from "@/components/glass";
@@ -11,14 +18,16 @@ export { GlassInput };
 export function Screen({
   children,
   padded = true,
+  atmosphere = true,
 }: {
   children: ReactNode;
   padded?: boolean;
+  atmosphere?: boolean;
 }) {
   const theme = useTheme();
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={["top", "left", "right"]}>
-      <Atmosphere />
+      {atmosphere ? <Atmosphere /> : null}
       <View style={[styles.body, padded && styles.padded]}>{children}</View>
     </SafeAreaView>
   );
@@ -27,6 +36,16 @@ export function Screen({
 export function Title({ children }: { children: ReactNode }) {
   const theme = useTheme();
   return <Text style={[styles.title, { color: theme.text }]}>{children}</Text>;
+}
+
+export function Greeting({ name, subtitle }: { name: string; subtitle: string }) {
+  const theme = useTheme();
+  return (
+    <View style={styles.greeting}>
+      <Text style={[styles.hello, { color: theme.text }]}>Hello {name}</Text>
+      <Text style={[styles.welcome, { color: theme.subtle }]}>{subtitle}</Text>
+    </View>
+  );
 }
 
 export function Muted({ children }: { children: string }) {
@@ -71,7 +90,7 @@ export function SecondaryButton({ label, ...rest }: PressableProps & { label: st
       {...rest}
       style={[
         styles.secondary,
-        { borderColor: theme.glassBorder, backgroundColor: theme.glassFill },
+        { borderColor: theme.border, backgroundColor: theme.surface },
       ]}
     >
       <Text style={[styles.secondaryLabel, { color: theme.text }]}>{label}</Text>
@@ -98,7 +117,10 @@ export function ErrorBanner({ message, requestId }: { message: string; requestId
 export function EmptyState({ title, body }: { title: string; body: string }) {
   const theme = useTheme();
   return (
-    <View style={styles.empty}>
+    <View style={[styles.empty, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <View style={[styles.emptyMark, { backgroundColor: theme.scheme === "dark" ? "#1e293b" : "#eff6ff" }]}>
+        <Text style={{ color: theme.primary, fontSize: 22, fontWeight: "800" }}>P</Text>
+      </View>
       <Text style={[styles.emptyTitle, { color: theme.text }]}>{title}</Text>
       <Text style={[styles.muted, { color: theme.muted, textAlign: "center" }]}>{body}</Text>
     </View>
@@ -116,9 +138,12 @@ export function formatMoney(amount: string, currency = "MWK"): string {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   body: { flex: 1 },
-  padded: { paddingHorizontal: 20, paddingTop: 12, gap: 14 },
-  title: { fontSize: 30, fontWeight: "700", letterSpacing: -0.6 },
-  muted: { fontSize: 15, lineHeight: 22 },
+  padded: { paddingHorizontal: 20, paddingTop: 8, gap: 16 },
+  title: { fontSize: 22, fontWeight: "800", letterSpacing: -0.4 },
+  greeting: { gap: 2 },
+  hello: { fontSize: 20, fontWeight: "800", letterSpacing: -0.3 },
+  welcome: { fontSize: 13, fontWeight: "500" },
+  muted: { fontSize: 14, lineHeight: 20 },
   button: {
     borderRadius: radius.md,
     paddingVertical: 16,
@@ -134,8 +159,23 @@ const styles = StyleSheet.create({
   error: { borderRadius: 14, padding: 12, gap: 4 },
   errorText: { fontSize: 14, fontWeight: "600" },
   requestId: { fontSize: 12 },
-  empty: { alignItems: "center", paddingVertical: 48, gap: 8 },
-  emptyTitle: { fontSize: 18, fontWeight: "700" },
+  empty: {
+    alignItems: "center",
+    paddingVertical: 36,
+    paddingHorizontal: 20,
+    gap: 8,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+  },
+  emptyMark: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  emptyTitle: { fontSize: 17, fontWeight: "800" },
 });
 
 export const textStyle = (color: string, extra?: TextStyle): TextStyle => ({ color, ...extra });

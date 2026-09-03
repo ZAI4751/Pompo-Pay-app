@@ -1,10 +1,10 @@
 import { randomUUID } from "expo-crypto";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { Share, Text, View } from "react-native";
+import { ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 
-import { AmountDisplay, GlassInput, GlassSurface } from "@/components/glass";
+import { AmountDisplay, FadeIn, GlassInput } from "@/components/glass";
 import { BottomNav } from "@/components/nav";
 import { Card, ErrorBanner, formatMoney, PrimaryButton, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
 import { canCreateQr, canRevokeQr } from "@/domain/roles";
@@ -94,84 +94,94 @@ export default function MerchantQrScreen() {
 
   return (
     <Screen padded={false}>
-      <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 12, gap: 12 }}>
-        <Title>QR</Title>
-        {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
-        {active ? (
-          <GlassSurface style={{ alignItems: "center", gap: 12 }}>
-            <View
-              style={{
-                backgroundColor: "#ffffff",
-                padding: 16,
-                borderRadius: 16,
-                shadowColor: theme.primary,
-                shadowOpacity: active.qr_type === "dynamic" ? 0.22 : 0.08,
-                shadowRadius: 18,
-                shadowOffset: { width: 0, height: 0 },
-              }}
-            >
-              <QRCode value={active.encoded_payload} size={200} backgroundColor="#ffffff" color="#0f172a" />
-            </View>
-            <Text style={{ color: theme.text, fontWeight: "700" }}>{active.merchant_name}</Text>
-            {active.qr_type === "dynamic" ? (
-              <AmountDisplay value={formatMoney(active.amount ?? "0", active.currency)} />
-            ) : (
-              <Text style={{ color: theme.muted }}>Static · customer enters amount</Text>
-            )}
-            {tillContext ? (
-              <Text style={{ color: theme.subtle }}>
-                {tillContext.till.name} · {active.status}
-              </Text>
-            ) : (
-              <Text style={{ color: theme.subtle }}>{active.status}</Text>
-            )}
-            <SecondaryButton
-              label="Share"
-              onPress={() =>
-                void Share.share({
-                  message: `Pay ${active.merchant_name} with POMPO\n${active.encoded_payload}`,
-                })
-              }
-            />
-            {canRevokeQr(user?.role_code ?? "") && active.status === "active" ? (
-              <SecondaryButton
-                label="Revoke"
-                onPress={async () => {
-                  const revoked = await api.revokeQr(active.public_identifier);
-                  if (!revoked.ok) {
-                    setError({ message: revoked.error.message, requestId: revoked.error.requestId });
-                    return;
+      <View style={{ flex: 1 }}>
+        <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
+          <Title>QR</Title>
+          <Text style={{ color: theme.subtle, marginTop: 4 }}>Show this code. Keep the plate solid white.</Text>
+        </View>
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
+          {active ? (
+            <FadeIn>
+              <View style={[styles.frame, { backgroundColor: theme.glassFill, borderColor: theme.glassBorder }]}>
+                <View style={styles.plate}>
+                  <QRCode value={active.encoded_payload} size={200} backgroundColor="#ffffff" color="#0f172a" />
+                </View>
+                <Text style={{ color: theme.text, fontWeight: "800", fontSize: 18 }}>{active.merchant_name}</Text>
+                {active.qr_type === "dynamic" ? (
+                  <AmountDisplay value={formatMoney(active.amount ?? "0", active.currency)} />
+                ) : (
+                  <Text style={{ color: theme.muted }}>Static · customer enters amount</Text>
+                )}
+                <Text style={{ color: theme.subtle }}>
+                  {tillContext ? `${tillContext.till.name} · ` : ""}
+                  {active.status}
+                </Text>
+                <SecondaryButton
+                  label="Share"
+                  onPress={() =>
+                    void Share.share({
+                      message: `Pay ${active.merchant_name} with POMPO\n${active.encoded_payload}`,
+                    })
                   }
-                  await load();
-                }}
-              />
-            ) : null}
-          </GlassSurface>
-        ) : (
-          <Card>
-            <Text style={{ color: theme.muted }}>No QR codes yet.</Text>
-          </Card>
-        )}
-        {canCreate ? (
-          <View style={{ gap: 10 }}>
-            <GlassInput value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
-            <PrimaryButton label="New dynamic QR" loading={busy} onPress={() => void create("dynamic")} />
-            <SecondaryButton label="New static QR" onPress={() => void create("static")} />
-          </View>
-        ) : (
-          <Text style={{ color: theme.muted }}>Ask a merchant owner to generate QR codes.</Text>
-        )}
-        {qrs.slice(0, 6).map((qr) => (
-          <Text
-            key={qr.public_identifier}
-            onPress={() => router.push(`/merchant/qr/${qr.public_identifier}`)}
-            style={{ color: theme.primary, fontWeight: "600" }}
-          >
-            {qr.qr_type} · {qr.status} · {qr.public_identifier}
-          </Text>
-        ))}
+                />
+                {canRevokeQr(user?.role_code ?? "") && active.status === "active" ? (
+                  <SecondaryButton
+                    label="Revoke"
+                    onPress={async () => {
+                      const revoked = await api.revokeQr(active.public_identifier);
+                      if (!revoked.ok) {
+                        setError({ message: revoked.error.message, requestId: revoked.error.requestId });
+                        return;
+                      }
+                      await load();
+                    }}
+                  />
+                ) : null}
+              </View>
+            </FadeIn>
+          ) : (
+            <Card>
+              <Text style={{ color: theme.muted }}>No QR codes yet.</Text>
+            </Card>
+          )}
+          {canCreate ? (
+            <View style={{ gap: 10 }}>
+              <GlassInput value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
+              <PrimaryButton label="New dynamic QR" loading={busy} onPress={() => void create("dynamic")} />
+              <SecondaryButton label="New static QR" onPress={() => void create("static")} />
+            </View>
+          ) : (
+            <Text style={{ color: theme.muted }}>Ask a merchant owner to generate QR codes.</Text>
+          )}
+          {qrs.slice(0, 6).map((qr) => (
+            <Text
+              key={qr.public_identifier}
+              onPress={() => router.push(`/merchant/qr/${qr.public_identifier}`)}
+              style={{ color: theme.primary, fontWeight: "700" }}
+            >
+              {qr.qr_type} · {qr.status} · {qr.public_identifier}
+            </Text>
+          ))}
+        </ScrollView>
       </View>
       <BottomNav active="qr" />
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  scroll: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20, gap: 16 },
+  frame: {
+    borderWidth: 1,
+    borderRadius: 28,
+    padding: 18,
+    alignItems: "center",
+    gap: 12,
+  },
+  plate: {
+    backgroundColor: "#ffffff",
+    padding: 16,
+    borderRadius: 20,
+  },
+});

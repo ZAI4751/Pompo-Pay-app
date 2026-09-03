@@ -1,8 +1,8 @@
 import { useRouter } from "expo-router";
-import { StyleSheet, Text } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
-import { AmountDisplay, FadeIn } from "@/components/glass";
-import { Card, formatMoney, Muted, PrimaryButton, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
+import { AmountDisplay, FadeIn, InitialsAvatar } from "@/components/glass";
+import { Card, formatMoney, Muted, PrimaryButton, Screen, SecondaryButton, useTheme } from "@/components/ui";
 import { useCheckout } from "@/state/CheckoutProvider";
 
 export default function ConfirmScreen() {
@@ -13,7 +13,7 @@ export default function ConfirmScreen() {
   if (!session) {
     return (
       <Screen>
-        <Title>Nothing to confirm</Title>
+        <Text style={{ color: theme.text, fontWeight: "800", fontSize: 22 }}>Nothing to confirm</Text>
       </Screen>
     );
   }
@@ -22,13 +22,22 @@ export default function ConfirmScreen() {
 
   return (
     <Screen>
-      <Title>Confirm payment</Title>
-      <Muted>POMPO will send this to the payment engine. Amounts come from the server for dynamic QR.</Muted>
+      <Text style={[styles.kicker, { color: theme.subtle }]}>CONFIRM</Text>
+      <Text style={[styles.title, { color: theme.text }]}>Here is exactly what you are paying.</Text>
+      <Muted>POMPO sends this to the payment engine. Dynamic amounts come from the server.</Muted>
       <FadeIn>
         <Card>
-          <Text style={{ color: theme.subtle }}>Paying</Text>
-          <Text style={[styles.merchant, { color: theme.text }]}>{session.inspect.merchant_name}</Text>
+          <View style={styles.identity}>
+            <InitialsAvatar name={session.inspect.merchant_name} size={48} active />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: theme.subtle, fontSize: 12 }}>Paying</Text>
+              <Text style={[styles.merchant, { color: theme.text }]}>{session.inspect.merchant_name}</Text>
+            </View>
+          </View>
           <AmountDisplay value={formatMoney(amount, session.inspect.currency)} />
+          <Text style={{ color: theme.muted }}>
+            {session.inspect.branch_name} · {session.inspect.till_name}
+          </Text>
         </Card>
       </FadeIn>
       <PrimaryButton label="Pay now" onPress={() => router.push("/customer/processing")} />
@@ -38,5 +47,8 @@ export default function ConfirmScreen() {
 }
 
 const styles = StyleSheet.create({
-  merchant: { fontSize: 20, fontWeight: "700" },
+  kicker: { fontSize: 11, fontWeight: "800", letterSpacing: 1.4 },
+  title: { fontSize: 26, fontWeight: "800", letterSpacing: -0.6, lineHeight: 32 },
+  identity: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 },
+  merchant: { fontSize: 20, fontWeight: "800" },
 });

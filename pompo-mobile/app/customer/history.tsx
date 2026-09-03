@@ -2,24 +2,12 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, RefreshControl, Text, View } from "react-native";
 
-import { PressScale, StatusPill } from "@/components/glass";
+import { PaymentRow } from "@/components/activity";
 import { BottomNav } from "@/components/nav";
-import { EmptyState, ErrorBanner, formatMoney, Screen, Title, useTheme } from "@/components/ui";
-import { mapPaymentStatus, paymentStatusLabel } from "@/domain/paymentStatus";
+import { EmptyState, ErrorBanner, Screen, Title, useTheme } from "@/components/ui";
+import { groupLabel } from "@/format";
 import { useAuth } from "@/state/AuthProvider";
 import type { Payment } from "@/types";
-
-function groupLabel(iso: string | null): string {
-  if (!iso) {
-    return "Undated";
-  }
-  const date = new Date(iso);
-  const today = new Date();
-  if (date.toDateString() === today.toDateString()) {
-    return "Today";
-  }
-  return date.toLocaleDateString();
-}
 
 export default function HistoryScreen() {
   const theme = useTheme();
@@ -46,23 +34,26 @@ export default function HistoryScreen() {
   }, [load]);
 
   const grouped = useMemo(() => {
-    const items: ({ type: "header"; title: string } | { type: "row"; item: Payment })[] = [];
+    const items: ({ type: "header"; title: string } | { type: "row"; item: Payment; last: boolean })[] = [];
     let last = "";
-    for (const item of rows) {
+    rows.forEach((item, index) => {
       const title = groupLabel(item.created_at);
       if (title !== last) {
         items.push({ type: "header", title });
         last = title;
       }
-      items.push({ type: "row", item });
-    }
+      const next = rows[index + 1];
+      const lastInGroup = !next || groupLabel(next.created_at) !== title;
+      items.push({ type: "row", item, last: lastInGroup });
+    });
     return items;
   }, [rows]);
 
   return (
     <Screen padded={false}>
-      <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 12 }}>
-        <Title>History</Title>
+      <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 8 }}>
+        <Title>Activity</Title>
+        <Text style={{ color: theme.subtle, marginTop: 4, marginBottom: 12 }}>Your POMPO payments</Text>
         {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
         <FlatList
           data={grouped}
@@ -70,39 +61,35 @@ export default function HistoryScreen() {
             entry.type === "header" ? `h-${entry.title}-${index}` : entry.item.id
           }
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load()} />}
+          contentContainerStyle={{ paddingBottom: 16 }}
           ListEmptyComponent={
             refreshing ? null : <EmptyState title="No payments yet" body="Scan a QR to make your first payment." />
           }
           renderItem={({ item: entry }) => {
             if (entry.type === "header") {
               return (
-                <Text style={{ color: theme.subtle, fontWeight: "700", marginTop: 16, marginBottom: 6 }}>
+                <Text style={{ color: theme.subtle, fontWeight: "800", marginTop: 16, marginBottom: 8 }}>
                   {entry.title}
                 </Text>
               );
             }
-            const item = entry.item;
-            const phase = mapPaymentStatus(item.status);
-            const tone = phase === "success" ? "success" : phase === "failed" || phase === "timeout" ? "error" : "pending";
             return (
-              <PressScale
-                accessibilityRole="button"
-                onPress={() => router.push(`/customer/payment/${item.reference}`)}
+              <View
                 style={{
-                  paddingVertical: 14,
-                  paddingHorizontal: 4,
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: 12,
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                  borderWidth: 1,
+                  borderBottomWidth: entry.last ? 1 : 0,
+                  borderTopLeftRadius: 0,
+                  borderTopRightRadius: 0,
+                  overflow: "hidden",
                 }}
               >
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={{ color: theme.text, fontWeight: "700" }}>{item.merchant_name ?? "Merchant"}</Text>
-                  <Text style={{ color: theme.muted }}>{formatMoney(item.amount, item.currency)}</Text>
-                </View>
-                <StatusPill label={paymentStatusLabel(item.status)} tone={tone} />
-              </PressScale>
+                <PaymentRow
+                  payment={entry.item}
+                  onPress={() => router.push(`/customer/payment/${entry.item.reference}`)}
+                />
+              </View>
             );
           }}
         />

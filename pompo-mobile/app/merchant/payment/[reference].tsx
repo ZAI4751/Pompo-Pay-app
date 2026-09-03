@@ -1,10 +1,11 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { Share, Text, View } from "react-native";
 
-import { AmountDisplay, StatusPill } from "@/components/glass";
-import { Card, ErrorBanner, formatMoney, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
+import { AmountDisplay, FadeIn, StatusPill } from "@/components/glass";
+import { Card, ErrorBanner, formatMoney, PrimaryButton, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
 import { mapPaymentStatus, paymentStatusLabel } from "@/domain/paymentStatus";
+import { formatWhen } from "@/format";
 import { useAuth } from "@/state/AuthProvider";
 import type { Payment } from "@/types";
 
@@ -34,20 +35,35 @@ export default function MerchantPaymentDetail() {
 
   return (
     <Screen>
-      <Title>Payment</Title>
+      <Title>Payment received</Title>
       {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
       {payment ? (
-        <Card>
-          <StatusPill label={paymentStatusLabel(payment.status)} tone={tone} />
-          <AmountDisplay value={formatMoney(payment.amount, payment.currency)} />
-          <View style={{ gap: 4, marginTop: 8 }}>
-            <Text style={{ color: theme.subtle }}>Reference {payment.reference}</Text>
-            {payment.till_name ? <Text style={{ color: theme.subtle }}>Till {payment.till_name}</Text> : null}
-            {payment.created_at ? (
-              <Text style={{ color: theme.subtle }}>{new Date(payment.created_at).toLocaleString()}</Text>
-            ) : null}
-          </View>
-        </Card>
+        <FadeIn>
+          <Card>
+            <StatusPill label={paymentStatusLabel(payment.status)} tone={tone} />
+            <AmountDisplay value={formatMoney(payment.amount, payment.currency)} />
+            <View style={{ gap: 6, marginTop: 8 }}>
+              <Text style={{ color: theme.subtle }}>Reference {payment.reference}</Text>
+              {payment.till_name ? <Text style={{ color: theme.subtle }}>Till {payment.till_name}</Text> : null}
+              {payment.created_at ? <Text style={{ color: theme.subtle }}>{formatWhen(payment.created_at)}</Text> : null}
+            </View>
+          </Card>
+        </FadeIn>
+      ) : null}
+      {payment ? (
+        <PrimaryButton
+          label="Share receipt"
+          onPress={() =>
+            void Share.share({
+              message: [
+                "POMPO payment",
+                formatMoney(payment.amount, payment.currency),
+                paymentStatusLabel(payment.status),
+                `Reference ${payment.reference}`,
+              ].join("\n"),
+            })
+          }
+        />
       ) : null}
       <SecondaryButton label="Back" onPress={() => router.back()} />
     </Screen>

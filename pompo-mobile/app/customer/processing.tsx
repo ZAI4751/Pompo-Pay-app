@@ -1,9 +1,9 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Text } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
-import { ProcessingPulse } from "@/components/glass";
-import { ErrorBanner, Screen, Title, useTheme } from "@/components/ui";
+import { FadeIn, ProcessingPulse } from "@/components/glass";
+import { ErrorBanner, Screen, useTheme } from "@/components/ui";
 import { isTerminalPayment } from "@/domain/paymentStatus";
 import { useAuth } from "@/state/AuthProvider";
 import { useCheckout } from "@/state/CheckoutProvider";
@@ -85,17 +85,26 @@ export default function ProcessingScreen() {
   if (!session) {
     return (
       <Screen>
-        <Title>Payment</Title>
+        <Text style={{ color: theme.text, fontWeight: "800", fontSize: 22 }}>Payment</Text>
       </Screen>
     );
   }
 
   return (
     <Screen>
-      <Title>Paying</Title>
-      <ProcessingPulse />
-      <Text style={{ color: theme.muted, textAlign: "center", marginTop: 16 }}>{message}</Text>
-      {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
+      <View style={styles.center}>
+        <FadeIn>
+          <ProcessingPulse />
+        </FadeIn>
+        <Text style={[styles.title, { color: theme.text }]}>Paying {session.inspect.merchant_name}</Text>
+        <Text style={{ color: theme.muted, textAlign: "center" }}>{message}</Text>
+        {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
+      </View>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  center: { flex: 1, justifyContent: "center", alignItems: "center", gap: 16, paddingBottom: 48 },
+  title: { fontSize: 20, fontWeight: "800", textAlign: "center" },
+});
