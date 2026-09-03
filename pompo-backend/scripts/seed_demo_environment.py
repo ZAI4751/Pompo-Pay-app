@@ -16,7 +16,6 @@ Refuses to run against production database unless explicitly confirmed.
 from __future__ import annotations
 
 import asyncio
-import os
 import sys
 import uuid
 from datetime import UTC, datetime
@@ -28,15 +27,30 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.core.config.base import AppEnvironment, get_settings
+from app.core.config.base import get_settings
 from app.core.security.password import PasswordHasher
 from app.database.engine import create_engine, dispose_engine
 from app.models import Branch, Merchant, Role, Till, User
+from app.models.customer import CustomerPreference
 from app.models.enums import PaymentInstrumentStatus, PaymentInstrumentType, ProviderCode, QRStatus
 from app.models.payment import PaymentInstrument, PaymentProvider, QRCode
 from app.payments.catalog import seed_provider_catalog
+from scripts.demo_lab import (
+    DEMO_ADMIN_EMAIL,
+    DEMO_ADMIN_PASSWORD,
+    DEMO_BRANCH_NAME,
+    DEMO_CUSTOMER_EMAIL,
+    DEMO_CUSTOMER_PASSWORD,
+    DEMO_MERCHANT_EMAIL,
+    DEMO_MERCHANT_NAME,
+    DEMO_MERCHANT_PASSWORD,
+    DEMO_TILL_CODE,
+    DEMO_TILL_NAME,
+    DemoLabRefused,
+    require_demo_lab_allowed,
+)
 from scripts.seed_rbac import seed_rbac_session
 from app.services.qr import QRService
 
@@ -45,6 +59,7 @@ hasher = PasswordHasher()
 
 async def seed_demo_environment() -> None:
     settings = get_settings()
+    require_demo_lab_allowed(settings.app_env)
     engine = create_engine(settings)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
 
@@ -65,13 +80,13 @@ async def seed_demo_environment() -> None:
 
         print("[3/6] Setting up POMPO Demo Merchant organization hierarchy...")
         demo_merchant = await session.scalar(
-            select(Merchant).where(Merchant.name == "POMPO Demo Merchant")
+            select(Merchant).where(Merchant.name == DEMO_MERCHANT_NAME)
         )
         if demo_merchant is None:
             demo_merchant = Merchant(
-                name="POMPO Demo Merchant",
+                name=DEMO_MERCHANT_NAME,
                 registration_number="DEMO-REG-001",
-                contact_email="demo.merchant@pompo.mw",
+                contact_email=DEMO_MERCHANT_EMAIL,
                 contact_phone="+265999000100",
                 is_active=True,
             )
@@ -83,13 +98,13 @@ async def seed_demo_environment() -> None:
         demo_branch = await session.scalar(
             select(Branch).where(
                 Branch.merchant_id == demo_merchant.id,
-                Branch.name == "POMPO Demo Branch",
+                Branch.name == DEMO_BRANCH_NAME,
             )
         )
         if demo_branch is None:
             demo_branch = Branch(
                 merchant_id=demo_merchant.id,
-                name="POMPO Demo Branch",
+                name=DEMO_BRANCH_NAME,
                 address="Lilongwe City Centre, Malawi",
                 is_active=True,
             )
@@ -101,14 +116,14 @@ async def seed_demo_environment() -> None:
         demo_till = await session.scalar(
             select(Till).where(
                 Till.branch_id == demo_branch.id,
-                Till.code == "DEMO-TILL-01",
+                Till.code == DEMO_TILL_CODE,
             )
         )
         if demo_till is None:
             demo_till = Till(
                 branch_id=demo_branch.id,
-                name="POMPO Demo Till",
-                code="DEMO-TILL-01",
+                name=DEMO_TILL_NAME,
+                code=DEMO_TILL_CODE,
                 is_active=True,
             )
             session.add(demo_till)
@@ -118,11 +133,11 @@ async def seed_demo_environment() -> None:
 
         print("[4/6] Creating controlled test identities...")
         # A. Platform Admin: platform_admin access, merchant_id=None (proves admin does not imply merchant)
-        demo_admin = await session.scalar(select(User).where(User.email == "demo.admin@pompo.mw"))
+        demo_admin = await session.scalar(select(User).where(User.email == DEMO_ADMIN_EMAIL))
         if demo_admin is None:
             demo_admin = User(
-                email="demo.admin@pompo.mw",
-                hashed_password=hasher.hash("PompoDemoAdmin2026!"),
+                email=DEMO_ADMIN_EMAIL,
+                hashed_password=hasher.hash(DEMO_ADMIN_PASSWORD),
                 full_name="POMPO Demo Platform Admin",
                 phone="+265999000001",
                 role_id=admin_role.id,
@@ -134,7 +149,7 @@ async def seed_demo_environment() -> None:
             )
             session.add(demo_admin)
         else:
-            demo_admin.hashed_password = hasher.hash("PompoDemoAdmin2026!")
+            demo_admin.hashed_password = hasher.hash(DEMO_ADMIN_PASSWORD)
             demo_admin.role_id = admin_role.id
             demo_admin.merchant_id = None
             demo_admin.is_active = True
@@ -142,12 +157,12 @@ async def seed_demo_environment() -> None:
 
         # B. Test Merchant: authorized merchant membership, branch, till, and QR capability
         demo_merchant_user = await session.scalar(
-            select(User).where(User.email == "demo.merchant@pompo.mw")
+            select(User).where(User.email == DEMO_MERCHANT_EMAIL)
         )
         if demo_merchant_user is None:
             demo_merchant_user = User(
-                email="demo.merchant@pompo.mw",
-                hashed_password=hasher.hash("PompoDemoMerch2026!"),
+                email=DEMO_MERCHANT_EMAIL,
+                hashed_password=hasher.hash(DEMO_MERCHANT_PASSWORD),
                 full_name="POMPO Demo Merchant Owner",
                 phone="+265999000002",
                 role_id=merchant_role.id,
@@ -159,7 +174,7 @@ async def seed_demo_environment() -> None:
             )
             session.add(demo_merchant_user)
         else:
-            demo_merchant_user.hashed_password = hasher.hash("PompoDemoMerch2026!")
+            demo_merchant_user.hashed_password = hasher.hash(DEMO_MERCHANT_PASSWORD)
             demo_merchant_user.role_id = merchant_role.id
             demo_merchant_user.merchant_id = demo_merchant.id
             demo_merchant_user.branch_id = demo_branch.id
@@ -168,12 +183,12 @@ async def seed_demo_environment() -> None:
 
         # C. Test Customer: verified customer account, merchant_id=None
         demo_customer = await session.scalar(
-            select(User).where(User.email == "demo.customer@pompo.mw")
+            select(User).where(User.email == DEMO_CUSTOMER_EMAIL)
         )
         if demo_customer is None:
             demo_customer = User(
-                email="demo.customer@pompo.mw",
-                hashed_password=hasher.hash("PompoDemoCust2026!"),
+                email=DEMO_CUSTOMER_EMAIL,
+                hashed_password=hasher.hash(DEMO_CUSTOMER_PASSWORD),
                 full_name="POMPO Demo Customer",
                 phone="+265999000999",
                 role_id=customer_role.id,
@@ -186,12 +201,24 @@ async def seed_demo_environment() -> None:
             session.add(demo_customer)
             await session.flush()
         else:
-            demo_customer.hashed_password = hasher.hash("PompoDemoCust2026!")
+            demo_customer.hashed_password = hasher.hash(DEMO_CUSTOMER_PASSWORD)
             demo_customer.role_id = customer_role.id
             demo_customer.merchant_id = None
             demo_customer.is_active = True
             demo_customer.is_email_verified = True
+            demo_customer.email_verified_at = demo_customer.email_verified_at or datetime.now(UTC)
             await session.flush()
+
+        prefs = await session.scalar(
+            select(CustomerPreference).where(CustomerPreference.user_id == demo_customer.id)
+        )
+        if prefs is None:
+            session.add(
+                CustomerPreference(
+                    user_id=demo_customer.id,
+                    preferred_mode="customer",
+                )
+            )
 
         # Simulated Provider for instruments
         sim_provider = await session.scalar(
@@ -312,24 +339,24 @@ async def seed_demo_environment() -> None:
         print("\n" + "=" * 70)
         print("POMPO SAFE TEST & DEMONSTRATION ENVIRONMENT READY")
         print("=" * 70)
-        print(f"Merchant:   POMPO Demo Merchant")
-        print(f"Branch:     POMPO Demo Branch")
-        print(f"Till:       POMPO Demo Till (Code: DEMO-TILL-01)")
+        print(f"Merchant:   {DEMO_MERCHANT_NAME}")
+        print(f"Branch:     {DEMO_BRANCH_NAME}")
+        print(f"Till:       {DEMO_TILL_NAME} (Code: {DEMO_TILL_CODE})")
         print("-" * 70)
         print("IDENTITIES FOR HUMAN OPERATOR TESTING:")
         print("  1. Platform Admin (Master Admin web app):")
-        print("     Email:    demo.admin@pompo.mw")
-        print("     Password: PompoDemoAdmin2026!")
+        print(f"     Email:    {DEMO_ADMIN_EMAIL}")
+        print(f"     Password: {DEMO_ADMIN_PASSWORD}")
         print("     Role:     platform_admin (access to Master Admin, no merchant mode)")
         print()
         print("  2. Merchant Owner (POMPO Mobile App - Merchant Mode):")
-        print("     Email:    demo.merchant@pompo.mw")
-        print("     Password: PompoDemoMerch2026!")
+        print(f"     Email:    {DEMO_MERCHANT_EMAIL}")
+        print(f"     Password: {DEMO_MERCHANT_PASSWORD}")
         print("     Role:     merchant_owner (authorized for Demo Merchant, Branch & Till)")
         print()
         print("  3. Customer (POMPO Mobile App & Web Checkout):")
-        print("     Email:    demo.customer@pompo.mw")
-        print("     Password: PompoDemoCust2026!")
+        print(f"     Email:    {DEMO_CUSTOMER_EMAIL}")
+        print(f"     Password: {DEMO_CUSTOMER_PASSWORD}")
         print("     Role:     customer (pre-enrolled Airtel & TNM simulated methods)")
         print("-" * 70)
         print("DEMONSTRATION QR CODES:")
@@ -344,4 +371,8 @@ async def seed_demo_environment() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(seed_demo_environment())
+    try:
+        asyncio.run(seed_demo_environment())
+    except DemoLabRefused as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
