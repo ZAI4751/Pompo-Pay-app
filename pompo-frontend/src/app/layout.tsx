@@ -10,8 +10,16 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Pompo Master Admin",
+  title: {
+    default: "Pompo Master Admin",
+    template: "%s",
+  },
   description: "Pompo payment platform -- master admin portal",
+  applicationName: "POMPO",
+  icons: {
+    icon: [{ url: "/favicon.png", type: "image/png" }],
+    apple: [{ url: "/pompo-mark.png", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

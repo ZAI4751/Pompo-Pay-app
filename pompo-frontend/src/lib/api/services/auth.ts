@@ -68,6 +68,27 @@ export const authService = {
     });
   },
 
+  forgotPassword(email: string): Promise<ApiResult<{ detail: string; email_delivery?: string }>> {
+    return apiRequest("/auth/forgot-password", {
+      method: "POST",
+      body: { email },
+    });
+  },
+
+  resetPassword(token: string, newPassword: string): Promise<ApiResult<{ detail: string }>> {
+    return apiRequest("/auth/reset-password", {
+      method: "POST",
+      body: { token, new_password: newPassword },
+    });
+  },
+
+  requestEmailVerification(email?: string): Promise<ApiResult<{ detail: string; email_delivery?: string }>> {
+    return apiRequest("/auth/verify-email/request", {
+      method: "POST",
+      body: email ? { email } : {},
+    });
+  },
+
   logoutAll(): Promise<ApiResult<undefined>> {
     if (USE_MOCKS) {
       return Promise.resolve({

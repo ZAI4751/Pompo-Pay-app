@@ -16,6 +16,7 @@ export interface TokenResponse {
   refresh_token: string;
   token_type: "bearer";
   expires_in: number;
+  is_email_verified?: boolean;
 }
 
 export interface AuthenticatedUser {
@@ -27,4 +28,6 @@ export interface AuthenticatedUser {
   role_id: string;
   role_code?: string;
   is_active: boolean;
+  is_email_verified?: boolean;
+  phone?: string | null;
 }
