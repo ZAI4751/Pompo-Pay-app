@@ -34,11 +34,32 @@ export default function CustomerProfile() {
         </FadeIn>
         <Card style={{ padding: 0, gap: 0, overflow: "hidden" }}>
           <MenuRow
-            icon="person-circle-outline"
-            label="Account"
+            icon="storefront-outline"
+            label="Merchants"
             color={theme.primary}
             background={theme.scheme === "dark" ? "#1e3a8a" : "#eff6ff"}
-            trailing={<Text style={{ color: theme.subtle, fontSize: 12 }}>{user?.email}</Text>}
+            onPress={() => router.push("/customer/merchants")}
+          />
+          <MenuRow
+            icon="notifications-outline"
+            label="Notifications"
+            color={theme.primary}
+            background={theme.scheme === "dark" ? "#1e3a8a" : "#eff6ff"}
+            onPress={() => router.push("/customer/notifications")}
+          />
+          <MenuRow
+            icon="lock-closed-outline"
+            label="Security"
+            color={theme.primary}
+            background={theme.scheme === "dark" ? "#1e3a8a" : "#eff6ff"}
+            onPress={() => router.push("/customer/security")}
+          />
+          <MenuRow
+            icon="help-circle-outline"
+            label="Support"
+            color={theme.primary}
+            background={theme.scheme === "dark" ? "#1e3a8a" : "#eff6ff"}
+            onPress={() => router.push("/customer/support")}
             last={!canSwitch}
           />
           {canSwitch ? (

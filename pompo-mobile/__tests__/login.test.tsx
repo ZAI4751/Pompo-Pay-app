@@ -14,6 +14,7 @@ jest.mock("@/state/AuthProvider", () => ({
   useAuth: () => ({
     user: null,
     login: mockLogin,
+    register: jest.fn(),
     logout: jest.fn(),
     hydrated: true,
     api: {},

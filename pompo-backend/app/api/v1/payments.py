@@ -2,18 +2,25 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+from decimal import Decimal
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import CurrentUserDep, DbSessionDep, require_permission
+from app.payments.customer_status import customer_status_detail, customer_status_label
 from app.payments.providers import ProviderError
 from app.payments.registry import ProviderRegistry
 from app.api.v1.provider_views import catalog_response
 from app.models.payment import Transaction
 from app.schemas.payment import (
+    MerchantPaymentSummaryResponse,
     PaymentAttemptResponse,
     PaymentCreate,
+    PaymentReceiptResponse,
+    PaymentRepeatRequest,
     PaymentResponse,
     ProviderCatalogResponse,
     ProviderCatalogUpdate,
@@ -77,6 +84,12 @@ def _payment_response(transaction: Transaction) -> PaymentResponse:
         till_name=getattr(till, "name", None),
         created_at=getattr(transaction, "created_at", None),
         completed_at=transaction.completed_at,
+        customer_status=customer_status_label(
+            transaction.status.value if hasattr(transaction.status, "value") else str(transaction.status)
+        ),
+        status_detail=customer_status_detail(
+            transaction.status.value if hasattr(transaction.status, "value") else str(transaction.status)
+        ),
     )
 
 
@@ -193,9 +206,29 @@ async def list_my_payments(
     service: PaymentServiceDep,
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    merchant_id: UUID | None = Query(default=None),
+    status: str | None = Query(default=None),
+    reference: str | None = Query(default=None),
+    q: str | None = Query(default=None),
+    amount_min: Decimal | None = Query(default=None),
+    amount_max: Decimal | None = Query(default=None),
+    created_from: datetime | None = Query(default=None),
+    created_to: datetime | None = Query(default=None),
 ) -> list[PaymentResponse]:
     try:
-        rows = await service.list_my_payments(current_user, limit=limit, offset=offset)
+        rows = await service.list_my_payments(
+            current_user,
+            limit=limit,
+            offset=offset,
+            merchant_id=merchant_id,
+            status=status,
+            reference=reference,
+            query_text=q,
+            amount_min=amount_min,
+            amount_max=amount_max,
+            created_from=created_from,
+            created_to=created_to,
+        )
     except PaymentError as exc:
         raise _error(exc) from exc
     return [_payment_response(row) for row in rows]
@@ -211,12 +244,38 @@ async def list_merchant_payments(
     service: PaymentServiceDep,
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    status: str | None = Query(default=None),
+    reference: str | None = Query(default=None),
+    q: str | None = Query(default=None),
 ) -> list[PaymentResponse]:
     try:
-        rows = await service.list_merchant_payments(current_user, limit=limit, offset=offset)
+        rows = await service.list_merchant_payments(
+            current_user,
+            limit=limit,
+            offset=offset,
+            status=status,
+            reference=reference,
+            query_text=q,
+        )
     except PaymentError as exc:
         raise _error(exc) from exc
     return [_payment_response(row) for row in rows]
+
+
+@router.get(
+    "/summary",
+    response_model=MerchantPaymentSummaryResponse,
+    dependencies=[Depends(require_permission("transactions:read"))],
+)
+async def merchant_payment_summary(
+    current_user: CurrentUserDep,
+    service: PaymentServiceDep,
+) -> MerchantPaymentSummaryResponse:
+    try:
+        payload = await service.merchant_summary(current_user)
+    except PaymentError as exc:
+        raise _error(exc) from exc
+    return MerchantPaymentSummaryResponse(**payload)
 
 
 @router.post(
@@ -300,6 +359,44 @@ async def provider_capabilities(provider_code: str) -> dict[str, object]:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
         ) from exc
+
+
+@router.post(
+    "/{reference}/repeat",
+    response_model=PaymentResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_permission("transactions:create"))],
+)
+async def repeat_payment(
+    reference: str,
+    payload: PaymentRepeatRequest,
+    current_user: CurrentUserDep,
+    service: PaymentServiceDep,
+) -> PaymentResponse:
+    try:
+        transaction = await service.repeat_payment(
+            current_user, reference, payload.model_dump(exclude_none=True)
+        )
+    except PaymentError as exc:
+        raise _error(exc) from exc
+    return _payment_response(transaction)
+
+
+@router.get(
+    "/{reference}/receipt",
+    response_model=PaymentReceiptResponse,
+    dependencies=[Depends(require_permission("transactions:read"))],
+)
+async def get_payment_receipt(
+    reference: str,
+    current_user: CurrentUserDep,
+    service: PaymentServiceDep,
+) -> PaymentReceiptResponse:
+    try:
+        payload = await service.get_receipt(current_user, reference)
+    except PaymentError as exc:
+        raise _error(exc) from exc
+    return PaymentReceiptResponse(**payload)
 
 
 @router.get(

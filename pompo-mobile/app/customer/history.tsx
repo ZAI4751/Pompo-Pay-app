@@ -3,9 +3,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, RefreshControl, Text, View } from "react-native";
 
 import { PaymentRow } from "@/components/activity";
+import { GlassInput } from "@/components/glass";
 import { BottomNav } from "@/components/nav";
 import { EmptyState, ErrorBanner, Screen, Title, useTheme } from "@/components/ui";
 import { groupLabel } from "@/format";
+import { cachedPayments, isOffline, markOffline, markOnline, rememberPayments } from "@/offline/cache";
 import { useAuth } from "@/state/AuthProvider";
 import type { Payment } from "@/types";
 
@@ -17,21 +19,40 @@ export default function HistoryScreen() {
   const [error, setError] = useState<{ message: string; requestId?: string } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("");
+
   const load = useCallback(async () => {
     setRefreshing(true);
-    const result = await api.listMyPayments();
+    const result = await api.listMyPayments({
+      q: query.trim() || undefined,
+      status: status || undefined,
+    });
     setRefreshing(false);
     if (!result.ok) {
+      if (result.error.kind === "network") {
+        markOffline();
+        const cached = cachedPayments();
+        if (cached.length) {
+          setRows(cached);
+          setError({ message: "You're offline. Showing the last payments loaded on this device." });
+          return;
+        }
+      }
       setError({ message: result.error.message, requestId: result.error.requestId });
       return;
     }
+    markOnline();
+    rememberPayments(result.data);
     setError(null);
     setRows(result.data);
-  }, [api]);
+  }, [api, query, status]);
 
   useEffect(() => {
     void load();
-  }, [load]);
+    // Search text is applied on submit/refresh; status changes reload immediately.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api, status]);
 
   const grouped = useMemo(() => {
     const items: ({ type: "header"; title: string } | { type: "row"; item: Payment; last: boolean })[] = [];
@@ -54,7 +75,31 @@ export default function HistoryScreen() {
       <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 8 }}>
         <Title>Activity</Title>
         <Text style={{ color: theme.subtle, marginTop: 4, marginBottom: 12 }}>Your POMPO payments</Text>
-        {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
+        <GlassInput
+          placeholder="Search merchant or reference"
+          value={query}
+          onChangeText={setQuery}
+          onSubmitEditing={() => void load()}
+          style={{ marginBottom: 8 }}
+        />
+        <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+          {["", "success", "failed", "processing"].map((value) => (
+            <Text
+              key={value || "all"}
+              onPress={() => setStatus(value)}
+              style={{
+                color: status === value ? theme.primary : theme.muted,
+                fontWeight: "700",
+                fontSize: 12,
+              }}
+            >
+              {value === "" ? "All" : value}
+            </Text>
+          ))}
+        </View>
+        {isOffline() || error ? (
+          <ErrorBanner message={error?.message ?? "Connection problem"} requestId={error?.requestId} />
+        ) : null}
         <FlatList
           data={grouped}
           keyExtractor={(entry, index) =>

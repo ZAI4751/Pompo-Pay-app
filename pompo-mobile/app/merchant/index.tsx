@@ -7,7 +7,7 @@ import { FadeIn, HeroCard, PressScale } from "@/components/glass";
 import { BottomNav, ModeSwitch } from "@/components/nav";
 import { Card, ErrorBanner, Greeting, Screen, useTheme } from "@/components/ui";
 import { useAuth } from "@/state/AuthProvider";
-import type { Merchant, Payment } from "@/types";
+import type { Merchant, MerchantSummary, Payment } from "@/types";
 
 export default function MerchantHome() {
   const theme = useTheme();
@@ -15,6 +15,7 @@ export default function MerchantHome() {
   const router = useRouter();
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [recent, setRecent] = useState<Payment[]>([]);
+  const [summary, setSummary] = useState<MerchantSummary | null>(null);
   const [error, setError] = useState<{ message: string; requestId?: string } | null>(null);
   const firstName = user?.full_name.split(" ")[0] ?? "there";
 
@@ -32,6 +33,11 @@ export default function MerchantHome() {
     void api.listMerchantPayments().then((result) => {
       if (result.ok) {
         setRecent(result.data.slice(0, 5));
+      }
+    });
+    void api.merchantSummary().then((result) => {
+      if (result.ok) {
+        setSummary(result.data);
       }
     });
   }, [api, user?.merchant_id]);
@@ -67,6 +73,11 @@ export default function MerchantHome() {
                 {merchant?.name ?? "Your merchant"}
               </Text>
               <Text style={{ color: theme.muted }}>{user?.full_name}</Text>
+              {summary ? (
+                <Text style={{ color: theme.subtle, marginTop: 8 }}>
+                  Today: {summary.payments_today} successful · {summary.total_today} {summary.currency}
+                </Text>
+              ) : null}
             </Card>
           </FadeIn>
           <FadeIn delay={90}>

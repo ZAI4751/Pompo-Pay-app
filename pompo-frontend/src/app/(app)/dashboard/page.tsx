@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Plug,
   Store,
+  Users,
   Wallet,
   XCircle,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import { merchantsService } from "@/lib/api/services/merchants";
 import { branchesService } from "@/lib/api/services/branches";
 import { healthService } from "@/lib/api/services/health";
 import { paymentsService } from "@/lib/api/services/payments";
+import { customersService, type CustomerStats } from "@/lib/api/services/customers";
 import { transactionsService } from "@/lib/api/services/transactions";
 import { USE_MOCKS } from "@/lib/api/config";
 import { formatCompactCount, formatCompactMwk } from "@/lib/format/money";
@@ -50,6 +52,7 @@ export default function DashboardPage() {
   const [branchTotal, setBranchTotal] = useState<number | null>(null);
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [providers, setProviders] = useState<PaymentProvider[] | null>(null);
+  const [customerStats, setCustomerStats] = useState<CustomerStats | null>(null);
   const [period, setPeriod] = useState<OpsPeriod>("7d");
   const [metric, setMetric] = useState<"volume" | "count">("volume");
 
@@ -75,6 +78,13 @@ export default function DashboardPage() {
     });
     void paymentsService.listProviders().then((result) => {
       setProviders(result.status === "success" ? result.data : []);
+    });
+    void customersService.stats().then((result) => {
+      setCustomerStats(
+        result.status === "success"
+          ? result.data
+          : { customer_count: 0, payment_requests: {}, support_open_count: 0 },
+      );
     });
     if (USE_MOCKS) {
       void transactionsService.list().then((result) => {
@@ -196,6 +206,20 @@ export default function DashboardPage() {
               value={`${liveProviders}/${providerList.length}`}
               icon={Plug}
               hint="GET /payments/providers"
+            />
+          )}
+        </StaggerItem>
+        <StaggerItem>
+          {customerStats === null ? (
+            <MetricSkeleton />
+          ) : (
+            <MetricCard
+              label="Customers"
+              value={String(customerStats.customer_count)}
+              numericValue={customerStats.customer_count}
+              formatNumeric={(n) => String(Math.round(n))}
+              icon={Users}
+              hint="GET /customers/stats"
             />
           )}
         </StaggerItem>

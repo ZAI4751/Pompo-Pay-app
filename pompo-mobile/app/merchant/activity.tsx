@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, RefreshControl, Text, View } from "react-native";
 
 import { PaymentRow } from "@/components/activity";
+import { GlassInput } from "@/components/glass";
 import { BottomNav } from "@/components/nav";
 import { EmptyState, ErrorBanner, Screen, Title, useTheme } from "@/components/ui";
 import { mapPaymentStatus } from "@/domain/paymentStatus";
@@ -16,10 +17,15 @@ export default function MerchantActivity() {
   const [rows, setRows] = useState<Payment[]>([]);
   const [error, setError] = useState<{ message: string; requestId?: string } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("");
 
   const load = useCallback(async () => {
     setRefreshing(true);
-    const result = await api.listMerchantPayments();
+    const result = await api.listMerchantPayments({
+      q: query.trim() || undefined,
+      status: status || undefined,
+    });
     setRefreshing(false);
     if (!result.ok) {
       setError({ message: result.error.message, requestId: result.error.requestId });
@@ -27,11 +33,13 @@ export default function MerchantActivity() {
     }
     setError(null);
     setRows(result.data);
-  }, [api]);
+  }, [api, query, status]);
 
   useEffect(() => {
     void load();
-  }, [load]);
+    // Search text is applied on submit/refresh; status changes reload immediately.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api, status]);
 
   const incoming = useMemo(
     () => rows.filter((row) => mapPaymentStatus(row.status) === "success").length,
@@ -45,6 +53,28 @@ export default function MerchantActivity() {
         <Text style={{ color: theme.subtle, marginTop: 4, marginBottom: 12 }}>
           {incoming} settled payments in this list
         </Text>
+        <GlassInput
+          placeholder="Search reference or description"
+          value={query}
+          onChangeText={setQuery}
+          onSubmitEditing={() => void load()}
+          style={{ marginBottom: 8 }}
+        />
+        <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+          {["", "success", "failed", "processing"].map((value) => (
+            <Text
+              key={value || "all"}
+              onPress={() => setStatus(value)}
+              style={{
+                color: status === value ? theme.primary : theme.muted,
+                fontWeight: "700",
+                fontSize: 12,
+              }}
+            >
+              {value === "" ? "All" : value}
+            </Text>
+          ))}
+        </View>
         {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
         <FlatList
           data={rows}

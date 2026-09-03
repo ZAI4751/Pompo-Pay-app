@@ -27,6 +27,7 @@ from app.models import (
     PaymentAttempt,
     PaymentProvider,
     QRCode,
+    Receipt,
     Till,
     Transaction,
     User,
@@ -91,6 +92,7 @@ class PaymentService:
         *,
         require_merchant_scope: bool = True,
         api_client: IntegrationClient | None = None,
+        commit: bool = True,
     ) -> Transaction:
         merchant_id = values["merchant_id"]
         if api_client is not None:
@@ -190,6 +192,10 @@ class PaymentService:
                 merchant_id=api_client.merchant_id if api_client is not None else None,
                 api_client_id=api_client.id if api_client is not None else None,
             )
+        if not commit:
+            await self._session.flush()
+            await self._session.refresh(transaction, attribute_names=["attempts"])
+            return transaction
         try:
             await self._session.commit()
         except IntegrityError:
@@ -245,17 +251,28 @@ class PaymentService:
         *,
         limit: int = 50,
         offset: int = 0,
+        status: str | None = None,
+        reference: str | None = None,
+        query_text: str | None = None,
     ) -> list[Transaction]:
         await self._require(actor, "transactions:read")
         if await self._is_platform_admin(actor):
             raise PaymentInvalidError("Platform administrators must use merchant-scoped admin tools")
         if actor.merchant_id is None:
             raise PaymentForbiddenError("Merchant context is required")
+        if status:
+            try:
+                TransactionStatus(status)
+            except ValueError as exc:
+                raise PaymentInvalidError("Unknown payment status") from exc
         return await self._transactions.list_for_merchant(
             actor.merchant_id,
             branch_id=actor.branch_id,
             limit=min(limit, 100),
             offset=max(offset, 0),
+            status=status,
+            reference=reference,
+            query_text=query_text,
         )
 
     async def list_my_payments(
@@ -264,11 +281,124 @@ class PaymentService:
         *,
         limit: int = 50,
         offset: int = 0,
+        merchant_id: uuid.UUID | None = None,
+        status: str | None = None,
+        reference: str | None = None,
+        query_text: str | None = None,
+        amount_min: Any = None,
+        amount_max: Any = None,
+        created_from: datetime | None = None,
+        created_to: datetime | None = None,
     ) -> list[Transaction]:
         await self._require(actor, "transactions:read")
+        if status:
+            try:
+                TransactionStatus(status)
+            except ValueError as exc:
+                raise PaymentInvalidError("Unknown payment status") from exc
         return await self._transactions.list_initiated_by(
-            actor.id, limit=min(limit, 100), offset=max(offset, 0)
+            actor.id,
+            limit=min(limit, 100),
+            offset=max(offset, 0),
+            merchant_id=merchant_id,
+            status=status,
+            reference=reference,
+            query_text=query_text,
+            amount_min=amount_min,
+            amount_max=amount_max,
+            created_from=created_from,
+            created_to=created_to,
         )
+
+    async def merchant_summary(self, actor: User) -> dict[str, Any]:
+        await self._require(actor, "transactions:read")
+        if actor.merchant_id is None:
+            raise PaymentForbiddenError("Merchant context is required")
+        today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        count, total, all_time = await self._transactions.merchant_summary(
+            actor.merchant_id, since=today, branch_id=actor.branch_id
+        )
+        return {
+            "merchant_id": actor.merchant_id,
+            "payments_today": count,
+            "total_today": total,
+            "successful_all_time": all_time,
+            "currency": "MWK",
+        }
+
+    async def repeat_payment(self, actor: User, reference: str, values: dict[str, Any]) -> Transaction:
+        await self._require(actor, "transactions:create")
+        original = await self._transactions.get_active_by_reference(reference)
+        if original is None:
+            raise PaymentNotFoundError("Payment not found")
+        if original.cashier_id != actor.id:
+            raise PaymentForbiddenError("Payment is outside actor scope")
+        if original.status is not TransactionStatus.SUCCESS:
+            raise PaymentInvalidError("Only a successful payment can be repeated")
+        await self._validate_destination(original.merchant_id, original.branch_id, original.till_id)
+        payment_values = {
+            "merchant_id": original.merchant_id,
+            "branch_id": original.branch_id,
+            "till_id": original.till_id,
+            "amount": values.get("amount") or original.amount,
+            "currency": original.currency,
+            "payment_method": values.get("payment_method") or original.payment_method,
+            "provider_code": values.get("provider_code"),
+            "customer_phone": values.get("customer_phone") or original.customer_phone,
+            "description": original.description,
+            "idempotency_key": values["idempotency_key"],
+        }
+        transaction = await self.create_payment(actor, payment_values, require_merchant_scope=False)
+        if transaction.reference == original.reference:
+            raise PaymentConflictError("Repeat payment reused the original transaction")
+        await self._audit(
+            actor,
+            "payment_repeated",
+            transaction.id,
+            {"source_reference": original.reference},
+            {"reference": transaction.reference, "source_reference": original.reference},
+        )
+        await self._session.commit()
+        logger.info(
+            "payment_repeated",
+            source_reference=original.reference,
+            reference=transaction.reference,
+            user_id=str(actor.id),
+        )
+        return transaction
+
+    async def get_receipt(self, actor: User, reference: str) -> dict[str, Any]:
+        transaction = await self.get_payment(actor, reference)
+        if transaction.status is not TransactionStatus.SUCCESS:
+            raise PaymentInvalidError("A receipt is only available for a successful payment")
+        receipt = transaction.receipt
+        if receipt is None:
+            receipt = await self._ensure_receipt(transaction)
+            await self._session.commit()
+            await self._session.refresh(transaction, attribute_names=["receipt", "merchant", "branch", "till"])
+            receipt = transaction.receipt
+        from app.payments.customer_status import customer_status_detail, customer_status_label
+
+        merchant = getattr(transaction, "merchant", None)
+        branch = getattr(transaction, "branch", None)
+        till = getattr(transaction, "till", None)
+        return {
+            "title": "PAYMENT RECEIPT",
+            "receipt_number": receipt.receipt_number if receipt is not None else f"RCPT-{transaction.reference}",
+            "reference": transaction.reference,
+            "merchant_name": getattr(merchant, "name", None),
+            "branch_name": getattr(branch, "name", None),
+            "till_name": getattr(till, "name", None),
+            "amount": transaction.amount,
+            "currency": transaction.currency,
+            "status": transaction.status.value,
+            "customer_status": customer_status_label(transaction.status.value),
+            "status_detail": customer_status_detail(transaction.status.value),
+            "issued_at": receipt.issued_at if receipt is not None else transaction.completed_at or datetime.now(UTC),
+            "completed_at": transaction.completed_at,
+            "description": transaction.description,
+            "disclaimer": "This is a POMPO payment receipt, not a tax invoice or wallet statement.",
+        }
 
     async def transition_payment(
         self,
@@ -602,6 +732,9 @@ class PaymentService:
                 TransactionStatus.TIMEOUT,
             }:
                 transaction.completed_at = datetime.now(UTC)
+            if next_status is TransactionStatus.SUCCESS:
+                await self._ensure_receipt(transaction)
+        await self._on_status_changed(transaction, target)
 
     @staticmethod
     def _attempt_status(outcome: ProviderOutcome) -> PaymentAttemptStatus:
@@ -684,6 +817,133 @@ class PaymentService:
             if attempt < 4:
                 await asyncio.sleep(0.02)
         raise PaymentConflictError("Payment request conflicts with an existing transaction")
+
+    async def _ensure_receipt(self, transaction: Transaction) -> Receipt:
+        existing = transaction.receipt
+        if existing is not None:
+            return existing
+        from sqlalchemy import select as sql_select
+
+        loaded = await self._session.scalar(
+            sql_select(Receipt).where(Receipt.transaction_id == transaction.id)
+        )
+        if loaded is not None:
+            return loaded
+        receipt = Receipt(
+            transaction_id=transaction.id,
+            receipt_number=f"RCPT-{transaction.reference}",
+            issued_at=datetime.now(UTC),
+            extra_data={"kind": "payment_receipt"},
+        )
+        self._session.add(receipt)
+        transaction.receipt = receipt
+        await self._session.flush()
+        return receipt
+
+    async def _on_status_changed(self, transaction: Transaction, target: TransactionStatus) -> None:
+        if target is TransactionStatus.SUCCESS:
+            from app.services.payment_request import PaymentRequestService
+
+            await PaymentRequestService(self._session).fulfill_if_matching(transaction)
+        if target in {
+            TransactionStatus.SUCCESS,
+            TransactionStatus.FAILED,
+            TransactionStatus.TIMEOUT,
+            TransactionStatus.PENDING,
+            TransactionStatus.PROCESSING,
+        }:
+            await self._notify_payment_status(transaction, target)
+
+    async def _notify_payment_status(
+        self, transaction: Transaction, target: TransactionStatus
+    ) -> None:
+        from app.models.enums import NotificationType
+        from app.services.notification import NotificationService
+
+        notify = NotificationService(self._session)
+        payer_id = transaction.cashier_id
+        reference = transaction.reference
+        if payer_id is not None:
+            if target is TransactionStatus.SUCCESS:
+                await notify.record(
+                    user_id=payer_id,
+                    notification_type=NotificationType.PAYMENT_SUCCESS,
+                    title="Payment successful",
+                    body="Your POMPO payment completed successfully.",
+                    event_key=f"payment_success:{reference}:{payer_id}",
+                    entity_type="payment",
+                    entity_id=reference,
+                    payment_reference=reference,
+                )
+            elif target is TransactionStatus.FAILED:
+                await notify.record(
+                    user_id=payer_id,
+                    notification_type=NotificationType.PAYMENT_FAILED,
+                    title="Payment failed",
+                    body="Your POMPO payment did not go through.",
+                    event_key=f"payment_failed:{reference}:{payer_id}",
+                    entity_type="payment",
+                    entity_id=reference,
+                    payment_reference=reference,
+                )
+            elif target in {TransactionStatus.PENDING, TransactionStatus.PROCESSING, TransactionStatus.TIMEOUT}:
+                ntype = (
+                    NotificationType.PAYMENT_PENDING
+                    if target is not TransactionStatus.TIMEOUT
+                    else NotificationType.PAYMENT_FAILED
+                )
+                title = (
+                    "Payment timed out"
+                    if target is TransactionStatus.TIMEOUT
+                    else "Payment update"
+                )
+                body = (
+                    "We haven't received a final response yet."
+                    if target is TransactionStatus.TIMEOUT
+                    else "Your payment is being processed."
+                )
+                await notify.record(
+                    user_id=payer_id,
+                    notification_type=ntype,
+                    title=title,
+                    body=body,
+                    event_key=f"payment_{target.value}:{reference}:{payer_id}",
+                    entity_type="payment",
+                    entity_id=reference,
+                    payment_reference=reference,
+                )
+        if target in {TransactionStatus.SUCCESS, TransactionStatus.FAILED} and transaction.merchant_id:
+            staff = await self._session.scalars(
+                select(User).where(
+                    User.merchant_id == transaction.merchant_id,
+                    User.deleted_at.is_(None),
+                    User.is_active.is_(True),
+                )
+            )
+            merchant_type = (
+                NotificationType.MERCHANT_PAYMENT_RECEIVED
+                if target is TransactionStatus.SUCCESS
+                else NotificationType.MERCHANT_PAYMENT_FAILED
+            )
+            title = "Payment received" if target is TransactionStatus.SUCCESS else "Payment failed"
+            body = (
+                "A customer payment was received."
+                if target is TransactionStatus.SUCCESS
+                else "A customer payment failed."
+            )
+            for user in staff:
+                if payer_id is not None and user.id == payer_id:
+                    continue
+                await notify.record(
+                    user_id=user.id,
+                    notification_type=merchant_type,
+                    title=title,
+                    body=body,
+                    event_key=f"merchant_{target.value}:{reference}:{user.id}",
+                    entity_type="payment",
+                    entity_id=reference,
+                    payment_reference=reference,
+                )
 
     async def _require(self, actor: User, permission: str) -> None:
         if not await self._authorization.has_permission(actor, permission):

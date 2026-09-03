@@ -33,3 +33,15 @@ class RefreshSessionRepository(BaseRepository[RefreshSession]):
             .values(revoked_at=datetime.now(timezone.utc))
         )
         await self._session.execute(stmt)
+
+    async def revoke_all_for_user(self, user_id: uuid.UUID) -> None:
+        """Revoke every still-active refresh session for a user."""
+        stmt = (
+            update(RefreshSession)
+            .where(
+                RefreshSession.user_id == user_id,
+                RefreshSession.revoked_at.is_(None),
+            )
+            .values(revoked_at=datetime.now(timezone.utc))
+        )
+        await self._session.execute(stmt)

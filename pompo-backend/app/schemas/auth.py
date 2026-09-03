@@ -26,6 +26,19 @@ class LogoutRequest(BaseModel):
     refresh_token: str = Field(min_length=1)
 
 
+class ChangePasswordRequest(BaseModel):
+    """POST /auth/change-password request body."""
+
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=8, max_length=72)
+
+
+class LogoutAllRequest(BaseModel):
+    """POST /auth/logout-all request body. Refresh token is optional extra revoke."""
+
+    refresh_token: str | None = Field(default=None, min_length=1)
+
+
 class TokenResponse(BaseModel):
     """Access + refresh token pair returned by login and refresh."""
 

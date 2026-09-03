@@ -71,6 +71,115 @@ export interface Payment {
   till_name: string | null;
   created_at: string | null;
   completed_at: string | null;
+  customer_status?: string | null;
+  status_detail?: string | null;
+}
+
+export interface PaymentReceipt {
+  title: string;
+  receipt_number: string;
+  reference: string;
+  merchant_name: string | null;
+  branch_name: string | null;
+  till_name: string | null;
+  amount: string;
+  currency: string;
+  status: string;
+  customer_status: string;
+  status_detail: string;
+  issued_at: string;
+  completed_at: string | null;
+  description: string | null;
+  disclaimer: string;
+}
+
+export interface FavoriteMerchant {
+  merchant_id: string;
+  merchant_name: string;
+  is_favorite: boolean;
+  last_paid_at: string | null;
+  last_payment_reference?: string | null;
+  payment_count: number;
+  is_active: boolean;
+}
+
+export interface PaymentRequest {
+  id: string;
+  public_identifier: string;
+  share_code: string;
+  requester_id: string;
+  requester_name: string | null;
+  payer_user_id: string | null;
+  merchant_id: string;
+  merchant_name: string | null;
+  branch_name: string | null;
+  till_name: string | null;
+  amount: string;
+  currency: string;
+  description: string | null;
+  status: string;
+  expires_at: string | null;
+  paid_at: string | null;
+  payment_reference: string | null;
+  bill_split_id: string | null;
+  created_at: string | null;
+}
+
+export interface CustomerInsight {
+  payments_this_week: number;
+  spent_this_week: string;
+  payments_this_month: number;
+  spent_this_month: string;
+  payment_count: number;
+  spent_total: string;
+  most_used_merchants: { merchant_id: string; merchant_name: string; payment_count: number }[];
+  disclaimer: string;
+}
+
+export interface AppNotification {
+  id: string;
+  public_identifier: string;
+  notification_type: string;
+  title: string;
+  body: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  payment_reference: string | null;
+  read_at: string | null;
+  created_at: string | null;
+}
+
+export interface NotificationList {
+  unread_count: number;
+  items: AppNotification[];
+}
+
+export interface SupportTicket {
+  id: string;
+  public_identifier: string;
+  category: string;
+  subject: string;
+  message: string;
+  payment_reference: string | null;
+  status: string;
+  created_at: string | null;
+}
+
+export interface MerchantSummary {
+  merchant_id: string;
+  payments_today: number;
+  total_today: string;
+  successful_all_time: number;
+  currency: string;
+}
+
+export interface CustomerRegisterResponse extends TokenResponse {
+  user_id: string;
+  email: string;
+  full_name: string;
+  phone: string | null;
+  role_code: string;
+  phone_verification: string;
 }
 
 export interface Merchant {

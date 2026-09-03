@@ -7,21 +7,31 @@ import { FadeIn, HeroCard, IconWell, PressScale } from "@/components/glass";
 import { BottomNav, ModeSwitch } from "@/components/nav";
 import { Greeting, Screen, useTheme } from "@/components/ui";
 import { useAuth } from "@/state/AuthProvider";
-import { useAppMode } from "@/state/ModeProvider";
-import type { Payment } from "@/types";
+import type { CustomerInsight, FavoriteMerchant, Payment } from "@/types";
 
 export default function CustomerHome() {
   const theme = useTheme();
   const { user, api } = useAuth();
-  const { canSwitch, setMode } = useAppMode();
   const router = useRouter();
   const firstName = user?.full_name.split(" ")[0] ?? "there";
   const [recent, setRecent] = useState<Payment[]>([]);
+  const [merchants, setMerchants] = useState<FavoriteMerchant[]>([]);
+  const [insights, setInsights] = useState<CustomerInsight | null>(null);
 
   useEffect(() => {
     void api.listMyPayments().then((result) => {
       if (result.ok) {
         setRecent(result.data.slice(0, 5));
+      }
+    });
+    void api.listMyMerchants().then((result) => {
+      if (result.ok) {
+        setMerchants(result.data.slice(0, 4));
+      }
+    });
+    void api.insights().then((result) => {
+      if (result.ok) {
+        setInsights(result.data);
       }
     });
   }, [api]);
@@ -58,19 +68,43 @@ export default function CustomerHome() {
             <View style={styles.actions}>
               <ActionTile label="Scan" icon="scan-outline" onPress={() => router.push("/customer/scan")} />
               <ActionTile label="Activity" icon="time-outline" onPress={() => router.push("/customer/history")} />
-              <ActionTile label="Profile" icon="person-outline" onPress={() => router.push("/customer/profile")} />
-              {canSwitch ? (
-                <ActionTile
-                  label="Till"
-                  icon="storefront-outline"
-                  onPress={() => {
-                    setMode("merchant");
-                    router.replace("/merchant");
-                  }}
-                />
-              ) : null}
+              <ActionTile label="Requests" icon="send-outline" onPress={() => router.push("/customer/requests/index")} />
+              <ActionTile label="Inbox" icon="notifications-outline" onPress={() => router.push("/customer/notifications")} />
             </View>
           </FadeIn>
+          {insights ? (
+            <FadeIn delay={90}>
+              <View style={[styles.list, { backgroundColor: theme.surface, borderColor: theme.border, padding: 16, gap: 6 }]}>
+                <Text style={{ color: theme.subtle, fontSize: 11, fontWeight: "800" }}>THIS WEEK</Text>
+                <Text style={{ color: theme.text, fontWeight: "800" }}>
+                  {insights.payments_this_week} payments · {insights.spent_this_week} MWK
+                </Text>
+                <Text style={{ color: theme.subtle, fontSize: 12 }}>{insights.disclaimer}</Text>
+              </View>
+            </FadeIn>
+          ) : null}
+          {merchants.length ? (
+            <FadeIn delay={100}>
+              <SectionHeader title="Merchants" action="See all" onAction={() => router.push("/customer/merchants")} />
+              <View style={[styles.list, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                {merchants.map((merchant, index) => (
+                  <View
+                    key={merchant.merchant_id}
+                    style={{
+                      padding: 14,
+                      borderBottomWidth: index === merchants.length - 1 ? 0 : 1,
+                      borderBottomColor: theme.border,
+                    }}
+                  >
+                    <Text style={{ color: theme.text, fontWeight: "700" }}>{merchant.merchant_name}</Text>
+                    <Text style={{ color: theme.subtle, fontSize: 12 }}>
+                      {merchant.payment_count} payments{merchant.is_favorite ? " · Favourite" : ""}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </FadeIn>
+          ) : null}
           <FadeIn delay={110}>
             <SectionHeader title="Recent activity" action="See all" onAction={() => router.push("/customer/history")} />
             <View style={[styles.list, { backgroundColor: theme.surface, borderColor: theme.border }]}>

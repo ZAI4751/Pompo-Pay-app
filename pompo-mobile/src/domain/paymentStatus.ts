@@ -48,3 +48,25 @@ export function paymentStatusLabel(status: string): string {
       return "Needs confirmation";
   }
 }
+
+export function paymentStatusDetail(status: string, serverDetail?: string | null): string {
+  if (serverDetail && serverDetail.trim()) {
+    return serverDetail;
+  }
+  switch (mapPaymentStatus(status)) {
+    case "success":
+      return "This payment completed successfully.";
+    case "failed":
+      return status === "cancelled" ? "This payment was cancelled." : "This payment did not go through.";
+    case "timeout":
+      return "We haven't received a final response yet.";
+    case "processing":
+      return "Your payment is being processed.";
+    case "pending":
+      return "We're waiting for the payment to continue.";
+    case "awaiting_confirmation":
+      return "Your payment is ready to start.";
+    default:
+      return "We're checking the payment status.";
+  }
+}

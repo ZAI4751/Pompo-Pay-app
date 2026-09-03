@@ -9,6 +9,9 @@ interface AuthState {
   user: AuthenticatedUser | null;
   api: PompoApi;
   login: (email: string, password: string) => Promise<{ ok: true } | { ok: false; message: string }>;
+  register: (
+    input: { email: string; password: string; full_name: string; phone?: string },
+  ) => Promise<{ ok: true } | { ok: false; message: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -43,6 +46,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       api,
       async login(email, password) {
         const tokens = await api.login(email.trim(), password);
+        if (!tokens.ok) {
+          return { ok: false, message: tokens.error.message };
+        }
+        const me = await api.me();
+        if (!me.ok) {
+          await api.logout();
+          return { ok: false, message: me.error.message };
+        }
+        setUser(me.data);
+        return { ok: true };
+      },
+      async register(input) {
+        const tokens = await api.register(input);
         if (!tokens.ok) {
           return { ok: false, message: tokens.error.message };
         }

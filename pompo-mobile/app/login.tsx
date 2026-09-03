@@ -3,7 +3,7 @@ import { useState } from "react";
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from "react-native";
 
 import { Atmosphere, FadeIn, GlassInput, HeroCard } from "@/components/glass";
-import { ErrorBanner, PrimaryButton, useTheme } from "@/components/ui";
+import { ErrorBanner, PrimaryButton, SecondaryButton, useTheme } from "@/components/ui";
 import { defaultMode } from "@/domain/roles";
 import { useAuth } from "@/state/AuthProvider";
 
@@ -76,6 +76,7 @@ export default function LoginScreen() {
             router.replace("/");
           }}
         />
+        <SecondaryButton label="Create a customer account" onPress={() => router.push("/register")} />
       </View>
     </KeyboardAvoidingView>
   );

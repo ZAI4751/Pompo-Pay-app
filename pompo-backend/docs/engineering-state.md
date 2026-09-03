@@ -1,15 +1,19 @@
 # POMPO Engineering State
 
 ## CURRENT MILESTONE
-M014 Airtel Money Malawi is the first live external rail: OAuth client
-credentials, Collection initiation/status, M010 callback adapter, sandbox vs
-production host separation, and catalog enable/disable without making Airtel
-the unconditional default.
+M015 Customer Product & Everyday Utility: customer self-registration,
+recent merchants, Pay Again, payment requests / bill splits as merchant-payment
+instructions, receipts, favorites, in-app notifications, search, support,
+and lightweight insights. POMPO is not a wallet and does not hold stored
+customer currency.
 
-Do not start TNM, bank integrations, or M015.
+Do not start TNM, bank integrations, POS expansion, or a major mobile visual
+redesign.
 
 The operational chain remains Merchant → Branch → Till → Provider → Payment
 → Transaction → Payment Attempt.
+
+See `docs/m015-customer-product.md`.
 
 ## COMPLETED MILESTONES
 M001 backend foundation; M002 domain model and database; M003 authentication;
@@ -23,7 +27,8 @@ simulated variants, and Master Admin wiring.
 M008 outbound HTTP client, credential-reference resolution, sandbox/production
 gating, and admin contract-readiness visibility.
 M009 QR payments; M010 inbound webhooks; M011 settlement/reconciliation;
-M012 unified mobile app; M013 POS / developer platform.
+M012 unified mobile app; M013 POS / developer platform;
+M014 Airtel Money Malawi; M015 customer product / everyday utility.
 
 ## CURRENT ARCHITECTURE
 FastAPI routes use dependencies, services, repositories, and async SQLAlchemy.
@@ -40,8 +45,11 @@ PaymentService → select_provider → ProviderRegistry → ProviderAdapter
 ```
 
 ## DATABASE STATE
-PostgreSQL migration graph head is `0015_m014_airtel_malawi` (parent
-`0014_m013_webhook_endpoints`).
+PostgreSQL migration graph head is `0016_m015_customer_product` (parent
+`0015_m014_airtel_malawi`).
+M015 adds customer preferences, merchant favorites, payment requests, bill
+splits, in-app notifications, support requests, and a partial unique index
+on active user phones.
 M008 required no schema change; attempt correlation metadata fits in existing
 `provider_request` / `provider_response` JSON.
 `0008` adds `provider_type`, `health_state`, `config_refs` on
@@ -114,10 +122,10 @@ RBAC: `providers:read` (also `transactions:read` for catalog reads),
 Merchants cannot change global rails.
 
 ## USER ADMINISTRATION
-Deferred. A platform administrator (or any actor with `transactions:create`
-in the correct merchant/branch/till scope) can exercise the payment chain.
-There is still no user-directory CRUD API. Role assignment remains
-`PUT /rbac/users/{user_id}/role` for a known user id.
+Customers can self-register at `POST /customers/register` (email/password,
+existing JWT sessions). SMS phone verification is `not_configured`.
+Role assignment remains `PUT /rbac/users/{user_id}/role` for a known user id.
+There is still no general user-directory CRUD API.
 
 ## PAYMENT API COMPLETENESS
 Usable by future POS/mobile clients for create, get-by-reference, cancel, and
@@ -125,7 +133,8 @@ process against simulated or Airtel-backed adapters once merchant, branch, till,
 and an active catalog provider exist. `provider_code` may be omitted to use
 deterministic routing. Airtel is not the global default.
 
-Deferred: payment/transaction list and search, refunds, TNM, and bank HTTP adapters.
+Deferred: refunds, TNM, and bank HTTP adapters. Customer history search is
+`GET /payments/mine`. Merchant activity search is `GET /payments`.
 
 `QR_GENERATED` and `PENDING_USER_PIN` remain enum values for a future QR/PIN
 checkout. They are not in `TRANSITIONS` and cannot be applied.
@@ -144,8 +153,8 @@ and hashed API keys (`/api-keys`).
 Effective permissions are loaded from `GET /rbac/roles/{role_id}`
 (`permission_codes`). `/auth/me` still does not return permission codes.
 
-MOCK / NOT YET AVAILABLE: user directory, payment/transaction list,
-audit logs, reports, TNM and bank live adapters.
+MOCK / NOT YET AVAILABLE: user directory, audit logs, reports, TNM and bank
+live adapters.
 
 `NEXT_PUBLIC_USE_MOCKS=true` is opt-in demo mode. The default is live API.
 Local Master Admin sign-in uses a seeded platform administrator; the frontend
@@ -203,9 +212,8 @@ live rails. Sandbox provider seeding must never run in production.
 Financial idempotency is PostgreSQL, not Redis.
 
 ## NEXT MILESTONE
-Insert the first live provider mapper only after an authoritative contract
-(endpoints, auth, payloads, signatures, sandbox vs production hosts) is added
-to the repository. Do not invent Airtel, TNM, or bank APIs.
+Do not start TNM, bank integrations, POS expansion, or a major mobile visual
+redesign from M015.
 
 Also outstanding:
 - `transactions:refund` permission exists with no refund route or service method.
@@ -213,7 +221,6 @@ Also outstanding:
   HTTP endpoint.
 - `/auth/me` still omits effective permission codes; the admin loads them from
   `GET /rbac/roles/{role_id}` instead.
-- There is no user-directory API and no payment list/search API.
+- SMS OTP and push notification vendors are not configured.
 - Provider retries are operator/client re-invocations of `POST .../process`,
-  not a Celery worker (out of scope until webhooks exist).
-- Full webhook ingestion, settlement, and reconciliation remain later.
+  not a Celery worker for payment processing.

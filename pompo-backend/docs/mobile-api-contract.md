@@ -43,7 +43,7 @@ the original payment. A different fingerprint with the same key is `409`.
 | Pay from QR | POST | `/payments/from-qr` | `transactions:create` | `{payload, idempotency_key, amount?}` | `201` payment. `amount` required for **static** only. Dynamic amount is server-authoritative; a client amount that differs is `422`. |
 | Process | POST | `/payments/{reference}/process` | `transactions:update` | — | Runs PaymentService + simulated/live provider |
 | Status | GET | `/payments/{reference}` | `transactions:read` | — | Payer (`cashier_id`) or same-merchant staff |
-| History | GET | `/payments/mine` | `transactions:read` | `limit`, `offset` | Payments initiated by the current user |
+| History | GET | `/payments/mine` | `transactions:read` | `q`, `status`, `reference`, `merchant_id`, `amount_min`, `amount_max`, `created_from`, `created_to`, `limit`, `offset` | Payments initiated by the current user |
 | Cancel | POST | `/payments/{reference}/cancel` | `transactions:cancel` | — | Existing state machine |
 
 Direct `POST /payments` remains a merchant POS create. Customers receive `403`
@@ -71,6 +71,25 @@ incompatible mobile-only financial states.
 
 ## Gaps not invented in mobile
 
-- Customer self-registration is not part of M012. Provision users via Master Admin / `users:create` with the `customer` role.
+- SMS phone verification is `not_configured`. See `docs/m015-customer-product.md`.
 - Push notifications, wallets, and stored cards are out of scope.
 - Settlement and webhook administration stay in Master Admin.
+
+## M015 customer convenience
+
+| Flow | Method | Path | Auth | Notes |
+|---|---|---|---|---|
+| Register | POST | `/customers/register` | none | Email/password. Returns JWT pair. `phone_verification=not_configured`. |
+| Change password | POST | `/auth/change-password` | access | Current password required |
+| Logout all | POST | `/auth/logout-all` | access | Revokes all refresh sessions |
+| Repeat pay | POST | `/payments/{reference}/repeat` | `transactions:create` | New payment. Does not reuse the old transaction. |
+| Receipt | GET | `/payments/{reference}/receipt` | `transactions:read` | PAYMENT RECEIPT, not a tax invoice |
+| Merchants | GET | `/customers/me/merchants` | access | Recent + favourites from real payments |
+| Favourite | POST/DELETE | `/customers/me/favorites` | access | Merchant bookmark only |
+| Insights | GET | `/customers/me/insights` | access | Completed payments only; not a bank statement |
+| Payment request | POST/GET | `/payment-requests` | `transactions:create`/`read` | Instruction to pay a merchant till |
+| Public inspect | GET | `/payment-requests/public/{id}` | none | Safe destination/amount/status |
+| Pay request | POST | `/payment-requests/{id}/pay` | `transactions:create` | Creates a new PaymentService payment |
+| Bill split | POST | `/payment-requests/splits` | `transactions:create` | N child requests; amounts must equal total |
+| Notifications | GET | `/notifications` | access | In-app inbox; not push |
+| Support | POST | `/support-requests` | access | Lightweight report, not a ticketing platform |

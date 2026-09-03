@@ -32,6 +32,16 @@ jest.mock("@/state/AuthProvider", () => ({
         },
       }),
       listMerchantPayments: async () => ({ ok: true, data: [] }),
+      merchantSummary: async () => ({
+        ok: true,
+        data: {
+          merchant_id: "m1",
+          payments_today: 0,
+          total_today: "0.00",
+          successful_all_time: 0,
+          currency: "MWK",
+        },
+      }),
     },
     logout: jest.fn(),
     login: jest.fn(),

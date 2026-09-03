@@ -33,6 +33,14 @@ from app.models.settlement import (
     Settlement,
     SettlementBatch,
 )
+from app.models.customer import (
+    AppNotification,
+    BillSplit,
+    CustomerPreference,
+    MerchantFavorite,
+    PaymentRequest,
+    SupportRequest,
+)
 
 __all__ = [
     "Base",
@@ -60,4 +68,10 @@ __all__ = [
     "Settlement",
     "ReconciliationRun",
     "ReconciliationRecord",
+    "CustomerPreference",
+    "MerchantFavorite",
+    "BillSplit",
+    "PaymentRequest",
+    "AppNotification",
+    "SupportRequest",
 ]

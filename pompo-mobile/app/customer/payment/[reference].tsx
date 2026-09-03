@@ -4,7 +4,7 @@ import { Share, Text, View } from "react-native";
 
 import { AmountDisplay, FadeIn, InitialsAvatar, StatusPill } from "@/components/glass";
 import { Card, ErrorBanner, formatMoney, PrimaryButton, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
-import { mapPaymentStatus, paymentStatusLabel } from "@/domain/paymentStatus";
+import { mapPaymentStatus, paymentStatusDetail, paymentStatusLabel } from "@/domain/paymentStatus";
 import { formatWhen } from "@/format";
 import { useAuth } from "@/state/AuthProvider";
 import type { Payment } from "@/types";
@@ -54,6 +54,9 @@ export default function CustomerPaymentDetail() {
               </Text>
             ) : null}
             <AmountDisplay value={formatMoney(payment.amount, payment.currency)} />
+            <Text style={{ color: theme.muted, marginTop: 8 }}>
+              {payment.status_detail || paymentStatusDetail(payment.status)}
+            </Text>
             <View style={{ gap: 6, marginTop: 8 }}>
               <Text style={{ color: theme.subtle }}>Reference {payment.reference}</Text>
               {payment.created_at ? (
@@ -72,13 +75,29 @@ export default function CustomerPaymentDetail() {
           onPress={() =>
             void Share.share({
               message: [
-                "POMPO receipt",
+                "POMPO PAYMENT RECEIPT",
                 payment.merchant_name ?? "Merchant",
                 formatMoney(payment.amount, payment.currency),
                 paymentStatusLabel(payment.status),
                 `Reference ${payment.reference}`,
               ].join("\n"),
             })
+          }
+        />
+      ) : null}
+      {payment && mapPaymentStatus(payment.status) === "success" ? (
+        <SecondaryButton
+          label="Pay again"
+          onPress={() =>
+            router.push({ pathname: "/customer/repeat/[reference]", params: { reference: payment.reference } })
+          }
+        />
+      ) : null}
+      {payment ? (
+        <SecondaryButton
+          label="Ask for a share"
+          onPress={() =>
+            router.push({ pathname: "/customer/requests/index", params: { from: payment.reference } })
           }
         />
       ) : null}

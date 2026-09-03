@@ -14,6 +14,16 @@ class UserRepository(BaseRepository[User]):
 
     model = User
 
+    async def get_by_phone(self, phone: str) -> User | None:
+        """Fetch an active user by phone, or None."""
+        stmt = (
+            select(User)
+            .options(selectinload(User.role))
+            .where(User.phone == phone, User.deleted_at.is_(None))
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_by_email(self, email: str) -> User | None:
         """Fetch an active (non-soft-deleted) user by email, or None."""
         stmt = (

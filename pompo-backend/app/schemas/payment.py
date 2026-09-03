@@ -72,11 +72,47 @@ class PaymentResponse(BaseModel):
     till_name: str | None = None
     created_at: datetime | None = None
     completed_at: datetime | None = None
+    customer_status: str | None = None
+    status_detail: str | None = None
 
 
 class PaymentTransition(BaseModel):
     status: str
     failure_reason: str | None = Field(default=None, max_length=500)
+
+
+class PaymentRepeatRequest(BaseModel):
+    idempotency_key: str = Field(min_length=1, max_length=128)
+    amount: Decimal | None = Field(default=None, gt=0, max_digits=18, decimal_places=2)
+    payment_method: str | None = Field(default=None, min_length=1, max_length=32)
+    customer_phone: str | None = Field(default=None, max_length=32)
+    provider_code: str | None = Field(default=None, max_length=32)
+
+
+class PaymentReceiptResponse(BaseModel):
+    title: str = "PAYMENT RECEIPT"
+    receipt_number: str
+    reference: str
+    merchant_name: str | None
+    branch_name: str | None
+    till_name: str | None
+    amount: Decimal
+    currency: str
+    status: str
+    customer_status: str
+    status_detail: str
+    issued_at: datetime
+    completed_at: datetime | None
+    description: str | None = None
+    disclaimer: str = "This is a POMPO payment receipt, not a tax invoice or wallet statement."
+
+
+class MerchantPaymentSummaryResponse(BaseModel):
+    merchant_id: uuid.UUID
+    payments_today: int
+    total_today: Decimal
+    successful_all_time: int
+    currency: str = "MWK"
 
 
 class ProviderCapabilityResponse(BaseModel):

@@ -25,6 +25,7 @@ import {
   Activity,
   Landmark,
   Scale,
+  LifeBuoy,
 } from "lucide-react";
 
 export interface NavItem {
@@ -57,6 +58,7 @@ export const navGroups: NavGroup[] = [
       { label: "Webhooks", href: "/webhooks", icon: Webhook, permission: "webhooks:read" },
       { label: "Settlements", href: "/settlements", icon: Landmark, permission: "settlements:read" },
       { label: "Reconciliation", href: "/reconciliation", icon: Scale, permission: "reconciliation:read" },
+      { label: "Support", href: "/support", icon: LifeBuoy, permission: "users:read" },
       { label: "Exceptions", href: "/exceptions", icon: AlertOctagon, comingSoon: true },
     ],
   },

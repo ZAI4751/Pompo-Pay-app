@@ -47,6 +47,8 @@ jest.mock("@/state/AuthProvider", () => ({
           },
         ],
       }),
+      listMyMerchants: async () => ({ ok: true, data: [] }),
+      insights: async () => ({ ok: false, error: { kind: "unavailable", message: "skip" } }),
     },
     logout: jest.fn(),
     login: jest.fn(),

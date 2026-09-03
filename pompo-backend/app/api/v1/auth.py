@@ -12,6 +12,7 @@ from app.core.security.exceptions import (
 )
 from app.schemas.auth import (
     AuthenticatedUserResponse,
+    ChangePasswordRequest,
     LoginRequest,
     LogoutRequest,
     RefreshRequest,
@@ -104,3 +105,24 @@ async def get_me(current_user: CurrentUserDep) -> AuthenticatedUserResponse:
         role_code=role.code if role is not None else "",
         is_active=current_user.is_active,
     )
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    payload: ChangePasswordRequest,
+    current_user: CurrentUserDep,
+    auth_service: AuthServiceDep,
+) -> None:
+    try:
+        await auth_service.change_password(
+            current_user, payload.current_password, payload.new_password
+        )
+    except InvalidCredentialsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect current password"
+        ) from exc
+
+
+@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+async def logout_all(current_user: CurrentUserDep, auth_service: AuthServiceDep) -> None:
+    await auth_service.logout_all(current_user)

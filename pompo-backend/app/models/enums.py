@@ -242,3 +242,52 @@ class UserRoleCode(str, enum.Enum):
     MERCHANT_OWNER = "merchant_owner"
     BRANCH_MANAGER = "branch_manager"
     CASHIER = "cashier"
+    CUSTOMER = "customer"
+
+
+class PaymentRequestStatus(str, enum.Enum):
+    """Lifecycle of a shareable payment instruction. Not a stored balance."""
+
+    PENDING = "pending"
+    PAID = "paid"
+    CANCELLED = "cancelled"
+    EXPIRED = "expired"
+
+
+class BillSplitStatus(str, enum.Enum):
+    """Aggregate state derived from child payment requests."""
+
+    PENDING = "pending"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    EXPIRED = "expired"
+
+
+class NotificationType(str, enum.Enum):
+    """In-app notification event types corresponding to real POMPO events."""
+
+    PAYMENT_SUCCESS = "payment_success"
+    PAYMENT_FAILED = "payment_failed"
+    PAYMENT_PENDING = "payment_pending"
+    PAYMENT_REQUEST_RECEIVED = "payment_request_received"
+    PAYMENT_REQUEST_PAID = "payment_request_paid"
+    PAYMENT_REQUEST_EXPIRING = "payment_request_expiring"
+    PAYMENT_REQUEST_EXPIRED = "payment_request_expired"
+    MERCHANT_PAYMENT_RECEIVED = "merchant_payment_received"
+    MERCHANT_PAYMENT_FAILED = "merchant_payment_failed"
+
+
+class SupportRequestStatus(str, enum.Enum):
+    """Lightweight support request lifecycle. Not a ticketing platform."""
+
+    OPEN = "open"
+    CLOSED = "closed"
+
+
+class SupportCategory(str, enum.Enum):
+    """Why a customer opened a support request."""
+
+    PAYMENT_PROBLEM = "payment_problem"
+    REPORT_TRANSACTION = "report_transaction"
+    REFERENCE_LOOKUP = "reference_lookup"
+    OTHER = "other"

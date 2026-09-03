@@ -230,6 +230,33 @@ class AuthService:
             session_row.revoked_at = _utcnow()
             await self._session.commit()
 
+    async def issue_session_tokens(
+        self,
+        user: User,
+        *,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
+    ) -> AuthTokens:
+        """Issue a refresh session without committing. Used by registration."""
+        return await self._issue_new_session(
+            user, family_id=None, user_agent=user_agent, ip_address=ip_address
+        )
+
+    async def change_password(
+        self, user: User, current_password: str, new_password: str
+    ) -> None:
+        """Replace the password hash after verifying the current password."""
+        if not self._password_hasher.verify(current_password, user.hashed_password):
+            raise InvalidCredentialsError("Incorrect password")
+        user.hashed_password = self._password_hasher.hash(new_password)
+        await self._refresh_sessions.revoke_all_for_user(user.id)
+        await self._session.commit()
+
+    async def logout_all(self, user: User) -> None:
+        """Revoke every refresh session for the user."""
+        await self._refresh_sessions.revoke_all_for_user(user.id)
+        await self._session.commit()
+
     # ------------------------------------------------------------------
     # Current user (access token -> User)
     # ------------------------------------------------------------------

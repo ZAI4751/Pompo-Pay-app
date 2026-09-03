@@ -3,12 +3,21 @@ import type { TokenStore } from "@/auth/secureStorage";
 import type {
   ApiErrorKind,
   ApiResult,
+  AppNotification,
   AuthenticatedUser,
   Branch,
+  CustomerInsight,
+  CustomerRegisterResponse,
+  FavoriteMerchant,
   Merchant,
+  MerchantSummary,
+  NotificationList,
   Payment,
+  PaymentReceipt,
+  PaymentRequest,
   QrInspect,
   QrRecord,
+  SupportTicket,
   Till,
   TokenResponse,
 } from "@/types";
@@ -91,6 +100,35 @@ export class PompoApi {
     return result;
   }
 
+  async register(input: {
+    email: string;
+    password: string;
+    full_name: string;
+    phone?: string;
+  }): Promise<ApiResult<CustomerRegisterResponse>> {
+    const result = await this.request<CustomerRegisterResponse>("/customers/register", {
+      method: "POST",
+      body: input,
+      auth: false,
+    });
+    if (result.ok) {
+      await this.deps.store.setTokens(result.data.access_token, result.data.refresh_token);
+    }
+    return result;
+  }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<ApiResult<void>> {
+    return this.request<void>("/auth/change-password", {
+      method: "POST",
+      body: { current_password: currentPassword, new_password: newPassword },
+      acceptEmpty: true,
+    });
+  }
+
+  async logoutAll(): Promise<ApiResult<void>> {
+    return this.request<void>("/auth/logout-all", { method: "POST", acceptEmpty: true });
+  }
+
   async logout(): Promise<void> {
     const refresh = await this.deps.store.getRefreshToken();
     if (refresh) {
@@ -137,12 +175,129 @@ export class PompoApi {
     return this.request<Payment>(`/payments/${encodeURIComponent(reference)}`);
   }
 
-  listMyPayments(): Promise<ApiResult<Payment[]>> {
-    return this.request<Payment[]>("/payments/mine");
+  listMyPayments(params?: {
+    q?: string;
+    status?: string;
+    reference?: string;
+  }): Promise<ApiResult<Payment[]>> {
+    const query = new URLSearchParams();
+    if (params?.q) query.set("q", params.q);
+    if (params?.status) query.set("status", params.status);
+    if (params?.reference) query.set("reference", params.reference);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return this.request<Payment[]>(`/payments/mine${suffix}`);
   }
 
-  listMerchantPayments(): Promise<ApiResult<Payment[]>> {
-    return this.request<Payment[]>("/payments");
+  listMerchantPayments(params?: {
+    q?: string;
+    status?: string;
+    reference?: string;
+  }): Promise<ApiResult<Payment[]>> {
+    const query = new URLSearchParams();
+    if (params?.q) query.set("q", params.q);
+    if (params?.status) query.set("status", params.status);
+    if (params?.reference) query.set("reference", params.reference);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return this.request<Payment[]>(`/payments${suffix}`);
+  }
+
+  merchantSummary(): Promise<ApiResult<MerchantSummary>> {
+    return this.request<MerchantSummary>("/payments/summary");
+  }
+
+  repeatPayment(reference: string, idempotencyKey: string): Promise<ApiResult<Payment>> {
+    return this.request<Payment>(`/payments/${encodeURIComponent(reference)}/repeat`, {
+      method: "POST",
+      body: { idempotency_key: idempotencyKey },
+    });
+  }
+
+  getReceipt(reference: string): Promise<ApiResult<PaymentReceipt>> {
+    return this.request<PaymentReceipt>(`/payments/${encodeURIComponent(reference)}/receipt`);
+  }
+
+  listMyMerchants(): Promise<ApiResult<FavoriteMerchant[]>> {
+    return this.request<FavoriteMerchant[]>("/customers/me/merchants");
+  }
+
+  addFavorite(merchantId: string): Promise<ApiResult<FavoriteMerchant>> {
+    return this.request<FavoriteMerchant>("/customers/me/favorites", {
+      method: "POST",
+      body: { merchant_id: merchantId },
+    });
+  }
+
+  removeFavorite(merchantId: string): Promise<ApiResult<void>> {
+    return this.request<void>(`/customers/me/favorites/${encodeURIComponent(merchantId)}`, {
+      method: "DELETE",
+      acceptEmpty: true,
+    });
+  }
+
+  insights(): Promise<ApiResult<CustomerInsight>> {
+    return this.request<CustomerInsight>("/customers/me/insights");
+  }
+
+  listPaymentRequests(): Promise<ApiResult<PaymentRequest[]>> {
+    return this.request<PaymentRequest[]>("/payment-requests");
+  }
+
+  inspectPaymentRequest(publicId: string): Promise<ApiResult<PaymentRequest>> {
+    return this.request<PaymentRequest>(`/payment-requests/public/${encodeURIComponent(publicId)}`, {
+      auth: false,
+    });
+  }
+
+  createPaymentRequest(body: {
+    amount: string;
+    description?: string;
+    source_payment_reference?: string;
+    merchant_id?: string;
+    branch_id?: string;
+    till_id?: string;
+    idempotency_key: string;
+  }): Promise<ApiResult<PaymentRequest>> {
+    return this.request<PaymentRequest>("/payment-requests", { method: "POST", body });
+  }
+
+  createBillSplit(body: {
+    total_amount: string;
+    description?: string;
+    source_payment_reference?: string;
+    participants: { amount: string; label?: string }[];
+    idempotency_key: string;
+  }): Promise<ApiResult<{ public_identifier: string; requests: PaymentRequest[] }>> {
+    return this.request("/payment-requests/splits", { method: "POST", body });
+  }
+
+  cancelPaymentRequest(publicId: string): Promise<ApiResult<PaymentRequest>> {
+    return this.request<PaymentRequest>(`/payment-requests/${encodeURIComponent(publicId)}/cancel`, {
+      method: "POST",
+    });
+  }
+
+  payPaymentRequest(publicId: string, idempotencyKey: string): Promise<ApiResult<Payment>> {
+    return this.request<Payment>(`/payment-requests/${encodeURIComponent(publicId)}/pay`, {
+      method: "POST",
+      body: { idempotency_key: idempotencyKey },
+    });
+  }
+
+  listNotifications(): Promise<ApiResult<NotificationList>> {
+    return this.request<NotificationList>("/notifications");
+  }
+
+  markNotificationRead(id: string): Promise<ApiResult<AppNotification>> {
+    return this.request(`/notifications/${encodeURIComponent(id)}/read`, { method: "POST" });
+  }
+
+  createSupportRequest(body: {
+    category: string;
+    subject: string;
+    message: string;
+    payment_reference?: string;
+  }): Promise<ApiResult<SupportTicket>> {
+    return this.request<SupportTicket>("/support-requests", { method: "POST", body });
   }
 
   createStaticQr(body: { merchant_id: string; branch_id: string; till_id: string }): Promise<ApiResult<QrRecord>> {
