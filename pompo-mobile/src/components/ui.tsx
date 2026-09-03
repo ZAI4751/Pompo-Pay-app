@@ -64,6 +64,8 @@ export function PrimaryButton({
   return (
     <PressScale
       accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: isDisabled }}
       disabled={isDisabled}
       {...rest}
       style={[

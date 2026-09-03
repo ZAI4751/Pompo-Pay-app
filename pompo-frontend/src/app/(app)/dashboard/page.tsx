@@ -49,6 +49,7 @@ export default function DashboardPage() {
   const [providers, setProviders] = useState<PaymentProvider[] | null>(null);
   const [customerStats, setCustomerStats] = useState<CustomerStats | null>(null);
   const [webhookFailures, setWebhookFailures] = useState<number | null>(null);
+  const [webhookFailuresUnavailable, setWebhookFailuresUnavailable] = useState(false);
   const [reconSummary, setReconSummary] = useState<ReconciliationSummary | null>(null);
   const [settlementSummary, setSettlementSummary] = useState<SettlementSummary | null>(null);
 
@@ -84,7 +85,13 @@ export default function DashboardPage() {
       );
     });
     void webhooksService.list({ processing_status: "failed", limit: 50 }).then((result) => {
-      setWebhookFailures(result.status === "success" ? result.data.length : 0);
+      if (result.status === "success") {
+        setWebhookFailuresUnavailable(false);
+        setWebhookFailures(result.data.length);
+        return;
+      }
+      setWebhookFailures(null);
+      setWebhookFailuresUnavailable(true);
     });
     void reconciliationService.summary().then((result) => {
       setReconSummary(result.status === "success" ? result.data : null);
@@ -254,7 +261,14 @@ export default function DashboardPage() {
           )}
         </StaggerItem>
         <StaggerItem>
-          {webhookFailures === null ? (
+          {webhookFailuresUnavailable ? (
+            <MetricCard
+              label="Failed webhooks"
+              value="—"
+              icon={Webhook}
+              hint="Unavailable — GET /webhooks?processing_status=failed"
+            />
+          ) : webhookFailures === null ? (
             <MetricSkeleton />
           ) : (
             <MetricCard

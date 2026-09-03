@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react-native";
+import { render, screen, waitFor } from "@testing-library/react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import PreviewScreen from "../app/customer/preview";
@@ -40,12 +40,14 @@ function session(overrides: Partial<CheckoutSession> = {}): CheckoutSession {
 
 let mockCheckout: CheckoutSession | null = session();
 const mockListPaymentMethods = jest.fn();
+const mockSelectPaymentMethod = jest.fn();
+const mockApi = { listPaymentMethods: mockListPaymentMethods };
 
 jest.mock("@/state/CheckoutProvider", () => ({
   useCheckout: () => ({
     session: mockCheckout,
     begin: jest.fn(),
-    selectPaymentMethod: jest.fn(),
+    selectPaymentMethod: mockSelectPaymentMethod,
     setPayment: jest.fn(),
     clear: jest.fn(),
   }),
@@ -53,9 +55,7 @@ jest.mock("@/state/CheckoutProvider", () => ({
 
 jest.mock("@/state/AuthProvider", () => ({
   useAuth: () => ({
-    api: {
-      listPaymentMethods: () => mockListPaymentMethods(),
-    },
+    api: mockApi,
   }),
 }));
 
@@ -78,6 +78,7 @@ describe("QR and payment screens", () => {
   beforeEach(() => {
     mockCheckout = session();
     mockListPaymentMethods.mockReset();
+    mockSelectPaymentMethod.mockReset();
     mockListPaymentMethods.mockResolvedValue({ ok: true, data: [chargeableMethod] });
   });
 
@@ -112,9 +113,41 @@ describe("QR and payment screens", () => {
         <ConfirmScreen />
       </SafeAreaProvider>,
     );
-    expect(await screen.findByText("Unable to load payment methods")).toBeTruthy();
-    expect(screen.getByText("Retry")).toBeTruthy();
+    expect(await screen.findByText("Retry")).toBeTruthy();
+    expect(screen.getByText(/Payment methods could not be loaded/)).toBeTruthy();
     expect(screen.queryByText("Add a payment method")).toBeNull();
+    expect(screen.queryByText("+ Add payment method")).toBeNull();
+    expect(screen.queryByText("Loading methods…")).toBeNull();
+    expect(screen.getByRole("button", { name: "PAY MWK 150.00" })).toBeDisabled();
+  });
+
+  it("shows an empty add-method state only after a successful empty load", async () => {
+    mockListPaymentMethods.mockResolvedValue({ ok: true, data: [] });
+    render(
+      <SafeAreaProvider>
+        <ConfirmScreen />
+      </SafeAreaProvider>,
+    );
+    expect(await screen.findByText("+ Add payment method")).toBeTruthy();
+    expect(screen.getByText("Add a payment method")).toBeTruthy();
+    expect(screen.queryByText("Retry")).toBeNull();
+  });
+
+  it("does not keep Pay enabled when the selected method is not chargeable", async () => {
+    mockListPaymentMethods.mockResolvedValue({
+      ok: true,
+      data: [{ ...chargeableMethod, status: "revoked" }],
+    });
+    render(
+      <SafeAreaProvider>
+        <ConfirmScreen />
+      </SafeAreaProvider>,
+    );
+    expect(await screen.findByText("Test Airtel Money")).toBeTruthy();
+    expect(await screen.findByText("Add a payment method")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "PAY MWK 150.00" })).toBeDisabled();
+    });
   });
 
   it("renders payment success from backend status", () => {

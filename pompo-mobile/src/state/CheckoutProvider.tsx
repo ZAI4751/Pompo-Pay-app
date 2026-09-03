@@ -1,5 +1,5 @@
 import { randomUUID } from "expo-crypto";
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 
 import type { Payment, QrInspect } from "@/types";
 
@@ -26,36 +26,49 @@ const CheckoutContext = createContext<CheckoutState | null>(null);
 export function CheckoutProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<CheckoutSession | null>(null);
 
+  const begin = useCallback((raw: string, inspect: QrInspect, amount: string) => {
+    const trimmed = raw.trim();
+    const isPayload = trimmed.startsWith("POMPO:");
+    setSession((current) => {
+      const sameQr = current?.inspect.public_identifier === inspect.public_identifier;
+      return {
+        payload: isPayload ? trimmed : sameQr ? current?.payload ?? null : null,
+        publicIdentifier: inspect.public_identifier,
+        inspect,
+        amount,
+        idempotencyKey: sameQr && current ? current.idempotencyKey : randomUUID(),
+        payment: null,
+        paymentMethodId: sameQr && current ? current.paymentMethodId : null,
+      };
+    });
+  }, []);
+
+  const selectPaymentMethod = useCallback((id: string | null) => {
+    setSession((current) => {
+      if (!current || current.paymentMethodId === id) {
+        return current;
+      }
+      return { ...current, paymentMethodId: id };
+    });
+  }, []);
+
+  const setPayment = useCallback((payment: Payment) => {
+    setSession((current) => (current ? { ...current, payment } : current));
+  }, []);
+
+  const clear = useCallback(() => {
+    setSession(null);
+  }, []);
+
   const value = useMemo<CheckoutState>(
     () => ({
       session,
-      begin(raw, inspect, amount) {
-        const trimmed = raw.trim();
-        const isPayload = trimmed.startsWith("POMPO:");
-        setSession((current) => {
-          const sameQr = current?.inspect.public_identifier === inspect.public_identifier;
-          return {
-            payload: isPayload ? trimmed : sameQr ? current?.payload ?? null : null,
-            publicIdentifier: inspect.public_identifier,
-            inspect,
-            amount,
-            idempotencyKey: sameQr && current ? current.idempotencyKey : randomUUID(),
-            payment: null,
-            paymentMethodId: sameQr && current ? current.paymentMethodId : null,
-          };
-        });
-      },
-      selectPaymentMethod(id) {
-        setSession((current) => (current ? { ...current, paymentMethodId: id } : current));
-      },
-      setPayment(payment) {
-        setSession((current) => (current ? { ...current, payment } : current));
-      },
-      clear() {
-        setSession(null);
-      },
+      begin,
+      selectPaymentMethod,
+      setPayment,
+      clear,
     }),
-    [session],
+    [session, begin, selectPaymentMethod, setPayment, clear],
   );
 
   return <CheckoutContext.Provider value={value}>{children}</CheckoutContext.Provider>;
