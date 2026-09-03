@@ -173,7 +173,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setUnauthorizedHandler(() => {
       clearSession();
-      router.push("/login");
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/p/")) {
+        router.push("/login");
+      }
     });
     return () => setUnauthorizedHandler(null);
   }, [clearSession, router]);

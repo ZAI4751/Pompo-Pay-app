@@ -45,6 +45,14 @@ export const qrService = {
     return apiRequest<QRInspect>(`/qr/${encodeURIComponent(publicIdentifier)}${query}`);
   },
 
+  async list(tillId?: string): Promise<ApiResult<QRCodeRecord[]>> {
+    if (USE_MOCKS) {
+      return { status: "success", data: [] };
+    }
+    const query = tillId ? `?till_id=${encodeURIComponent(tillId)}` : "";
+    return apiRequest<QRCodeRecord[]>(`/qr${query}`);
+  },
+
   async getAdmin(publicIdentifier: string): Promise<ApiResult<QRCodeRecord>> {
     if (USE_MOCKS) {
       return {

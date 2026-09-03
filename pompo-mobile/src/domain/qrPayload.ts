@@ -1,6 +1,7 @@
 const PUBLIC_ID = /^[A-Z0-9-]{8,32}$/;
 const PAYLOAD = /^POMPO:(\d+):(static|dynamic):([A-Z0-9-]{8,32}):/;
-const CANONICAL_URL = /^(?:https?:\/\/[^/]+)?\/p\/([A-Z0-9-]{8,32})(?:[/?#&]|$)/i;
+const CANONICAL_URL =
+  /^(?:(?:https?|pompo):\/\/(?:[^/]+\/p\/|p\/)|\/p\/|pompo:\/p\/)([A-Z0-9-]{8,32})(?:[/?#&]|$)/i;
 
 export type QrExtractResult =
   | { ok: true; publicIdentifier: string }

@@ -463,3 +463,39 @@ async def test_payment_from_universal_qr_url(session: AsyncSession) -> None:
     assert detail.amount == Decimal("12500.00")
     assert detail.merchant_id == merchant.id
     assert detail.till_id == till.id
+
+    # 8. Security verification: Tampering cannot bypass authorization or change destination
+    # Cannot pay without authorization / unknown actor
+    unauthed_role = Role(code=f"no_perms_{uuid.uuid4().hex[:6]}", name="No Permissions")
+    unauthenticated_user = User(
+        email="unauthed@example.com",
+        hashed_password="hash",
+        full_name="No Role User",
+        role=unauthed_role,
+        is_active=True,
+    )
+    session.add_all([unauthed_role, unauthenticated_user])
+    await session.commit()
+    await session.refresh(unauthenticated_user)
+
+    from app.services.qr import QRForbiddenError
+    with pytest.raises(QRForbiddenError):
+        await qr_service.initiate_payment_from_qr(
+            unauthenticated_user,
+            {
+                "public_identifier": static_qr.public_identifier,
+                "amount": Decimal("1000.00"),
+                "idempotency_key": f"unauth-{uuid.uuid4().hex}",
+            },
+        )
+
+    # Cannot tamper payload to route to another merchant or alter amount
+    tampered_payload = static_qr.payload + "TAMPERED"
+    with pytest.raises(QRInvalidError):
+        await qr_service.initiate_payment_from_qr(
+            customer,
+            {
+                "payload": tampered_payload,
+                "idempotency_key": f"tamper-sig-{uuid.uuid4().hex}",
+            },
+        )

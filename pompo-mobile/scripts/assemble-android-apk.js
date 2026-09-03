@@ -273,6 +273,16 @@ function hardenAndroidManifest() {
   } else {
     text = text.replace("<application ", '<application android:usesCleartextTraffic="false" ');
   }
+  if (!text.includes('android:host="pay.pompo.mw"')) {
+    const filter = `
+      <intent-filter android:autoVerify="true">
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="https" android:host="pay.pompo.mw" android:pathPrefix="/p/"/>
+      </intent-filter>`;
+    text = text.replace("</activity>", `${filter}\n    </activity>`);
+  }
   fs.writeFileSync(file, text);
 }
 

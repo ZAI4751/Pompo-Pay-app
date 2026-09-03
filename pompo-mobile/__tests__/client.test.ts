@@ -73,6 +73,26 @@ describe("PompoApi", () => {
     });
   });
 
+  it("sends publicIdentifier for payment initiation from universal URL", async () => {
+    const store = memoryStore({ access: "tok" });
+    let body: Record<string, unknown> | null = null;
+    const fetchImpl: typeof fetch = async (_input, init) => {
+      body = JSON.parse(String(init?.body));
+      return jsonResponse(201, { reference: "PMP-1", status: "pending", amount: "10.00" });
+    };
+    const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
+    await api.payFromQr({
+      publicIdentifier: "QRABC123456789",
+      idempotencyKey: "url-pay-123",
+      amount: "2500.00",
+    });
+    expect(body).toMatchObject({
+      public_identifier: "QRABC123456789",
+      idempotency_key: "url-pay-123",
+      amount: "2500.00",
+    });
+  });
+
   it("does not send amount for dynamic QR initiation", async () => {
     const store = memoryStore({ access: "tok" });
     let body: Record<string, unknown> | null = null;

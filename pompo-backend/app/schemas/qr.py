@@ -39,7 +39,7 @@ class DynamicQRCreate(BaseModel):
 
 class PaymentFromQRRequest(BaseModel):
     payload: str | None = Field(default=None, min_length=10, max_length=2000)
-    public_identifier: str | None = Field(default=None, min_length=8, max_length=40)
+    public_identifier: str | None = Field(default=None, min_length=1, max_length=256)
     idempotency_key: str = Field(min_length=1, max_length=128)
     amount: Decimal | None = Field(default=None, gt=0, max_digits=18, decimal_places=2)
     payment_method: str = Field(default="mobile_money", min_length=1, max_length=32)
@@ -47,6 +47,16 @@ class PaymentFromQRRequest(BaseModel):
     payment_instrument_id: str | None = Field(default=None, max_length=40)
     customer_phone: str | None = Field(default=None, max_length=32)
     description: str | None = Field(default=None, max_length=500)
+
+    @field_validator("public_identifier")
+    @classmethod
+    def clean_public_identifier(cls, value: str | None) -> str | None:
+        if not value:
+            return None
+        from app.qr.payload import extract_public_identifier
+
+        extracted = extract_public_identifier(value)
+        return extracted if extracted else value.strip().upper()
 
     @model_validator(mode="after")
     def require_payload_or_identifier(self) -> PaymentFromQRRequest:

@@ -53,6 +53,20 @@
             }
           ],
           "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "pompo",
+              "host": "p"
+            },
+            {
+              "scheme": "pompo",
+              "pathPrefix": "/p/"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
         }
       ]
     },

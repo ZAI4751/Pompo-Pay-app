@@ -22,12 +22,15 @@ _PAYLOAD_PATTERN = re.compile(
 )
 _PUBLIC_ID_PATTERN = re.compile(r"^[A-Z0-9-]{8,32}$")
 _URL_PATTERN = re.compile(
-    r"^(?:https?://[^/]+)?/p/([A-Z0-9-]{8,32})(?:[/?#].*)?$", re.IGNORECASE
+    r"^(?:(?:https?|pompo)://[^/]+)?/p/([A-Z0-9-]{8,32})(?:[/?#].*)?$", re.IGNORECASE
+)
+_SCHEME_PATTERN = re.compile(
+    r"^pompo:(?:/p/|//p/)([A-Z0-9-]{8,32})(?:[/?#].*)?$", re.IGNORECASE
 )
 
 
 def extract_public_identifier(raw: str) -> str | None:
-    """Extract public identifier from a raw string, URL, or legacy payload."""
+    """Extract public identifier from a raw string, URL, scheme, or legacy payload."""
     normalized = raw.strip()
     if not normalized:
         return None
@@ -36,6 +39,9 @@ def extract_public_identifier(raw: str) -> str | None:
     url_match = _URL_PATTERN.match(normalized)
     if url_match:
         return url_match.group(1).upper()
+    scheme_match = _SCHEME_PATTERN.match(normalized)
+    if scheme_match:
+        return scheme_match.group(1).upper()
     payload_match = _PAYLOAD_PATTERN.match(normalized)
     if payload_match:
         return payload_match.group(3)

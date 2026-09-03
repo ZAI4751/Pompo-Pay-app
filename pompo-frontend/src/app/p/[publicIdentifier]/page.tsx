@@ -16,12 +16,14 @@ import {
   WifiOff,
 } from "lucide-react";
 import { qrService } from "@/lib/api/services/qr";
+import { paymentsService } from "@/lib/api/services/payments";
 import { instrumentsService, type PaymentMethodCatalogItem } from "@/lib/api/services/instruments";
 import { authService } from "@/lib/api/services/auth";
 import { setAccessToken } from "@/lib/api/session";
 import { useAuth } from "@/lib/auth/AuthContext";
 import type { QRInspect } from "@/lib/types/qr";
 import type { Payment } from "@/lib/types/payment";
+import type { AuthenticatedUser } from "@/lib/types/auth";
 
 interface PageProps {
   params: Promise<{ publicIdentifier: string }>;
@@ -46,6 +48,8 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
   const publicId = rawPublicId.replace(/^.*\/p\//, "").replace(/[/?#].*$/, "").toUpperCase();
 
   const { user } = useAuth();
+  const [authCustomer, setAuthCustomer] = useState<AuthenticatedUser | null>(null);
+  const effectiveUser = user || authCustomer;
 
   const [phase, setPhase] = useState<CheckoutPhase>("loading");
   const [errorMessage, setErrorMessage] = useState("");
@@ -220,14 +224,55 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
         description: `Web QR payment to ${qr.merchant_name}`,
       };
 
-      const result = await qrService.payFromQR(payload);
+      // 1. Create payment from QR via backend
+      const initiateRes = await qrService.payFromQR(payload);
+      if (initiateRes.status === "error") {
+        setSubmittingPayment(false);
+        setErrorMessage(initiateRes.message);
+        setPhase("failure");
+        return;
+      }
+
+      let currentPayment = initiateRes.data;
+      setPaymentResult(currentPayment);
+
+      // 2. Real provider processing through backend
+      const isTerminal = (st: string) => st === "success" || st === "failed" || st === "cancelled";
+
+      if (!isTerminal(currentPayment.status)) {
+        const processRes = await paymentsService.process(currentPayment.reference);
+        if (processRes.status === "success") {
+          currentPayment = processRes.data;
+          setPaymentResult(currentPayment);
+        } else {
+          setSubmittingPayment(false);
+          setErrorMessage(processRes.message);
+          setPhase("failure");
+          return;
+        }
+      }
+
+      // 3. Poll until terminal state if pending (up to 8 attempts)
+      if (!isTerminal(currentPayment.status)) {
+        for (let i = 0; i < 8; i++) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          const pollRes = await paymentsService.getByReference(currentPayment.reference);
+          if (pollRes.status === "success") {
+            currentPayment = pollRes.data;
+            setPaymentResult(currentPayment);
+            if (isTerminal(currentPayment.status)) {
+              break;
+            }
+          }
+        }
+      }
+
       setSubmittingPayment(false);
 
-      if (result.status === "success") {
-        setPaymentResult(result.data);
+      if (currentPayment.status === "success") {
         setPhase("success");
       } else {
-        setErrorMessage(result.message);
+        setErrorMessage(currentPayment.failure_reason || `Payment finished with status: ${currentPayment.status}`);
         setPhase("failure");
       }
     } catch {
@@ -242,8 +287,8 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
     if (qr?.qr_type === "static" && !validateAmount(amountInput)) {
       return;
     }
-    // Check if user is authenticated
-    if (!user) {
+    // Check if customer is authenticated
+    if (!effectiveUser) {
       setAuthError("");
       setPhase("auth_required");
       return;
@@ -278,8 +323,11 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
 
         if (res.status === "success") {
           setAccessToken(res.data.access_token);
+          const meRes = await authService.me(res.data.access_token);
+          if (meRes.status === "success") {
+            setAuthCustomer(meRes.data);
+          }
           setPhase("ready");
-          // Proceed with payment immediately
           setTimeout(() => {
             void executePayment();
           }, 100);
@@ -295,6 +343,10 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
 
         if (res.status === "success") {
           setAccessToken(res.data.access_token);
+          const meRes = await authService.me(res.data.access_token);
+          if (meRes.status === "success") {
+            setAuthCustomer(meRes.data);
+          }
           setPhase("ready");
           setTimeout(() => {
             void executePayment();
@@ -686,11 +738,11 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
             </div>
 
             {/* Authenticated Customer Banner */}
-            {user ? (
+            {effectiveUser ? (
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 px-4 py-2.5 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 text-emerald-400">
                   <ShieldCheck className="w-4 h-4" />
-                  <span>Paying as <strong>{user.full_name || user.email}</strong></span>
+                  <span>Paying as <strong>{effectiveUser.full_name || effectiveUser.email}</strong></span>
                 </div>
                 <span className="text-slate-400 text-[11px]">Authorized</span>
               </div>
@@ -705,7 +757,7 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
                 className="w-full py-4 px-6 rounded-xl font-bold text-base bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white shadow-xl shadow-blue-600/30 transition-all flex items-center justify-center gap-2"
               >
                 <span>
-                  {user
+                  {effectiveUser
                     ? `Pay ${qr.qr_type === "dynamic" ? `${qr.currency} ${qr.amount}` : amountInput ? `MWK ${amountInput}` : "Now"}`
                     : "Continue to Pay"}
                 </span>

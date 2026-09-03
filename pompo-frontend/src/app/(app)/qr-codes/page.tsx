@@ -112,6 +112,20 @@ export default function QRCodesPage() {
     };
   }, [branchId]);
 
+  useEffect(() => {
+    if (!tillId || !canRead) return;
+    let cancelled = false;
+    void qrService.list(tillId).then((result) => {
+      if (cancelled) return;
+      if (result.status === "success") {
+        setRecords(result.data);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [tillId, canRead]);
+
   const merchants = merchantsResult?.status === "success" ? merchantsResult.data : [];
   const branches = branchesResult?.status === "success" ? branchesResult.data : [];
   const tills = tillsResult?.status === "success" ? tillsResult.data : [];

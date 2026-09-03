@@ -41,6 +41,14 @@ describe("extractPublicIdentifier", () => {
       ok: true,
       publicIdentifier: "QRABC123456789",
     });
+    expect(extractPublicIdentifier("pompo://p/QRABC123456789")).toEqual({
+      ok: true,
+      publicIdentifier: "QRABC123456789",
+    });
+    expect(extractPublicIdentifier("pompo://pay.pompo.mw/p/QRABC123456789")).toEqual({
+      ok: true,
+      publicIdentifier: "QRABC123456789",
+    });
   });
 
   it("rejects malformed codes", () => {
