@@ -4,7 +4,7 @@ Machine-readable status uses `PASS | FAIL | UNVERIFIED | WAIVER`.
 Fill the **Evidence** column with the command, URL, or test name that produced the result.
 
 Last updated: 2026-09-03  
-Commit: see `PHYSICAL-DEMO-REPORT.md` (stamped after certification commit)
+Commit: `465ec26712e5a5f35a61c2a468d2dea24db42c8c`
 
 Classification:
 

@@ -1,7 +1,7 @@
 # POMPO Physical Demonstration Lab — Certification Report
 
 Date: 2026-09-03  
-Commit SHA: _stamped after certification commit_  
+Commit SHA: `465ec26712e5a5f35a61c2a468d2dea24db42c8c`  
 Prior HEAD: `560a65b`
 
 This report certifies the **demonstration lab and automated path**. It does **not** claim that a human scanned a QR with a phone camera or Google Lens.
