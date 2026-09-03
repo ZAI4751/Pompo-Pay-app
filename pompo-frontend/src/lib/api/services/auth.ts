@@ -99,4 +99,32 @@ export const authService = {
     }
     return apiRequest<undefined>("/auth/logout-all", { method: "POST" });
   },
+
+  deactivateAccount(currentPassword: string, confirmation: string): Promise<ApiResult<undefined>> {
+    if (USE_MOCKS) {
+      return Promise.resolve({
+        status: "error",
+        kind: "unavailable",
+        message: "Demo mode cannot deactivate accounts. Sign in against the backend.",
+      });
+    }
+    return apiRequest<undefined>("/auth/deactivate-account", {
+      method: "POST",
+      body: { current_password: currentPassword, confirmation },
+    });
+  },
+
+  requestAccountReactivation(email: string): Promise<ApiResult<{ detail: string; email_delivery?: string }>> {
+    return apiRequest("/auth/reactivate-account/request", {
+      method: "POST",
+      body: { email },
+    });
+  },
+
+  reactivateAccount(token: string, password: string): Promise<ApiResult<TokenResponse>> {
+    return apiRequest<TokenResponse>("/auth/reactivate-account", {
+      method: "POST",
+      body: { token, password },
+    });
+  },
 };

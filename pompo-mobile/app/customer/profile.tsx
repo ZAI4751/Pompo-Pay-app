@@ -55,6 +55,10 @@ export default function CustomerProfile() {
                 >
                   {user?.is_email_verified ? "Verified ✓" : "Unverified"}
                 </Text>
+                <Text style={{ color: theme.subtle, fontSize: 12 }}>•</Text>
+                <Text style={{ color: theme.success, fontSize: 12, fontWeight: "700" }}>
+                  {(user?.account_status ?? "active").toUpperCase()}
+                </Text>
               </View>
             </View>
           </FadeIn>

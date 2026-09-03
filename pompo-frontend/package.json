@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test:checkout": "node --experimental-strip-types --test src/lib/checkout/publicCheckout.test.ts"
+    "test:checkout": "node --experimental-strip-types --test src/lib/checkout/publicCheckout.test.ts src/lib/customer/customerAccount.test.ts"
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",

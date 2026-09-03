@@ -197,6 +197,7 @@
 
 /* Public checkout stays on the light brand tokens even if Admin is dark. */
 .checkout-root {
+  overflow-x: hidden;
   color-scheme: light;
   --color-primary: #2563eb;
   --color-primary-hover: #1d4ed8;
@@ -240,7 +241,9 @@
     visibility: hidden !important;
   }
   #printable-till-sticker,
-  #printable-till-sticker * {
+  #printable-till-sticker *,
+  #pompo-receipt,
+  #pompo-receipt * {
     visibility: visible !important;
   }
   #printable-till-sticker {

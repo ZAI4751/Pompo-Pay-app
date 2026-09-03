@@ -13,7 +13,7 @@ import {
   supportTone,
 } from "@/components/settings/SettingPrimitives";
 import { DisplayThemeForm } from "@/components/settings/PreferenceForms";
-import { PasswordChangeForm, SessionRevokeForm } from "@/components/settings/SecurityForms";
+import { AccountLifecycleForm, PasswordChangeForm, SessionRevokeForm } from "@/components/settings/SecurityForms";
 import { NotificationPrefsForm } from "@/components/settings/PreferenceForms";
 import { PlatformConfigPanel } from "@/components/settings/PlatformConfigPanel";
 import { Badge } from "@/components/ui/Badge";
@@ -128,6 +128,7 @@ export function SecuritySettingsPage() {
     <SettingsShell title="Security" categoryId="security">
       <PasswordChangeForm />
       <SessionRevokeForm />
+      <AccountLifecycleForm />
       <PlatformConfigPanel
         title="Token and abuse controls"
         description="JWT lifetimes, algorithm, CORS, hosts, and rate limits as loaded from the environment. Secrets are omitted by the API."
@@ -226,7 +227,7 @@ export function UsersRolesSettingsPage() {
       <BackendGapCard
         title="User directory is not an API"
         contract="Missing: GET /api/v1/users · POST /api/v1/users · PATCH /api/v1/users/{id}"
-        detail="Role assignment exists at PUT /api/v1/rbac/users/{user_id}/role. Every user must retain one role. The Users screen documents this gap and does not invent a staff directory. Customer counts live on GET /customers/stats."
+        detail="Role assignment exists at PUT /api/v1/rbac/users/{user_id}/role. Every user must retain one role. Account lifecycle (ACTIVE / DEACTIVATED / SUSPENDED) is stored on the user row and returned by GET /auth/me, but there is no admin directory API to list or change other accounts. Customer counts live on GET /customers/stats."
       />
     </SettingsShell>
   );

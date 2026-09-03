@@ -35,6 +35,12 @@ export default function LoginPage() {
     const result = await login(email, password);
     setSubmitting(false);
     if (!result.ok) {
+      if (result.httpStatus === 403 || result.kind === "forbidden") {
+        setError("Your POMPO account is deactivated. Use reactivation to restore access.");
+        setErrorReference(result.requestId ?? null);
+        router.push("/reactivate");
+        return;
+      }
       setError(result.error ?? "Sign in failed. Check your credentials and try again.");
       setErrorReference(result.requestId ?? null);
       return;

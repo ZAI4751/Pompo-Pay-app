@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { useState } from "react";
 import { Text, View } from "react-native";
 
@@ -18,6 +18,9 @@ export default function SecurityScreen() {
   const [verifying, setVerifying] = useState(false);
   const [verifyToken, setVerifyToken] = useState("");
   const [verifyStatus, setVerifyStatus] = useState<string | null>(null);
+  const [deactivatePassword, setDeactivatePassword] = useState("");
+  const [deactivateConfirm, setDeactivateConfirm] = useState("");
+  const [deactivating, setDeactivating] = useState(false);
 
   return (
     <Screen padded={false}>
@@ -133,6 +136,54 @@ export default function SecurityScreen() {
             router.replace("/login");
           }}
         />
+
+        <Card>
+          <Text style={{ color: theme.text, fontWeight: "700" }}>Account status</Text>
+          <Text style={{ color: theme.success, fontSize: 13, fontWeight: "700" }}>
+            {(user?.account_status ?? "active").toUpperCase()}
+          </Text>
+          <Text style={{ color: theme.muted, fontSize: 13, lineHeight: 18 }}>
+            Deactivating stops account access, signs out every device, and stops payment use.
+            Payment history and receipts stay on file.
+          </Text>
+          <GlassInput
+            secureTextEntry
+            placeholder="Current password"
+            value={deactivatePassword}
+            onChangeText={setDeactivatePassword}
+          />
+          <GlassInput
+            autoCapitalize="characters"
+            placeholder="Type DEACTIVATE to confirm"
+            value={deactivateConfirm}
+            onChangeText={setDeactivateConfirm}
+          />
+          <PrimaryButton
+            label="Deactivate account"
+            loading={deactivating}
+            onPress={async () => {
+              setError(null);
+              setDone(null);
+              if (deactivateConfirm.trim() !== "DEACTIVATE") {
+                setError("Type DEACTIVATE to confirm.");
+                return;
+              }
+              if (!deactivatePassword) {
+                setError("Enter your current password.");
+                return;
+              }
+              setDeactivating(true);
+              const result = await api.deactivateAccount(deactivatePassword, deactivateConfirm.trim());
+              setDeactivating(false);
+              if (!result.ok) {
+                setError(result.error.message);
+                return;
+              }
+              await logout();
+              router.replace("/reactivate" as Href);
+            }}
+          />
+        </Card>
       </View>
     </Screen>
   );

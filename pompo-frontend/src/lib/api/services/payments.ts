@@ -1,7 +1,7 @@
 import { apiRequest } from "../client";
 import { USE_MOCKS } from "../config";
 import type { ApiResult } from "@/lib/types/common";
-import type { Payment, PaymentProvider } from "@/lib/types/payment";
+import type { Payment, PaymentProvider, PaymentReceipt } from "@/lib/types/payment";
 import { providersService } from "./providers";
 
 const LATENCY_MS = 300;
@@ -98,5 +98,27 @@ export const paymentsService = {
 
   listUnavailable(): ApiResult<never> {
     return LIST_UNAVAILABLE;
+  },
+
+  async listMine(): Promise<ApiResult<Payment[]>> {
+    if (USE_MOCKS) {
+      return {
+        status: "error",
+        kind: "unavailable",
+        message: "Demo mode cannot list your payments. Sign in against the backend.",
+      };
+    }
+    return apiRequest<Payment[]>("/payments/mine");
+  },
+
+  async getReceipt(reference: string): Promise<ApiResult<PaymentReceipt>> {
+    if (USE_MOCKS) {
+      return {
+        status: "error",
+        kind: "unavailable",
+        message: "Demo mode cannot load receipts. Sign in against the backend.",
+      };
+    }
+    return apiRequest<PaymentReceipt>(`/payments/${encodeURIComponent(reference)}/receipt`);
   },
 };

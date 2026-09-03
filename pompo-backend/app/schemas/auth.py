@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+from app.models.user import User
 
 
 class LoginRequest(BaseModel):
@@ -31,6 +34,30 @@ class ChangePasswordRequest(BaseModel):
 
     current_password: str = Field(min_length=1, max_length=256)
     new_password: str = Field(min_length=8, max_length=72)
+
+
+class DeactivateAccountRequest(BaseModel):
+    """POST /auth/deactivate-account request body.
+
+    ``confirmation`` must be the exact string ``DEACTIVATE``. A client-side
+    boolean is not accepted as proof of intent.
+    """
+
+    current_password: str = Field(min_length=1, max_length=256)
+    confirmation: str = Field(min_length=1, max_length=32)
+
+
+class ReactivateAccountRequestBody(BaseModel):
+    """POST /auth/reactivate-account/request request body."""
+
+    email: EmailStr
+
+
+class ReactivateAccountConfirmRequest(BaseModel):
+    """POST /auth/reactivate-account request body."""
+
+    token: str = Field(min_length=1, max_length=256)
+    password: str = Field(min_length=1, max_length=256)
 
 
 class LogoutAllRequest(BaseModel):
@@ -66,8 +93,31 @@ class AuthenticatedUserResponse(BaseModel):
     role_id: uuid.UUID
     role_code: str = ""
     is_active: bool
+    account_status: str = "active"
+    deactivated_at: datetime | None = None
+    reactivated_at: datetime | None = None
     is_email_verified: bool = False
     phone: str | None = None
+
+
+def authenticated_user_response(user: User) -> AuthenticatedUserResponse:
+    """Map a User ORM row to the public authenticated-user contract."""
+    role = user.role
+    return AuthenticatedUserResponse(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        merchant_id=user.merchant_id,
+        branch_id=user.branch_id,
+        role_id=user.role_id,
+        role_code=role.code if role is not None else "",
+        is_active=user.is_active,
+        account_status=user.account_status,
+        deactivated_at=user.deactivated_at,
+        reactivated_at=user.reactivated_at,
+        is_email_verified=user.is_email_verified,
+        phone=user.phone,
+    )
 
 
 class RequestEmailVerificationRequest(BaseModel):

@@ -9,7 +9,10 @@ interface AuthState {
   hydrated: boolean;
   user: AuthenticatedUser | null;
   api: PompoApi;
-  login: (email: string, password: string) => Promise<{ ok: true } | { ok: false; message: string }>;
+  login: (
+    email: string,
+    password: string,
+  ) => Promise<{ ok: true } | { ok: false; message: string; code?: "account_deactivated" }>;
   register: (
     input: { email: string; password: string; full_name: string; phone?: string },
   ) => Promise<{ ok: true } | { ok: false; message: string }>;
@@ -48,7 +51,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async login(email, password) {
         const tokens = await api.login(email.trim(), password);
         if (!tokens.ok) {
-          return { ok: false, message: tokens.error.message };
+          return {
+            ok: false,
+            message: tokens.error.message,
+            ...(tokens.error.kind === "forbidden" ? { code: "account_deactivated" as const } : {}),
+          };
         }
         const me = await api.me();
         if (!me.ok) {

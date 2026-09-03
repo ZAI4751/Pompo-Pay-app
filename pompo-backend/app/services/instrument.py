@@ -79,10 +79,7 @@ CATALOG: tuple[dict[str, Any], ...] = (
         "label": "Airtel Money",
         "available": False,
         "is_sandbox": False,
-        "reason": (
-            "Airtel Collection APIs 2.0 swagger does not document a reusable "
-            "account token. Enrollment is not available."
-        ),
+        "reason": "Coming soon",
         "authorization_state": ProviderAuthorizationState.UNSUPPORTED.value,
     },
     {
@@ -91,16 +88,13 @@ CATALOG: tuple[dict[str, Any], ...] = (
         "label": "TNM Mpamba",
         "available": False,
         "is_sandbox": False,
-        "reason": (
-            "TNM Mpamba live HTTP contract is not in POMPO. "
-            "Saved Mpamba is not available."
-        ),
+        "reason": "Coming soon",
         "authorization_state": ProviderAuthorizationState.UNSUPPORTED.value,
     },
     {
         "provider_code": "national_bank",
         "instrument_type": "visa",
-        "label": "National Bank Visa",
+        "label": "National Bank",
         "available": False,
         "is_sandbox": False,
         "reason": "Coming soon",
@@ -112,10 +106,7 @@ CATALOG: tuple[dict[str, Any], ...] = (
         "label": "Standard Bank Visa",
         "available": False,
         "is_sandbox": False,
-        "reason": (
-            "Standard Bank Malawi live HTTP contract is not in POMPO. "
-            "Saved cards are not available. POMPO does not store PAN or CVV."
-        ),
+        "reason": "Coming soon",
         "authorization_state": ProviderAuthorizationState.UNSUPPORTED.value,
     },
     {
@@ -124,16 +115,22 @@ CATALOG: tuple[dict[str, Any], ...] = (
         "label": "Standard Bank Mastercard",
         "available": False,
         "is_sandbox": False,
-        "reason": (
-            "Standard Bank Malawi live HTTP contract is not in POMPO. "
-            "Saved cards are not available. POMPO does not store PAN or CVV."
-        ),
+        "reason": "Coming soon",
         "authorization_state": ProviderAuthorizationState.UNSUPPORTED.value,
     },
     {
         "provider_code": "nbs",
         "instrument_type": "visa",
-        "label": "NBS Visa",
+        "label": "NBS Bank",
+        "available": False,
+        "is_sandbox": False,
+        "reason": "Coming soon",
+        "authorization_state": ProviderAuthorizationState.UNSUPPORTED.value,
+    },
+    {
+        "provider_code": "first_capital",
+        "instrument_type": "visa",
+        "label": "First Capital Bank",
         "available": False,
         "is_sandbox": False,
         "reason": "Coming soon",

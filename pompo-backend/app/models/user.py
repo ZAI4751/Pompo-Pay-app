@@ -6,10 +6,11 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, GUID, SoftDeleteMixin, TimestampMixin, UUIDPrimaryKeyMixin
+from app.models.enums import AccountLifecycleStatus
 
 if TYPE_CHECKING:
     from app.models.organization import Branch, Merchant
@@ -86,6 +87,12 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     """
 
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(
+            "account_status IN ('active', 'deactivated', 'suspended')",
+            name="ck_users_account_status",
+        ),
+    )
 
     merchant_id: Mapped[uuid.UUID | None] = mapped_column(
         GUID(), ForeignKey("merchants.id", ondelete="CASCADE"), nullable=True, index=True
@@ -102,6 +109,18 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    account_status: Mapped[str] = mapped_column(
+        String(16),
+        default=AccountLifecycleStatus.ACTIVE.value,
+        server_default="active",
+        nullable=False,
+    )
+    deactivated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None, nullable=True
+    )
+    reactivated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None, nullable=True
+    )
     is_email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     email_verified_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None, nullable=True
@@ -113,6 +132,23 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     merchant: Mapped["Merchant | None"] = relationship(back_populates="users")
     branch: Mapped["Branch | None"] = relationship(back_populates="users")
     role: Mapped["Role"] = relationship(back_populates="users")
+
+    @property
+    def lifecycle_status(self) -> AccountLifecycleStatus:
+        """Parsed lifecycle status. Inconsistent rows fall back to SUSPENDED."""
+        try:
+            return AccountLifecycleStatus(self.account_status)
+        except ValueError:
+            return (
+                AccountLifecycleStatus.ACTIVE
+                if self.is_active
+                else AccountLifecycleStatus.SUSPENDED
+            )
+
+    @property
+    def can_authenticate(self) -> bool:
+        """True only when the account is ACTIVE and the operational flag agrees."""
+        return self.is_active and self.lifecycle_status is AccountLifecycleStatus.ACTIVE
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<User id={self.id} email={self.email!r}>"

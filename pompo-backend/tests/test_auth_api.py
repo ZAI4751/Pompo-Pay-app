@@ -314,3 +314,36 @@ async def test_logout_all_revokes_refresh_sessions(
 
     replay = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
     assert replay.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_deactivate_account_revokes_access_and_refresh(
+    client: AsyncClient, seeded_user: User
+) -> None:
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": seeded_user.email, "password": "correct-horse-battery-staple"},
+    )
+    access_token = login_response.json()["access_token"]
+    refresh_token = login_response.json()["refresh_token"]
+
+    deactivated = await client.post(
+        "/api/v1/auth/deactivate-account",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"current_password": "correct-horse-battery-staple", "confirmation": "DEACTIVATE"},
+    )
+    assert deactivated.status_code == 204
+
+    me = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {access_token}"})
+    assert me.status_code == 401
+
+    refresh = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
+    assert refresh.status_code == 401
+
+    login_again = await client.post(
+        "/api/v1/auth/login",
+        json={"email": seeded_user.email, "password": "correct-horse-battery-staple"},
+    )
+    assert login_again.status_code == 403
+    assert "deactivated" in login_again.json()["detail"].lower()
+

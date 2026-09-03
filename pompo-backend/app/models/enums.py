@@ -230,6 +230,25 @@ class OutboundWebhookFailureCategory(str, enum.Enum):
     EXHAUSTED = "exhausted"
 
 
+class AccountLifecycleStatus(str, enum.Enum):
+    """Authoritative user-account lifecycle. Distinct from ``User.is_active``.
+
+    ``is_active`` remains the coarse operational gate used by existing
+    authentication checks. This status explains *why* an account is or is
+    not operable:
+
+    - ACTIVE: normal operation (``is_active`` is true)
+    - DEACTIVATED: customer self-deactivation; may be reversed by the
+      reactivation flow after fresh proof of ownership
+    - SUSPENDED: platform/security action; must not be treated as
+      customer self-deactivation and cannot be reversed by that flow
+    """
+
+    ACTIVE = "active"
+    DEACTIVATED = "deactivated"
+    SUSPENDED = "suspended"
+
+
 class UserRoleCode(str, enum.Enum):
     """Well-known role codes seeded by default.
 

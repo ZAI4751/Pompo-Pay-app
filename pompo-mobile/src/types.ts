@@ -17,6 +17,9 @@ export interface AuthenticatedUser {
   role_id: string;
   role_code: string;
   is_active: boolean;
+  account_status?: "active" | "deactivated" | "suspended" | string;
+  deactivated_at?: string | null;
+  reactivated_at?: string | null;
   is_email_verified?: boolean;
   phone?: string | null;
 }

@@ -57,3 +57,21 @@ class EmailDispatcher:
 
         # Future SMTP / SES delivery integration boundary
         return {"status": "sent", "recipient": recipient_email}
+
+    async def send_account_reactivation_email(
+        self,
+        *,
+        recipient_email: str,
+        user_name: str,
+        reactivation_link: str,
+    ) -> dict[str, Any]:
+        """Dispatch account reactivation link. Does not log the token."""
+        if not self.is_configured:
+            logger.info(
+                "account_reactivation_dispatch_skipped",
+                reason="email_service_not_configured",
+                recipient=recipient_email,
+            )
+            return {"status": "not_configured", "recipient": recipient_email}
+
+        return {"status": "sent", "recipient": recipient_email}

@@ -153,7 +153,11 @@ async def test_enroll_list_default_revoke_and_no_secret_leak(session: AsyncSessi
         tnm_catalog = next(item for item in catalog.json() if item["provider_code"] == "tnm_mpamba")
         assert tnm_catalog["available"] is False
         assert tnm_catalog["authorization_state"] == "unsupported"
-        assert "live HTTP contract is not in POMPO" in tnm_catalog["reason"]
+        assert tnm_catalog["reason"] == "Coming soon"
+        first_capital = next(item for item in catalog.json() if item["provider_code"] == "first_capital")
+        assert first_capital["available"] is False
+        assert first_capital["label"] == "First Capital Bank"
+        assert first_capital["reason"] == "Coming soon"
         sb_visa = next(
             item
             for item in catalog.json()
@@ -167,7 +171,7 @@ async def test_enroll_list_default_revoke_and_no_secret_leak(session: AsyncSessi
         assert sb_visa["available"] is False
         assert sb_mc["available"] is False
         assert sb_mc["authorization_state"] == "unsupported"
-        assert "Saved cards are not available" in sb_mc["reason"]
+        assert sb_mc["reason"] == "Coming soon"
 
         forbidden = await client.post(
             "/api/v1/payment-methods",
@@ -186,7 +190,7 @@ async def test_enroll_list_default_revoke_and_no_secret_leak(session: AsyncSessi
             json={"provider_code": "tnm_mpamba", "instrument_type": "mobile_money", "msisdn": "0881234321"},
         )
         assert tnm_enroll.status_code == 422
-        assert "Saved Mpamba" in tnm_enroll.json()["detail"] or "not available" in tnm_enroll.json()["detail"].lower()
+        assert "coming soon" in tnm_enroll.json()["detail"].lower() or "not available" in tnm_enroll.json()["detail"].lower()
 
         sb_pan = await client.post(
             "/api/v1/payment-methods",

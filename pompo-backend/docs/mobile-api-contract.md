@@ -23,10 +23,13 @@ the original payment. A different fingerprint with the same key is `409`.
 
 | Flow | Method | Path | Auth | Notes |
 |---|---|---|---|---|
-| Login | POST | `/auth/login` | none | `{email, password}` → `{access_token, refresh_token, token_type, expires_in}` |
-| Refresh | POST | `/auth/refresh` | none | `{refresh_token}` → new token pair. Failed refresh is `401`. |
+| Login | POST | `/auth/login` | none | `{email, password}` → `{access_token, refresh_token, token_type, expires_in}`. Unknown/wrong/suspended → `401`. Correct password on a deactivated account → `403` (no tokens). |
+| Refresh | POST | `/auth/refresh` | none | `{refresh_token}` → new token pair. Failed refresh is `401`. Deactivated accounts are rejected. |
 | Logout | POST | `/auth/logout` | none | `{refresh_token}` → `204` even if the token is already invalid |
-| Current user | GET | `/auth/me` | access | Includes `role_code` for mode switching. Does **not** include permission catalogs. |
+| Current user | GET | `/auth/me` | access | Includes `role_code` and `account_status`. Does **not** include permission catalogs. Rejected after deactivation. |
+| Deactivate | POST | `/auth/deactivate-account` | access | `{current_password, confirmation:"DEACTIVATE"}` → `204`. Revokes sessions. History is preserved. |
+| Reactivate request | POST | `/auth/reactivate-account/request` | none | `{email}` → generic `200`. Does not enumerate accounts. |
+| Reactivate | POST | `/auth/reactivate-account` | none | `{token, password}` → fresh token pair. Replay/expiry → `400`. Wrong password → `401`. |
 
 `role_code` values used by mobile UX (authorization is still server-side):
 

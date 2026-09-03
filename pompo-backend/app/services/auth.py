@@ -17,8 +17,12 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.logging import get_logger
 from app.core.security.exceptions import (
+    AccountDeactivatedError,
+    AccountStateError,
     InactiveUserError,
+    InvalidConfirmationError,
     InvalidCredentialsError,
     InvalidTokenError,
     RateLimitAuthError,
@@ -27,11 +31,23 @@ from app.core.security.exceptions import (
 )
 from app.core.security.jwt import JWTConfig
 from app.core.security.password import PasswordHasher, get_dummy_password_hash
+from app.models.audit import AuditLog
 from app.models.auth import AccountSecurityToken, RefreshSession
+from app.models.enums import AccountLifecycleStatus
 from app.models.user import User
 from app.repositories.auth import AccountSecurityTokenRepository, RefreshSessionRepository
 from app.repositories.user import UserRepository
 from app.services.email import EmailDispatcher
+
+logger = get_logger(__name__)
+
+DEACTIVATION_CONFIRMATION = "DEACTIVATE"
+TOKEN_TYPE_ACCOUNT_REACTIVATION = "account_reactivation"
+_SECURITY_TOKEN_TYPES_ON_DEACTIVATE = (
+    "email_verification",
+    "password_reset",
+    TOKEN_TYPE_ACCOUNT_REACTIVATION,
+)
 
 
 def _utcnow() -> datetime:
@@ -60,6 +76,16 @@ def _hash_token(raw_token: str) -> str:
     the raw refresh token is never persisted, per the design requirement.
     """
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+def _request_id() -> str | None:
+    try:
+        from structlog.contextvars import get_contextvars
+
+        value = get_contextvars().get("request_id")
+    except Exception:  # pragma: no cover - contextvars unavailable in some tests
+        return None
+    return str(value) if value else None
 
 
 @dataclass(frozen=True)
@@ -107,9 +133,11 @@ class AuthService:
     ) -> tuple[AuthTokens, User]:
         """Verify credentials and issue a new access/refresh token pair.
 
-        Raises ``InvalidCredentialsError`` for unknown email, wrong
-        password, AND disabled accounts alike — deliberately, so the API
-        response can't be used to enumerate which case occurred.
+        Unknown email and wrong password raise ``InvalidCredentialsError``.
+        A correct password on a customer-deactivated account raises
+        ``AccountDeactivatedError`` so the caller can offer reactivation
+        without enumerating emails. Suspended/disabled accounts still
+        collapse into the generic credentials error.
         """
         email = email.strip().lower()
         user = await self._users.get_by_email(email)
@@ -123,7 +151,10 @@ class AuthService:
         if not self._password_hasher.verify(password, user.hashed_password):
             raise InvalidCredentialsError("Incorrect password")
 
-        if not user.is_active:
+        if user.lifecycle_status is AccountLifecycleStatus.DEACTIVATED:
+            raise AccountDeactivatedError("Account is deactivated")
+
+        if not user.can_authenticate:
             raise InvalidCredentialsError("Account is inactive")
 
         user.last_login_at = _utcnow()
@@ -185,7 +216,7 @@ class AuthService:
         user = await self._users.get_active_by_id(session_row.user_id)
         if user is None:
             raise InvalidTokenError("User no longer exists")
-        if not user.is_active:
+        if not user.can_authenticate:
             raise InactiveUserError("Account is inactive")
 
         session_row.revoked_at = _utcnow()
@@ -268,6 +299,209 @@ class AuthService:
         await self._refresh_sessions.revoke_all_for_user(user.id)
         await self._session.commit()
 
+    async def deactivate_account(
+        self,
+        user: User,
+        current_password: str,
+        confirmation: str,
+        *,
+        ip_address: str | None = None,
+    ) -> None:
+        """Deactivate the signed-in account after password + confirmation.
+
+        Sets lifecycle DEACTIVATED, clears ``is_active``, revokes every
+        refresh session, and invalidates outstanding security tokens.
+        Transaction, receipt, settlement, and merchant membership rows
+        are left intact.
+        """
+        if confirmation.strip() != DEACTIVATION_CONFIRMATION:
+            raise InvalidConfirmationError("Confirmation does not match")
+        if not self._password_hasher.verify(current_password, user.hashed_password):
+            raise InvalidCredentialsError("Incorrect password")
+        if user.lifecycle_status is AccountLifecycleStatus.SUSPENDED or (
+            not user.is_active and user.lifecycle_status is not AccountLifecycleStatus.DEACTIVATED
+        ):
+            raise AccountStateError("Account cannot be self-deactivated")
+        if user.lifecycle_status is AccountLifecycleStatus.DEACTIVATED:
+            raise AccountStateError("Account is already deactivated")
+
+        now = _utcnow()
+        before = {
+            "is_active": user.is_active,
+            "account_status": user.account_status,
+        }
+        user.account_status = AccountLifecycleStatus.DEACTIVATED.value
+        user.is_active = False
+        user.deactivated_at = now
+        await self._refresh_sessions.revoke_all_for_user(user.id)
+        for token_type in _SECURITY_TOKEN_TYPES_ON_DEACTIVATE:
+            await self._security_tokens.invalidate_all_for_user(user.id, token_type)
+        self._session.add(
+            AuditLog(
+                created_at=now,
+                actor_user_id=user.id,
+                merchant_id=user.merchant_id,
+                action="account_deactivated",
+                entity_type="user",
+                entity_id=str(user.id),
+                before_state=before,
+                after_state={
+                    "is_active": False,
+                    "account_status": AccountLifecycleStatus.DEACTIVATED.value,
+                    "source": "self_service",
+                    "request_id": _request_id(),
+                },
+                ip_address=ip_address,
+            )
+        )
+        await self._session.commit()
+        logger.info("account_deactivated", user_id=str(user.id))
+
+    async def request_account_reactivation(
+        self,
+        email: str,
+        *,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
+    ) -> tuple[str | None, dict[str, Any]]:
+        """Issue a one-time reactivation token if the account is deactivated.
+
+        Always behaves the same to the caller for unknown, active, and
+        suspended accounts so emails cannot be enumerated.
+        """
+        normalized_email = email.strip().lower()
+        user = await self._users.get_by_email(normalized_email)
+        if user is None or user.lifecycle_status is not AccountLifecycleStatus.DEACTIVATED:
+            self._password_hasher.verify("dummy_password", get_dummy_password_hash())
+            return None, {"status": "not_configured"}
+
+        latest = await self._security_tokens.get_latest_active_token(
+            user.id, TOKEN_TYPE_ACCOUNT_REACTIVATION
+        )
+        if latest is not None and _utcnow() - _as_utc(latest.created_at) < timedelta(seconds=60):
+            return None, {"status": "cooldown"}
+
+        await self._security_tokens.invalidate_all_for_user(
+            user.id, TOKEN_TYPE_ACCOUNT_REACTIVATION
+        )
+
+        raw_token = secrets.token_urlsafe(32)
+        now = _utcnow()
+        token_record = AccountSecurityToken(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            token_type=TOKEN_TYPE_ACCOUNT_REACTIVATION,
+            token_hash=_hash_token(raw_token),
+            created_at=now,
+            expires_at=now + timedelta(hours=1),
+            user_agent=user_agent,
+            ip_address=ip_address,
+        )
+        await self._security_tokens.add(token_record)
+        dispatch_result = await self._email_dispatcher.send_account_reactivation_email(
+            recipient_email=user.email,
+            user_name=user.full_name,
+            reactivation_link=f"/reactivate?token={raw_token}",
+        )
+        self._session.add(
+            AuditLog(
+                created_at=now,
+                actor_user_id=user.id,
+                merchant_id=user.merchant_id,
+                action="account_reactivation_requested",
+                entity_type="user",
+                entity_id=str(user.id),
+                before_state={"account_status": user.account_status},
+                after_state={
+                    "source": "self_service",
+                    "request_id": _request_id(),
+                },
+                ip_address=ip_address,
+            )
+        )
+        await self._session.commit()
+        return raw_token, dispatch_result
+
+    async def reactivate_account(
+        self,
+        raw_token: str,
+        password: str,
+        *,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
+    ) -> tuple[AuthTokens, User]:
+        """Reactivate a deactivated account with a one-time token and password.
+
+        Issues a fresh session. Old refresh tokens remain revoked.
+        """
+        token_hash = _hash_token(raw_token.strip())
+        record = await self._security_tokens.get_by_hash_and_type(
+            token_hash, TOKEN_TYPE_ACCOUNT_REACTIVATION
+        )
+        if record is None:
+            raise InvalidTokenError("Invalid or expired reactivation token")
+
+        if record.used_at is not None:
+            raise TokenReplayError("Reactivation token has already been used")
+
+        if _as_utc(record.expires_at) < _utcnow():
+            raise TokenExpiredError("Reactivation token has expired")
+
+        user = await self._users.get_active_by_id(record.user_id)
+        if user is None:
+            raise InvalidTokenError("Invalid or expired reactivation token")
+
+        if user.lifecycle_status is AccountLifecycleStatus.SUSPENDED:
+            raise InvalidTokenError("Invalid or expired reactivation token")
+
+        if user.lifecycle_status is AccountLifecycleStatus.ACTIVE:
+            raise AccountStateError("Account is already active")
+
+        if user.lifecycle_status is not AccountLifecycleStatus.DEACTIVATED:
+            raise AccountStateError("Account cannot be reactivated")
+
+        if not self._password_hasher.verify(password, user.hashed_password):
+            raise InvalidCredentialsError("Incorrect password")
+
+        now = _utcnow()
+        before = {
+            "is_active": user.is_active,
+            "account_status": user.account_status,
+        }
+        record.used_at = now
+        user.account_status = AccountLifecycleStatus.ACTIVE.value
+        user.is_active = True
+        user.reactivated_at = now
+        user.last_login_at = now
+        await self._refresh_sessions.revoke_all_for_user(user.id)
+        await self._security_tokens.invalidate_all_for_user(
+            user.id, TOKEN_TYPE_ACCOUNT_REACTIVATION
+        )
+        tokens = await self._issue_new_session(
+            user, family_id=None, user_agent=user_agent, ip_address=ip_address
+        )
+        self._session.add(
+            AuditLog(
+                created_at=now,
+                actor_user_id=user.id,
+                merchant_id=user.merchant_id,
+                action="account_reactivated",
+                entity_type="user",
+                entity_id=str(user.id),
+                before_state=before,
+                after_state={
+                    "is_active": True,
+                    "account_status": AccountLifecycleStatus.ACTIVE.value,
+                    "source": "self_service",
+                    "request_id": _request_id(),
+                },
+                ip_address=ip_address,
+            )
+        )
+        await self._session.commit()
+        logger.info("account_reactivated", user_id=str(user.id))
+        return tokens, user
+
     # ------------------------------------------------------------------
     # Current user (access token -> User)
     # ------------------------------------------------------------------
@@ -288,7 +522,7 @@ class AuthService:
         user = await self._users.get_active_by_id(user_id)
         if user is None:
             raise InvalidTokenError("User no longer exists")
-        if not user.is_active:
+        if not user.can_authenticate:
             raise InactiveUserError("Account is inactive")
         return user
 
@@ -414,7 +648,7 @@ class AuthService:
             raise TokenExpiredError("Verification token has expired")
 
         user = await self._users.get_active_by_id(record.user_id)
-        if user is None or not user.is_active:
+        if user is None or not user.can_authenticate:
             raise InvalidTokenError("Account is inactive or not found")
 
         record.used_at = _utcnow()
@@ -440,7 +674,7 @@ class AuthService:
         """
         normalized_email = email.strip().lower()
         user = await self._users.get_by_email(normalized_email)
-        if user is None or not user.is_active:
+        if user is None or not user.can_authenticate:
             self._password_hasher.verify("dummy_password", get_dummy_password_hash())
             return None, {"status": "not_configured"}
 
@@ -493,7 +727,7 @@ class AuthService:
             raise TokenExpiredError("Password reset token has expired")
 
         user = await self._users.get_active_by_id(record.user_id)
-        if user is None or not user.is_active:
+        if user is None or not user.can_authenticate:
             raise InvalidTokenError("Account is inactive or not found")
 
         record.used_at = _utcnow()

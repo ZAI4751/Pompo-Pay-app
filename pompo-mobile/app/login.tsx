@@ -74,6 +74,11 @@ export default function LoginScreen() {
             const result = await login(email, password);
             setLoading(false);
             if (!result.ok) {
+              if (result.code === "account_deactivated") {
+                router.push("/reactivate" as Href);
+                setError("Your POMPO account is deactivated.");
+                return;
+              }
               setError(result.message);
               return;
             }

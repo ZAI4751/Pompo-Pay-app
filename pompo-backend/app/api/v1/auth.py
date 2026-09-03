@@ -1,4 +1,4 @@
-"""Authentication endpoints: login, refresh, logout, current user."""
+"""Authentication endpoints: login, refresh, logout, current user, lifecycle."""
 
 from __future__ import annotations
 
@@ -6,8 +6,11 @@ from fastapi import APIRouter, HTTPException, Request, status
 
 from app.api.deps import AuthServiceDep, CurrentUserDep, OptionalCurrentUserDep
 from app.core.security.exceptions import (
+    AccountDeactivatedError,
+    AccountStateError,
     AuthError,
     InactiveUserError,
+    InvalidConfirmationError,
     InvalidCredentialsError,
     InvalidTokenError,
     RateLimitAuthError,
@@ -17,22 +20,30 @@ from app.core.security.exceptions import (
 from app.schemas.auth import (
     AuthenticatedUserResponse,
     ChangePasswordRequest,
+    DeactivateAccountRequest,
     ForgotPasswordRequest,
     GenericSecurityResponse,
     LoginRequest,
     LogoutRequest,
+    ReactivateAccountConfirmRequest,
+    ReactivateAccountRequestBody,
     RefreshRequest,
     RequestEmailVerificationRequest,
     ResetPasswordRequest,
     TokenResponse,
     VerifyEmailRequest,
     VerifyEmailResponse,
+    authenticated_user_response,
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 _GENERIC_LOGIN_ERROR = "Incorrect email or password"
 _GENERIC_TOKEN_ERROR = "Invalid or expired refresh token"
+_DEACTIVATED_LOGIN_DETAIL = "This POMPO account is deactivated."
+_GENERIC_REACTIVATION_REQUEST = (
+    "If a deactivated account matches that email, reactivation instructions have been sent."
+)
 
 
 def _client_context(request: Request) -> tuple[str | None, str | None]:
@@ -42,12 +53,22 @@ def _client_context(request: Request) -> tuple[str | None, str | None]:
     return user_agent, ip_address
 
 
+def _token_pair(tokens) -> TokenResponse:
+    return TokenResponse(
+        access_token=tokens.access_token,
+        refresh_token=tokens.refresh_token,
+        expires_in=tokens.expires_in,
+        is_email_verified=tokens.is_email_verified,
+    )
+
+
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest, request: Request, auth_service: AuthServiceDep) -> TokenResponse:
     """Authenticate with email/password and issue a token pair.
 
-    Unknown email, wrong password, and disabled accounts all return the
-    same generic 401 — see AuthService.login for why.
+    Unknown email, wrong password, and suspended accounts return the same
+    generic 401. A correct password on a customer-deactivated account
+    returns 403 so the client can start reactivation without issuing tokens.
     """
     user_agent, ip_address = _client_context(request)
     try:
@@ -57,17 +78,17 @@ async def login(payload: LoginRequest, request: Request, auth_service: AuthServi
             user_agent=user_agent,
             ip_address=ip_address,
         )
+    except AccountDeactivatedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=_DEACTIVATED_LOGIN_DETAIL,
+        ) from exc
     except (InvalidCredentialsError, InactiveUserError) as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail=_GENERIC_LOGIN_ERROR
         ) from exc
 
-    return TokenResponse(
-        access_token=tokens.access_token,
-        refresh_token=tokens.refresh_token,
-        expires_in=tokens.expires_in,
-        is_email_verified=tokens.is_email_verified,
-    )
+    return _token_pair(tokens)
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -85,12 +106,7 @@ async def refresh(
             status_code=status.HTTP_401_UNAUTHORIZED, detail=_GENERIC_TOKEN_ERROR
         ) from exc
 
-    return TokenResponse(
-        access_token=tokens.access_token,
-        refresh_token=tokens.refresh_token,
-        expires_in=tokens.expires_in,
-        is_email_verified=tokens.is_email_verified,
-    )
+    return _token_pair(tokens)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -106,19 +122,7 @@ async def logout(payload: LogoutRequest, auth_service: AuthServiceDep) -> None:
 @router.get("/me", response_model=AuthenticatedUserResponse)
 async def get_me(current_user: CurrentUserDep) -> AuthenticatedUserResponse:
     """Return the caller's own profile, resolved from the access token."""
-    role = current_user.role
-    return AuthenticatedUserResponse(
-        id=current_user.id,
-        email=current_user.email,
-        full_name=current_user.full_name,
-        merchant_id=current_user.merchant_id,
-        branch_id=current_user.branch_id,
-        role_id=current_user.role_id,
-        role_code=role.code if role is not None else "",
-        is_active=current_user.is_active,
-        is_email_verified=current_user.is_email_verified,
-        phone=current_user.phone,
-    )
+    return authenticated_user_response(current_user)
 
 
 @router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
@@ -142,6 +146,109 @@ async def logout_all(current_user: CurrentUserDep, auth_service: AuthServiceDep)
     await auth_service.logout_all(current_user)
 
 
+@router.post("/deactivate-account", status_code=status.HTTP_204_NO_CONTENT)
+async def deactivate_account(
+    payload: DeactivateAccountRequest,
+    request: Request,
+    current_user: CurrentUserDep,
+    auth_service: AuthServiceDep,
+) -> None:
+    """Deactivate the signed-in account after password and confirmation.
+
+    Requires ``confirmation`` = ``DEACTIVATE``. Does not delete the user
+    row or transactional history. Subsequent authenticated requests and
+    refresh are rejected. Login with a correct password returns 403 so
+    the owner can start reactivation.
+    """
+    _user_agent, ip_address = _client_context(request)
+    try:
+        await auth_service.deactivate_account(
+            current_user,
+            payload.current_password,
+            payload.confirmation,
+            ip_address=ip_address,
+        )
+    except InvalidConfirmationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirmation must be exactly DEACTIVATE",
+        ) from exc
+    except InvalidCredentialsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect current password"
+        ) from exc
+    except AccountStateError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+
+
+@router.post("/reactivate-account/request", response_model=GenericSecurityResponse)
+async def request_account_reactivation(
+    payload: ReactivateAccountRequestBody,
+    request: Request,
+    auth_service: AuthServiceDep,
+) -> GenericSecurityResponse:
+    """Request a one-time reactivation token. Does not reveal account state."""
+    user_agent, ip_address = _client_context(request)
+    _raw, dispatch = await auth_service.request_account_reactivation(
+        payload.email, user_agent=user_agent, ip_address=ip_address
+    )
+    delivery = str(dispatch.get("status") or "not_configured")
+    if delivery == "cooldown":
+        delivery = "not_configured"
+    return GenericSecurityResponse(
+        detail=_GENERIC_REACTIVATION_REQUEST,
+        email_delivery=delivery,
+    )
+
+
+@router.post("/reactivate-account", response_model=TokenResponse)
+async def reactivate_account(
+    payload: ReactivateAccountConfirmRequest,
+    request: Request,
+    auth_service: AuthServiceDep,
+) -> TokenResponse:
+    """Reactivate a deactivated account with a one-time token and password.
+
+    Issues a fresh session. Expired, replayed, or refresh tokens are rejected.
+    """
+    user_agent, ip_address = _client_context(request)
+    try:
+        tokens, _user = await auth_service.reactivate_account(
+            payload.token,
+            payload.password,
+            user_agent=user_agent,
+            ip_address=ip_address,
+        )
+    except TokenReplayError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reactivation token has already been used",
+        ) from exc
+    except TokenExpiredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reactivation token has expired",
+        ) from exc
+    except InvalidCredentialsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect password",
+        ) from exc
+    except AccountStateError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+    except (InvalidTokenError, AuthError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reactivation token",
+        ) from exc
+
+    return _token_pair(tokens)
+
+
 @router.post("/verify-email/request", response_model=GenericSecurityResponse)
 async def request_email_verification(
     payload: RequestEmailVerificationRequest,
@@ -155,7 +262,7 @@ async def request_email_verification(
     if target_user is None and payload.email:
         target_user = await auth_service._users.get_by_email(payload.email.strip().lower())
 
-    if target_user is not None and target_user.is_active and not target_user.is_email_verified:
+    if target_user is not None and target_user.can_authenticate and not target_user.is_email_verified:
         try:
             await auth_service.request_email_verification(
                 target_user, user_agent=user_agent, ip_address=ip_address

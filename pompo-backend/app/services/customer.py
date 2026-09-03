@@ -101,6 +101,7 @@ class CustomerService:
             full_name=full_name,
             hashed_password=self._hasher.hash(password),
             is_active=True,
+            account_status="active",
             is_email_verified=False,
             email_verified_at=None,
             last_login_at=datetime.now(UTC),

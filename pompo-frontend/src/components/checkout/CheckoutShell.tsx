@@ -3,7 +3,13 @@ import Image from "next/image";
 import { Lock } from "lucide-react";
 import { PUBLIC_CHECKOUT_ORIGIN } from "@/lib/checkout/publicCheckout";
 
-export function CheckoutShell({ children }: { children: ReactNode }) {
+export function CheckoutShell({
+  children,
+  accountHref,
+}: {
+  children: ReactNode;
+  accountHref?: string;
+}) {
   return (
     <div className="checkout-root min-h-dvh text-text flex flex-col">
       <div className="pompo-aurora pointer-events-none absolute inset-0" aria-hidden="true" />
@@ -21,12 +27,18 @@ export function CheckoutShell({ children }: { children: ReactNode }) {
             />
             <div className="min-w-0">
               <p className="text-[15px] font-semibold tracking-tight text-text">POMPO</p>
-              <p className="truncate text-[11px] text-text-subtle">Secure payment</p>
+              <p className="truncate text-[11px] text-text-subtle">Pay with POMPO</p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1.5 text-[11px] text-text-subtle">
+          <div className="flex shrink-0 items-center gap-2 text-[11px] text-text-subtle">
             <Lock className="h-3.5 w-3.5 text-success" aria-hidden="true" />
-            <span className="hidden xs:inline sm:inline">pay.pompo.mw</span>
+            {accountHref ? (
+              <a href={accountHref} className="font-semibold text-text">
+                Account
+              </a>
+            ) : (
+              <span className="hidden xs:inline sm:inline">pay.pompo.mw</span>
+            )}
           </div>
         </div>
       </header>

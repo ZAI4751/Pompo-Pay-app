@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  catalogMethodCopy,
   catalogMethodPresentation,
   checkoutPhaseFromPayment,
   formatMoney,
@@ -9,6 +10,7 @@ import {
   paymentCtaLabel,
   sanitizeAmountInput,
   shouldShowAppInvitation,
+  sortCatalogMethods,
   validateStaticAmount,
 } from "./publicCheckout.ts";
 
@@ -53,13 +55,22 @@ describe("public checkout helpers", () => {
     assert.equal(tnm.selectable, false);
     assert.ok(tnm.badges.includes("NOT AVAILABLE") || tnm.badges.includes("COMING SOON"));
 
-    const soon = catalogMethodPresentation({
+    const soonItem = {
       available: false,
       is_sandbox: false,
       reason: "Coming soon",
       authorization_state: "unsupported",
-    });
+    };
+    const soon = catalogMethodPresentation(soonItem);
     assert.deepEqual(soon.badges, ["COMING SOON"]);
+    assert.equal(catalogMethodCopy(soonItem).subtitle, "Coming soon");
+    assert.equal(catalogMethodCopy(soonItem).selectable, false);
+
+    const ordered = sortCatalogMethods([
+      { available: false, authorization_state: "unsupported", label: "TNM Mpamba" },
+      { available: true, authorization_state: "not_required", label: "Test Airtel Money" },
+    ]);
+    assert.equal(ordered[0].label, "Test Airtel Money");
   });
 
   it("shows the app invitation only after success", () => {

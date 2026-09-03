@@ -105,6 +105,57 @@ export function validateStaticAmount(val: string): string | null {
   return null;
 }
 
+export function sortCatalogMethods<
+  T extends {
+    available: boolean;
+    authorization_state: string;
+    is_sandbox?: boolean;
+    reason?: string | null;
+  },
+>(items: T[]): T[] {
+  return [...items].sort((left, right) => {
+    const leftSelectable = catalogMethodPresentation({
+      available: left.available,
+      is_sandbox: Boolean(left.is_sandbox),
+      reason: left.reason ?? null,
+      authorization_state: left.authorization_state,
+    }).selectable
+      ? 0
+      : 1;
+    const rightSelectable = catalogMethodPresentation({
+      available: right.available,
+      is_sandbox: Boolean(right.is_sandbox),
+      reason: right.reason ?? null,
+      authorization_state: right.authorization_state,
+    }).selectable
+      ? 0
+      : 1;
+    return leftSelectable - rightSelectable;
+  });
+}
+
+export function catalogMethodCopy(item: {
+  available: boolean;
+  is_sandbox: boolean;
+  reason: string | null;
+  authorization_state: string;
+}): { selectable: boolean; subtitle: string } {
+  const presentation = catalogMethodPresentation(item);
+  if (presentation.badges.includes("COMING SOON")) {
+    return { selectable: false, subtitle: "Coming soon" };
+  }
+  if (!presentation.selectable) {
+    return {
+      selectable: false,
+      subtitle: presentation.detail,
+    };
+  }
+  if (item.is_sandbox) {
+    return { selectable: true, subtitle: "Available · sandbox" };
+  }
+  return { selectable: true, subtitle: "Available" };
+}
+
 export function catalogMethodPresentation(item: {
   available: boolean;
   is_sandbox: boolean;

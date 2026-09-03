@@ -29,6 +29,8 @@ _FIELD_LABELS = {
     "phone": "Phone number",
     "new_password": "Password",
     "current_password": "Current password",
+    "confirmation": "Confirmation",
+    "token": "Token",
 }
 
 

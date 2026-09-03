@@ -15,7 +15,7 @@ export default function UsersPage() {
     >
       <BackendUnavailable
         feature="User directory"
-        detail="The backend has no user list or user CRUD API. Role assignment exists at PUT /api/v1/rbac/users/{user_id}/role and removal is rejected because every user must retain one role. This screen will not invent a staff directory."
+        detail="The backend has no user list or user CRUD API, so Master Admin cannot yet display account lifecycle (ACTIVE / DEACTIVATED / SUSPENDED) in a directory. Role assignment exists at PUT /api/v1/rbac/users/{user_id}/role. GET /auth/me already returns account_status for the signed-in user. This screen will not invent a staff directory."
       />
     </PageShell>
   );

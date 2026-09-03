@@ -17,13 +17,13 @@ import { qrService } from "@/lib/api/services/qr";
 import { paymentsService } from "@/lib/api/services/payments";
 import { instrumentsService, type PaymentMethodCatalogItem } from "@/lib/api/services/instruments";
 import { authService } from "@/lib/api/services/auth";
-import { setAccessToken } from "@/lib/api/session";
-import { useAuth } from "@/lib/auth/AuthContext";
+import { useCustomerSession } from "@/lib/customer/CustomerSessionProvider";
+import { emailDeliveryCopy } from "@/lib/customer/customerAccount";
 import type { QRInspect } from "@/lib/types/qr";
 import type { Payment } from "@/lib/types/payment";
-import type { AuthenticatedUser } from "@/lib/types/auth";
 import {
   type CheckoutPhase,
+  catalogMethodCopy,
   catalogMethodPresentation,
   checkoutPhaseFromPayment,
   formatMoney,
@@ -33,6 +33,7 @@ import {
   paymentCtaLabel,
   sanitizeAmountInput,
   shouldShowAppInvitation,
+  sortCatalogMethods,
   validateStaticAmount,
 } from "@/lib/checkout/publicCheckout";
 
@@ -48,9 +49,7 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
   const rawPublicId = resolvedParams.publicIdentifier;
   const publicId = rawPublicId.replace(/^.*\/p\//, "").replace(/[/?#].*$/, "").toUpperCase();
 
-  const { user } = useAuth();
-  const [authCustomer, setAuthCustomer] = useState<AuthenticatedUser | null>(null);
-  const effectiveUser = user || authCustomer;
+  const { user: effectiveUser, signIn } = useCustomerSession();
 
   const [phase, setPhase] = useState<CheckoutPhase>("loading");
   const [errorMessage, setErrorMessage] = useState("");
@@ -139,8 +138,9 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
         const catRes = await instrumentsService.catalog();
         if (!active) return;
         if (catRes.status === "success" && catRes.data) {
-          setCatalog(catRes.data);
-          const firstAvailable = catRes.data.find((method) => catalogMethodPresentation(method).selectable);
+          const ordered = sortCatalogMethods(catRes.data);
+          setCatalog(ordered);
+          const firstAvailable = ordered.find((method) => catalogMethodPresentation(method).selectable);
           if (firstAvailable) {
             setSelectedMethod(firstAvailable);
           }
@@ -272,17 +272,13 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
     void executePayment();
   };
 
-  const applyAuthenticatedUser = async (accessToken: string) => {
-    setAccessToken(accessToken);
-    const meRes = await authService.me(accessToken);
-    if (meRes.status === "success") {
-      setAuthCustomer(meRes.data);
-      if (meRes.data.is_email_verified === false) {
-        setPhase("verify_email");
-        return false;
-      }
+  const applyAuthenticatedUser = async (accessToken: string, refreshToken: string) => {
+    const nextUser = await signIn(accessToken, refreshToken);
+    if (nextUser?.is_email_verified === false) {
+      setPhase("verify_email");
+      return false;
     }
-    return true;
+    return Boolean(nextUser);
   };
 
   const handleAuthSubmit = async (event: React.FormEvent) => {
@@ -310,7 +306,7 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
         });
 
         if (res.status === "success") {
-          const canPay = await applyAuthenticatedUser(res.data.access_token);
+          const canPay = await applyAuthenticatedUser(res.data.access_token, res.data.refresh_token);
           if (canPay) {
             setPhase("ready");
             setTimeout(() => {
@@ -327,13 +323,15 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
         });
 
         if (res.status === "success") {
-          const canPay = await applyAuthenticatedUser(res.data.access_token);
+          const canPay = await applyAuthenticatedUser(res.data.access_token, res.data.refresh_token);
           if (canPay) {
             setPhase("ready");
             setTimeout(() => {
               void executePayment();
             }, 100);
           }
+        } else if (res.kind === "forbidden") {
+          setAuthError("Your POMPO account is deactivated. Open the reactivation page to restore access.");
         } else {
           setAuthError(humanizeCustomerError(res.message, "Could not sign in. Check your email and password."));
         }
@@ -354,9 +352,12 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
       const res = await authService.forgotPassword(authEmail.trim());
       if (res.status === "success") {
         setAuthNotice(
-          humanizeCustomerError(
-            res.data.detail,
-            "If an account matches that email, password reset instructions have been sent.",
+          emailDeliveryCopy(
+            res.data.email_delivery,
+            humanizeCustomerError(
+              res.data.detail,
+              "If an account matches that email, password reset instructions have been sent.",
+            ),
           ),
         );
       } else {
@@ -377,9 +378,12 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
       const res = await authService.requestEmailVerification(effectiveUser?.email || authEmail.trim());
       if (res.status === "success") {
         setAuthNotice(
-          humanizeCustomerError(
-            res.data.detail,
-            "If an unverified account matches, verification instructions have been sent.",
+          emailDeliveryCopy(
+            res.data.email_delivery,
+            humanizeCustomerError(
+              res.data.detail,
+              "If an unverified account matches, verification instructions have been sent.",
+            ),
           ),
         );
       } else {
@@ -393,9 +397,10 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
   };
 
   const selectedPresentation = selectedMethod ? catalogMethodPresentation(selectedMethod) : null;
+  const accountHref = `/account?from=/p/${encodeURIComponent(publicId)}`;
 
   return (
-    <CheckoutShell>
+    <CheckoutShell accountHref={accountHref}>
       {phase === "loading" && (
         <CheckoutStatusCard
           tone="neutral"
@@ -541,6 +546,21 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
             {selectedMethod?.label ? <ReceiptRow label="Method" value={selectedMethod.label} /> : null}
           </dl>
 
+          {paymentResult?.reference ? (
+            <a
+              href={`/account/activity/${encodeURIComponent(paymentResult.reference)}`}
+              className="mt-4 block w-full rounded-xl border border-border py-3 text-center text-sm font-semibold text-text"
+            >
+              View receipt
+            </a>
+          ) : null}
+          <a
+            href={accountHref}
+            className="mt-2 block w-full text-center text-xs font-semibold text-primary"
+          >
+            Account
+          </a>
+
           {shouldShowAppInvitation(phase) ? (
             <p className="mt-6 text-center text-xs leading-relaxed text-text-subtle">
               Get the POMPO app for faster payments next time. Installation is optional.
@@ -567,7 +587,7 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
 
       {phase === "ready" && qr && (
         <div className="flex flex-1 flex-col">
-          <p className="text-[11px] font-semibold uppercase tracking-brand text-text-subtle">You&apos;re paying</p>
+          <p className="text-[11px] font-semibold uppercase tracking-brand text-text-subtle">You&apos;re paying:</p>
           <h1 className="mt-1 text-[1.65rem] font-semibold leading-tight tracking-tight text-text">
             {qr.merchant_name}
           </h1>
@@ -618,10 +638,13 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
           </section>
 
           <section className="mt-5">
-            <h2 className="text-[11px] font-semibold uppercase tracking-brand text-text-subtle">Payment method</h2>
+            <h2 className="text-[11px] font-semibold uppercase tracking-brand text-text-subtle">
+              Choose how you want to pay
+            </h2>
             <div className="mt-2 space-y-2">
               {catalog.map((method) => {
                 const presentation = catalogMethodPresentation(method);
+                const copy = catalogMethodCopy(method);
                 const isSelected =
                   selectedMethod?.provider_code === method.provider_code &&
                   selectedMethod?.instrument_type === method.instrument_type;
@@ -649,9 +672,7 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
                       </div>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-text">{method.label}</p>
-                        <p className="mt-0.5 text-[11px] uppercase tracking-wide text-text-subtle">
-                          {presentation.badges.join(" · ")}
-                        </p>
+                        <p className="mt-0.5 text-[11px] text-text-subtle">{copy.subtitle}</p>
                       </div>
                     </div>
                     <span

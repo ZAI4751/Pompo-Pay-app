@@ -290,4 +290,39 @@ describe("PompoApi", () => {
     const forgotRes = await api.forgotPassword("user@example.com");
     expect(forgotRes.ok).toBe(true);
   });
+
+  it("calls deactivate and reactivate account endpoints", async () => {
+    const store = memoryStore({ access: "access-1" });
+    const fetchImpl = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/auth/deactivate-account")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body.confirmation).toBe("DEACTIVATE");
+        return new Response(null, { status: 204 });
+      }
+      if (url.endsWith("/auth/reactivate-account/request")) {
+        return jsonResponse({
+          detail: "If a deactivated account matches that email, reactivation instructions have been sent.",
+        });
+      }
+      if (url.endsWith("/auth/reactivate-account")) {
+        return jsonResponse({
+          access_token: "new-access",
+          refresh_token: "new-refresh",
+          token_type: "bearer",
+          expires_in: 900,
+        });
+      }
+      return jsonResponse({});
+    }) as typeof fetch;
+    const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
+    const deactivated = await api.deactivateAccount("secret", "DEACTIVATE");
+    expect(deactivated.ok).toBe(true);
+    const requested = await api.requestAccountReactivation("user@example.com");
+    expect(requested.ok).toBe(true);
+    const reactivated = await api.reactivateAccount("token-1", "secret");
+    expect(reactivated.ok).toBe(true);
+    expect(await store.getAccessToken()).toBe("new-access");
+  });
 });

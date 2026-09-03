@@ -133,6 +133,79 @@ export function PasswordChangeForm() {
   );
 }
 
+export function AccountLifecycleForm() {
+  const { user, isDemoSession, logout } = useAuth();
+  const { push } = useToast();
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const status = (user?.account_status ?? "active").toUpperCase();
+
+  async function confirm() {
+    setSaving(true);
+    const result = await authService.deactivateAccount(password, confirmation.trim());
+    setSaving(false);
+    setOpen(false);
+    if (result.status === "error") {
+      push(result.message, "error");
+      return;
+    }
+    push("Account deactivated. Sign in again to request reactivation.", "success");
+    await logout();
+  }
+
+  return (
+    <SettingsPanel
+      title="Account lifecycle"
+      description="POST /api/v1/auth/deactivate-account. Requires your current password and the confirmation word DEACTIVATE. Sessions are revoked. Payment history stays on file."
+    >
+      <p className="text-sm text-text">
+        Status: <span className="font-semibold">{status}</span>
+      </p>
+      <p className="text-sm text-text-muted">
+        Deactivating this account disables access, signs out every device, and stops payment use.
+        Receipts and settlement records remain preserved.
+      </p>
+      <Input
+        type="password"
+        autoComplete="current-password"
+        label="Current password"
+        value={password}
+        onChange={(event) => setPassword(event.target.value)}
+        disabled={isDemoSession}
+      />
+      <Input
+        label="Type DEACTIVATE to confirm"
+        value={confirmation}
+        onChange={(event) => setConfirmation(event.target.value)}
+        disabled={isDemoSession}
+      />
+      <div className="flex justify-end border-t border-border pt-4">
+        <Button
+          type="button"
+          variant="danger"
+          size="sm"
+          disabled={isDemoSession || !password || confirmation.trim() !== "DEACTIVATE"}
+          onClick={() => setOpen(true)}
+        >
+          Deactivate account
+        </Button>
+      </div>
+      <ConfirmationDialog
+        open={open}
+        title="Deactivate this POMPO account?"
+        description="Account access will be disabled, active sessions will be revoked, and payment access will stop. Financial history remains preserved."
+        confirmLabel="Deactivate account"
+        destructive
+        loading={saving}
+        onConfirm={() => void confirm()}
+        onCancel={() => setOpen(false)}
+      />
+    </SettingsPanel>
+  );
+}
+
 export function SessionRevokeForm() {
   const { isDemoSession, logout } = useAuth();
   const { push } = useToast();

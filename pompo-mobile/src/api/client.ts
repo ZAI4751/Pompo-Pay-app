@@ -119,6 +119,34 @@ export class PompoApi {
     return this.request<void>("/auth/logout-all", { method: "POST", acceptEmpty: true });
   }
 
+  async deactivateAccount(currentPassword: string, confirmation: string): Promise<ApiResult<void>> {
+    return this.request<void>("/auth/deactivate-account", {
+      method: "POST",
+      body: { current_password: currentPassword, confirmation },
+      acceptEmpty: true,
+    });
+  }
+
+  requestAccountReactivation(email: string): Promise<ApiResult<GenericSecurityResponse>> {
+    return this.request<GenericSecurityResponse>("/auth/reactivate-account/request", {
+      method: "POST",
+      body: { email },
+      auth: false,
+    });
+  }
+
+  async reactivateAccount(token: string, password: string): Promise<ApiResult<TokenResponse>> {
+    const result = await this.request<TokenResponse>("/auth/reactivate-account", {
+      method: "POST",
+      body: { token, password },
+      auth: false,
+    });
+    if (result.ok) {
+      await this.deps.store.setTokens(result.data.access_token, result.data.refresh_token);
+    }
+    return result;
+  }
+
   async logout(): Promise<void> {
     const refresh = await this.deps.store.getRefreshToken();
     if (refresh) {

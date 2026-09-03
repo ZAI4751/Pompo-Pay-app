@@ -32,6 +32,24 @@ export interface Payment {
   completed_at?: string | null;
 }
 
+export interface PaymentReceipt {
+  title: string;
+  receipt_number: string;
+  reference: string;
+  merchant_name: string | null;
+  branch_name: string | null;
+  till_name: string | null;
+  amount: string | number;
+  currency: string;
+  status: string;
+  customer_status: string;
+  status_detail: string;
+  issued_at: string;
+  completed_at: string | null;
+  description: string | null;
+  disclaimer: string;
+}
+
 export interface ProviderCapabilities {
   supports_push_payment: boolean;
   supports_status_query: boolean;

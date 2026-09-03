@@ -14,7 +14,7 @@ from app.api.deps import (
     PasswordHasherDep,
     require_permission,
 )
-from app.schemas.auth import AuthenticatedUserResponse
+from app.schemas.auth import AuthenticatedUserResponse, authenticated_user_response
 from app.schemas.customer import (
     CustomerInsightsResponse,
     CustomerProfileUpdate,
@@ -97,19 +97,7 @@ async def register_customer(
 
 @router.get("/me", response_model=AuthenticatedUserResponse)
 async def get_customer_me(current_user: CurrentUserDep) -> AuthenticatedUserResponse:
-    role = current_user.role
-    return AuthenticatedUserResponse(
-        id=current_user.id,
-        email=current_user.email,
-        full_name=current_user.full_name,
-        merchant_id=current_user.merchant_id,
-        branch_id=current_user.branch_id,
-        role_id=current_user.role_id,
-        role_code=role.code if role is not None else "",
-        is_active=current_user.is_active,
-        is_email_verified=current_user.is_email_verified,
-        phone=current_user.phone,
-    )
+    return authenticated_user_response(current_user)
 
 
 @router.patch("/me", response_model=AuthenticatedUserResponse)
@@ -122,17 +110,7 @@ async def update_customer_me(
         user = await service.update_profile(current_user, payload.model_dump(exclude_unset=True))
     except CustomerError as exc:
         raise _error(exc) from exc
-    role = user.role
-    return AuthenticatedUserResponse(
-        id=user.id,
-        email=user.email,
-        full_name=user.full_name,
-        merchant_id=user.merchant_id,
-        branch_id=user.branch_id,
-        role_id=user.role_id,
-        role_code=role.code if role is not None else "",
-        is_active=user.is_active,
-    )
+    return authenticated_user_response(user)
 
 
 @router.get("/me/preferences", response_model=PreferenceResponse)

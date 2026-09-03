@@ -73,6 +73,18 @@ export const customersService = {
     return apiRequest<SupportRequest[]>("/support-requests");
   },
 
+  async createSupportRequest(payload: {
+    category: string;
+    subject: string;
+    message: string;
+    payment_reference?: string;
+  }): Promise<ApiResult<SupportRequest>> {
+    return apiRequest<SupportRequest>("/support-requests", {
+      method: "POST",
+      body: payload,
+    });
+  },
+
   async paymentRequests(): Promise<ApiResult<PaymentRequestRow[]>> {
     if (USE_MOCKS) {
       return { status: "success", data: [] };

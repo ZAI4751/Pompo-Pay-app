@@ -27,6 +27,18 @@ class InactiveUserError(AuthError):
     """The user account exists but is disabled."""
 
 
+class AccountDeactivatedError(AuthError):
+    """Password is correct but the account is customer-deactivated."""
+
+
+class AccountStateError(AuthError):
+    """Requested account lifecycle transition is not valid."""
+
+
+class InvalidConfirmationError(AuthError):
+    """A consequential action was requested without the required confirmation."""
+
+
 class InvalidTokenError(AuthError):
     """A token (access or refresh) failed signature, shape, or lookup validation."""
 

@@ -17,7 +17,7 @@ import { useRouter } from "next/navigation";
 import { authService } from "@/lib/api/services/auth";
 import { apiRequest } from "@/lib/api/client";
 import { USE_MOCKS } from "@/lib/api/config";
-import { setAccessToken, setUnauthorizedHandler } from "@/lib/api/session";
+import { isCustomerWebSurface, setAccessToken, setUnauthorizedHandler } from "@/lib/api/session";
 import { getDemoAdminUser, mockRoleDetails } from "@/mocks/data";
 import type { AuthenticatedUser } from "@/lib/types/auth";
 import type { Role } from "@/lib/types/rbac";
@@ -173,7 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setUnauthorizedHandler(() => {
       clearSession();
-      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/p/")) {
+      if (typeof window !== "undefined" && !isCustomerWebSurface()) {
         router.push("/login");
       }
     });
