@@ -1,6 +1,6 @@
 import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Atmosphere, FadeIn, GlassInput, HeroCard } from "@/components/glass";
 import { ErrorBanner, PrimaryButton, SecondaryButton, useTheme } from "@/components/ui";
@@ -23,10 +23,14 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.flex, { backgroundColor: theme.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <Atmosphere />
-      <View style={styles.inner}>
+      <ScrollView
+        contentContainerStyle={styles.inner}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         <FadeIn>
           <HeroCard style={styles.hero}>
             <Text style={styles.brand}>POMPO</Text>
@@ -77,14 +81,14 @@ export default function LoginScreen() {
           }}
         />
         <SecondaryButton label="Create a customer account" onPress={() => router.push("/register")} />
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  inner: { flex: 1, justifyContent: "center", padding: 24, gap: 14 },
+  inner: { flexGrow: 1, justifyContent: "center", padding: 24, gap: 14 },
   hero: { minHeight: 140, marginBottom: 8 },
   brand: { color: "rgba(255,255,255,0.72)", fontSize: 12, fontWeight: "800", letterSpacing: 2 },
   heroTitle: { color: "#ffffff", fontSize: 26, fontWeight: "800", letterSpacing: -0.5 },

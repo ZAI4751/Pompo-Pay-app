@@ -40,3 +40,6 @@ yarn-error.*
 /ios
 /android
 /dist-android
+
+# local release APKs (produced by assembleRelease; do not commit binaries)
+/release/*.apk

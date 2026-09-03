@@ -226,7 +226,7 @@ export function UsersRolesSettingsPage() {
       <BackendGapCard
         title="User directory is not an API"
         contract="Missing: GET /api/v1/users · POST /api/v1/users · PATCH /api/v1/users/{id}"
-        detail="Role assignment exists at PUT /api/v1/rbac/users/{user_id}/role. Every user must retain one role. The Users screen documents this gap and does not invent a staff directory."
+        detail="Role assignment exists at PUT /api/v1/rbac/users/{user_id}/role. Every user must retain one role. The Users screen documents this gap and does not invent a staff directory. Customer counts live on GET /customers/stats."
       />
     </SettingsShell>
   );
@@ -238,7 +238,7 @@ export function PaymentsSettingsPage() {
     <SettingsShell title="Payments" categoryId="payments">
       <SettingsPanel
         title="Payment operations"
-        description="Payment create/get/cancel/process exist. There is no payment-list endpoint, so this console does not invent a ledger here."
+        description="Payment create, get, cancel, and process exist. Merchant-scoped GET /payments lists that merchant's payments. Platform administrators look up by reference. Attempts are nested on the payment record."
         actions={
           <div className="flex flex-wrap gap-2">
             {hasPermission("transactions:read") && (
@@ -257,12 +257,13 @@ export function PaymentsSettingsPage() {
           label="Lookup"
           source="api"
           value="GET /api/v1/payments/{reference}"
-          hint="Master Admin payments page uses reference lookup, not a fake table."
+          hint="Platform administrators use reference lookup. Merchant-scoped operators see GET /payments."
         />
         <SettingRow
           label="List endpoint"
-          value="Not implemented"
-          hint="API_CAPABILITIES.paymentsList is unavailable. Do not fabricate volume charts from mock rows in Settings."
+          source="api"
+          value="GET /api/v1/payments (merchant-scoped)"
+          hint="There is no global platform ledger. Payment attempts are nested on GET /payments/{reference}."
         />
         <SettingRow
           label="Currency"
@@ -611,12 +612,13 @@ export function AuditSettingsPage() {
       <SettingsPanel
         title="What is already audited"
         description="Writes go through service-layer helpers. Authorization remains server-side."
+        actions={<ModuleLink href={SETTINGS_MODULE_LINKS.audit.href}>Open Audit</ModuleLink>}
       >
         <SettingRow label="Storage" value="PostgreSQL table audit_logs" />
         <SettingRow label="Mutability" value="Append-only (no updated_at, no soft delete)" />
         <SettingRow
           label="Existing UI"
-          value="The Audit Logs nav item remains a reserved Coming Soon screen and is not replaced by mock data."
+          value="Operations → Audit states the gap. It does not present mock logs."
         />
       </SettingsPanel>
     </SettingsShell>

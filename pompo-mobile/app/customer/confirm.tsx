@@ -21,17 +21,23 @@ export default function ConfirmScreen() {
     const result = await api.listPaymentMethods();
     if (!result.ok) {
       setError(result.error.message);
-      setMethods([]);
+      setMethods(null);
       return;
     }
+    setError(null);
     setMethods(result.data);
-    if (!session?.paymentMethodId) {
-      const preferred =
-        result.data.find((row) => row.is_default && paymentMethodChargeable(row)) ??
-        result.data.find(paymentMethodChargeable);
-      if (preferred) {
-        selectPaymentMethod(preferred.id);
-      }
+    const preferred =
+      result.data.find((row) => row.is_default && paymentMethodChargeable(row)) ??
+      result.data.find(paymentMethodChargeable);
+    const current = session?.paymentMethodId
+      ? result.data.find((row) => row.id === session.paymentMethodId)
+      : undefined;
+    if (current && !paymentMethodChargeable(current)) {
+      selectPaymentMethod(preferred?.id ?? null);
+      return;
+    }
+    if (!session?.paymentMethodId && preferred) {
+      selectPaymentMethod(preferred.id);
     }
   }, [api, selectPaymentMethod, session?.paymentMethodId]);
 
@@ -81,8 +87,13 @@ export default function ConfirmScreen() {
       <Text style={{ color: theme.subtle, fontSize: 12 }}>
         Pick a saved method. POMPO chooses the provider from that method.
       </Text>
-      {error ? <ErrorBanner message={error} /> : null}
-      {methods === null ? <Text style={{ color: theme.muted }}>Loading methods…</Text> : null}
+      {error ? (
+        <>
+          <ErrorBanner message={error} />
+          <SecondaryButton label="Retry" onPress={() => void load()} />
+        </>
+      ) : null}
+      {methods === null && !error ? <Text style={{ color: theme.muted }}>Loading methods…</Text> : null}
       {methods !== null && usable.length === 0 ? (
         <EmptyState
           title="Add a payment method"
@@ -117,10 +128,11 @@ export default function ConfirmScreen() {
       <SecondaryButton label="+ Add payment method" onPress={() => router.push("/customer/methods/add" as Href)} />
       <PrimaryButton
         label={`PAY ${formatMoney(amount, session.inspect.currency)}`}
-        disabled={!session.paymentMethodId}
+        disabled={!usable.some((row) => row.id === session.paymentMethodId)}
         onPress={() => {
-          if (!session.paymentMethodId) {
-            setError("Choose how to pay.");
+          const selected = rows.find((row) => row.id === session.paymentMethodId);
+          if (!selected || !paymentMethodChargeable(selected)) {
+            setError("Choose an available payment method.");
             return;
           }
           router.push("/customer/processing");

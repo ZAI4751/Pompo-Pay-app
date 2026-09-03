@@ -1,10 +1,18 @@
-import { PageShell } from "@/components/layout/PageShell";
-import { ComingSoon } from "@/components/ui/ComingSoon";
+"use client";
 
-export default function Page() {
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+export default function TransactionsRedirectPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/payments");
+  }, [router]);
+
   return (
-    <PageShell title="Transactions" breadcrumb={[{ label: "Operations" }, { label: "Transactions" }]}>
-      <ComingSoon feature="Transactions" />
-    </PageShell>
+    <div className="flex h-full items-center justify-center text-sm text-text-muted">
+      Redirecting to Payments…
+    </div>
   );
 }

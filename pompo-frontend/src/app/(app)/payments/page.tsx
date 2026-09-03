@@ -89,8 +89,8 @@ export default function PaymentsPage() {
     >
       <p className="mb-4 max-w-2xl text-sm text-text-muted">
         {merchantScoped
-          ? "Merchant-scoped payment list from GET /payments. Lookup by reference still works for a single receipt."
-          : "Platform administrators have no global payment list. Use reference lookup, or open a merchant-scoped operator session. This page will not invent a ledger."}
+          ? "Merchant-scoped payment list from GET /payments. Open a row to see nested payment attempts. Lookup by reference still works for a single receipt."
+          : "Platform administrators have no global payment list. Use reference lookup, or open a merchant-scoped operator session. Payment attempts are nested on the retrieved payment. This page will not invent a ledger."}
       </p>
 
       {merchantScoped && list?.status === "error" && (
@@ -112,6 +112,7 @@ export default function PaymentsPage() {
               <Th>Amount</Th>
               <Th>Status</Th>
               <Th>Method</Th>
+              <Th>Attempts</Th>
               <Th>Created</Th>
             </TableHead>
             <TableBody>
@@ -133,6 +134,7 @@ export default function PaymentsPage() {
                     <StatusBadge status={asTxnStatus(row.status)} />
                   </Td>
                   <Td>{row.payment_method}</Td>
+                  <Td>{row.attempts?.length ?? 0}</Td>
                   <Td>{row.created_at ? new Date(row.created_at).toLocaleString() : "—"}</Td>
                 </Tr>
               ))}
@@ -204,20 +206,48 @@ export default function PaymentsPage() {
                 </Button>
               )}
             </div>
-            {result.data.attempts.length > 0 && (
+            {result.data.attempts.length > 0 ? (
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-text-subtle">
-                  Attempts
+                  Payment attempts
                 </p>
-                <ul className="space-y-1 text-sm">
-                  {result.data.attempts.map((attempt) => (
-                    <li key={attempt.id} className="text-text-muted">
-                      #{attempt.attempt_number} {attempt.status}
-                      {attempt.provider_reference ? ` · ${attempt.provider_reference}` : ""}
-                    </li>
-                  ))}
-                </ul>
+                <Table>
+                  <TableHead>
+                    <Th>#</Th>
+                    <Th>Status</Th>
+                    <Th>Provider ref</Th>
+                    <Th>Failure</Th>
+                    <Th>Retryable</Th>
+                  </TableHead>
+                  <TableBody>
+                    {result.data.attempts.map((attempt) => (
+                      <Tr key={attempt.id}>
+                        <Td>{attempt.attempt_number}</Td>
+                        <Td>
+                          <StatusBadge status={asTxnStatus(attempt.status)} />
+                        </Td>
+                        <Td>
+                          {attempt.provider_reference ? (
+                            <MonoId>{attempt.provider_reference}</MonoId>
+                          ) : (
+                            "—"
+                          )}
+                        </Td>
+                        <Td>{attempt.failure_reason ?? attempt.failure_code ?? "—"}</Td>
+                        <Td>
+                          {attempt.retryable === null || attempt.retryable === undefined
+                            ? "—"
+                            : attempt.retryable
+                              ? "Yes"
+                              : "No"}
+                        </Td>
+                      </Tr>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
+            ) : (
+              <p className="text-sm text-text-muted">No payment attempts recorded on this payment yet.</p>
             )}
           </CardBody>
         </Card>

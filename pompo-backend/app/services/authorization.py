@@ -52,6 +52,17 @@ class AuthorizationService:
             raise AuthorizationDeniedError(permission_code)
         return user
 
+    async def require_platform_admin(self, user: User) -> User:
+        """Require the platform_admin system role for control-plane operations."""
+        if not await self._is_platform_admin(user):
+            logger.warning(
+                "authorization_denied",
+                user_id=str(user.id),
+                permission="platform_admin",
+            )
+            raise AuthorizationDeniedError("platform_admin")
+        return user
+
     async def can_grant_permission(self, actor: User, permission_code: str) -> bool:
         """Allow grant delegation only for permissions the actor already has."""
         return await self.has_permission(actor, permission_code)

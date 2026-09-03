@@ -1,10 +1,18 @@
-import { PageShell } from "@/components/layout/PageShell";
-import { ComingSoon } from "@/components/ui/ComingSoon";
+"use client";
 
-export default function Page() {
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+export default function SecurityRedirectPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/settings/security");
+  }, [router]);
+
   return (
-    <PageShell title="Security" breadcrumb={[{ label: "Platform" }, { label: "Security" }]}>
-      <ComingSoon feature="Security" />
-    </PageShell>
+    <div className="flex h-full items-center justify-center text-sm text-text-muted">
+      Redirecting to Settings → Security…
+    </div>
   );
 }

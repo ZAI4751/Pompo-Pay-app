@@ -139,7 +139,7 @@ export default function CustomerHome() {
                 <View style={styles.emptyRecent}>
                   <Text style={{ color: theme.text, fontWeight: "700" }}>No payments yet</Text>
                   <Text style={{ color: theme.subtle, fontSize: 12, textAlign: "center" }}>
-                    Scan a merchant QR to make your first payment. POMPO does not hold a wallet balance.
+                    Scan a merchant QR to make your first payment. POMPO does not hold your money.
                   </Text>
                 </View>
               ) : (

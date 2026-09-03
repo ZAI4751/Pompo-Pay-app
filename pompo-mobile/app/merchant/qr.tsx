@@ -6,7 +6,7 @@ import QRCode from "react-native-qrcode-svg";
 
 import { AmountDisplay, FadeIn, GlassInput } from "@/components/glass";
 import { BottomNav } from "@/components/nav";
-import { Card, ErrorBanner, formatMoney, PrimaryButton, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
+import { Card, EmptyState, ErrorBanner, formatMoney, PrimaryButton, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
 import { canCreateQr, canRevokeQr } from "@/domain/roles";
 import { useAuth } from "@/state/AuthProvider";
 import type { QrRecord, Till } from "@/types";
@@ -20,9 +20,11 @@ export default function MerchantQrScreen() {
   const [amount, setAmount] = useState("50.00");
   const [error, setError] = useState<{ message: string; requestId?: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const canCreate = user ? canCreateQr(user.role_code) : false;
 
   const load = useCallback(async () => {
+    setLoading(true);
     const listed = await api.listQrs();
     if (listed.ok) {
       setQrs(listed.data);
@@ -55,6 +57,7 @@ export default function MerchantQrScreen() {
         }
       }
     }
+    setLoading(false);
   }, [api, user?.branch_id, user?.merchant_id]);
 
   useEffect(() => {
@@ -101,7 +104,9 @@ export default function MerchantQrScreen() {
         </View>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
-          {active ? (
+          {loading && !active ? (
+            <Text style={{ color: theme.muted }}>Loading QR codes…</Text>
+          ) : active ? (
             <FadeIn>
               <View style={[styles.frame, { backgroundColor: theme.glassFill, borderColor: theme.glassBorder }]}>
                 <View style={styles.plate}>
@@ -141,9 +146,14 @@ export default function MerchantQrScreen() {
               </View>
             </FadeIn>
           ) : (
-            <Card>
-              <Text style={{ color: theme.muted }}>No QR codes yet.</Text>
-            </Card>
+            <EmptyState
+              title="No QR yet"
+              body={
+                tillContext
+                  ? "Generate a static or dynamic QR for this till. Customers scan it to pay."
+                  : "A branch till is required before you can generate a QR."
+              }
+            />
           )}
           {canCreate ? (
             <View style={{ gap: 10 }}>
@@ -155,13 +165,24 @@ export default function MerchantQrScreen() {
             <Text style={{ color: theme.muted }}>Ask a merchant owner to generate QR codes.</Text>
           )}
           {qrs.slice(0, 6).map((qr) => (
-            <Text
-              key={qr.public_identifier}
-              onPress={() => router.push(`/merchant/qr/${qr.public_identifier}`)}
-              style={{ color: theme.primary, fontWeight: "700" }}
-            >
-              {qr.qr_type} · {qr.status} · {qr.public_identifier}
-            </Text>
+            <Card key={qr.public_identifier}>
+              <Text
+                onPress={() => router.push(`/merchant/qr/${qr.public_identifier}`)}
+                style={{ color: theme.text, fontWeight: "800" }}
+              >
+                {qr.qr_type === "dynamic" ? "Dynamic QR" : "Static QR"}
+              </Text>
+              <Text style={{ color: theme.subtle, marginTop: 4 }}>
+                {qr.status}
+                {qr.amount ? ` · ${formatMoney(qr.amount, qr.currency)}` : ""}
+              </Text>
+              <Text
+                onPress={() => router.push(`/merchant/qr/${qr.public_identifier}`)}
+                style={{ color: theme.primary, fontWeight: "700", marginTop: 8 }}
+              >
+                Open
+              </Text>
+            </Card>
           ))}
         </ScrollView>
       </View>

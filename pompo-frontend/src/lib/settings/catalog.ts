@@ -175,6 +175,7 @@ export const SETTINGS_MODULE_LINKS = {
   users: { href: "/users", label: "Users", permission: "users:read" },
   roles: { href: "/roles", label: "Roles", permission: "roles:read" },
   permissions: { href: "/permissions", label: "Permissions", permission: "permissions:read" },
+  customers: { href: "/customers", label: "Customers", permission: "users:read" },
   payments: { href: "/payments", label: "Payments", permission: "transactions:read" },
   paymentMethods: { href: "/payment-methods", label: "Payment methods", permission: "users:read" },
   qr: { href: "/qr-codes", label: "QR codes", permission: "qr:read" },
@@ -184,6 +185,7 @@ export const SETTINGS_MODULE_LINKS = {
   settlements: { href: "/settlements", label: "Settlements", permission: "settlements:read" },
   reconciliation: { href: "/reconciliation", label: "Reconciliation", permission: "reconciliation:read" },
   support: { href: "/support", label: "Support", permission: "users:read" },
+  audit: { href: "/audit-logs", label: "Audit" },
   health: { href: "/system/health", label: "System health" },
   dashboard: { href: "/dashboard", label: "Dashboard" },
 } as const;

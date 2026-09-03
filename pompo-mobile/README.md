@@ -40,7 +40,20 @@ npm install
 npx expo start
 ```
 
-Physical device: install Expo Go and scan the QR from the terminal.
+Development on a physical device: `npx expo start` and Expo Go. That is not the
+release artifact.
+
+Standalone Android APK (Customer + Merchant, production Railway API):
+
+```bash
+npm run android:apk
+```
+
+Requires JDK 17 and the Android SDK (`ANDROID_HOME`). The signed APK is copied
+to `release/POMPO-1.0.0.apk`. Package ID: `mw.pompo.mobile`.
+
+EAS cloud builds are configured in `eas.json` (`production` profile, APK). They
+need an Expo account and are optional when a local SDK is available.
 
 ```bash
 npm run android          # Expo Go / emulator (Windows host)
@@ -48,14 +61,11 @@ npm run ios              # macOS only
 npm run lint
 npm run typecheck
 npm test
-npm run export:android   # JS bundle export (not an app-store AAB)
+npm run export:android   # JS bundle export (not an installable APK)
+npm run android:apk      # standalone release APK
 ```
 
-Native project folders (`ios/`, `android/`) are generated on demand:
-
-```bash
-npx expo prebuild
-```
+Native project folders (`ios/`, `android/`) are generated on demand and are gitignored.
 
 iOS archive/signing requires Apple certificates on macOS. This milestone does
 not publish to app stores.
@@ -69,11 +79,10 @@ not publish to app stores.
 5. Confirm → backend `from-qr` + `process` with the simulated provider.
 6. Customer history and merchant activity show the real transaction.
 
-Provision a `customer` user from Master Admin (`users:create` + `customer` role).
-There is no self-registration in M012.
+Customers can self-register in the app. Merchant accounts still come from Master Admin.
 
 ## Limitations
 
 - Camera integration tests are unit/component tests; they do not open a physical camera.
 - iOS release signing is not configured on Windows.
-- Customer self-serve signup, push notifications, and live Airtel/TNM rails are out of scope.
+- Push notifications and live Airtel/TNM rails are out of scope.

@@ -1,9 +1,9 @@
 import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { FadeIn, ProcessingPulse } from "@/components/glass";
-import { ErrorBanner, Screen, useTheme } from "@/components/ui";
+import { ErrorBanner, Screen, SecondaryButton, useTheme } from "@/components/ui";
 import { isTerminalPayment } from "@/domain/paymentStatus";
 import { useAuth } from "@/state/AuthProvider";
 import { useCheckout } from "@/state/CheckoutProvider";
@@ -15,19 +15,19 @@ export default function ProcessingScreen() {
   const { session, setPayment } = useCheckout();
   const [message, setMessage] = useState("Starting payment…");
   const [error, setError] = useState<{ message: string; requestId?: string } | null>(null);
-  const started = useRef(false);
+  const [runId, setRunId] = useState(0);
 
   useEffect(() => {
-    if (!session || started.current) {
+    if (!session) {
       return;
     }
-    started.current = true;
     let cancelled = false;
 
     async function run() {
       if (!session) {
         return;
       }
+      setError(null);
       const amount = session.inspect.qr_type === "dynamic" ? undefined : session.amount;
       setMessage("Creating payment…");
       const initiated = await api.payFromQr({
@@ -82,12 +82,13 @@ export default function ProcessingScreen() {
     return () => {
       cancelled = true;
     };
-  }, [api, router, session, setPayment]);
+  }, [api, router, session, setPayment, runId]);
 
   if (!session) {
     return (
       <Screen>
         <Text style={{ color: theme.text, fontWeight: "800", fontSize: 22 }}>Payment</Text>
+        <SecondaryButton label="Back" onPress={() => router.replace("/customer")} />
       </Screen>
     );
   }
@@ -95,12 +96,28 @@ export default function ProcessingScreen() {
   return (
     <Screen>
       <View style={styles.center}>
-        <FadeIn>
-          <ProcessingPulse />
-        </FadeIn>
+        {error ? null : (
+          <FadeIn>
+            <ProcessingPulse />
+          </FadeIn>
+        )}
         <Text style={[styles.title, { color: theme.text }]}>Paying {session.inspect.merchant_name}</Text>
-        <Text style={{ color: theme.muted, textAlign: "center" }}>{message}</Text>
+        <Text style={{ color: theme.muted, textAlign: "center" }}>
+          {error ? "Payment did not start" : message}
+        </Text>
         {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
+        {error ? (
+          <View style={{ width: "100%", gap: 10, marginTop: 8 }}>
+            <SecondaryButton
+              label="Retry"
+              onPress={() => {
+                setMessage("Retrying…");
+                setRunId((value) => value + 1);
+              }}
+            />
+            <SecondaryButton label="Back to confirmation" onPress={() => router.replace("/customer/confirm")} />
+          </View>
+        ) : null}
       </View>
     </Screen>
   );

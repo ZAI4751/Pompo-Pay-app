@@ -1,10 +1,18 @@
-import { PageShell } from "@/components/layout/PageShell";
-import { ComingSoon } from "@/components/ui/ComingSoon";
+"use client";
 
-export default function Page() {
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+export default function ExceptionsRedirectPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/reconciliation");
+  }, [router]);
+
   return (
-    <PageShell title="Failed / Exceptions" breadcrumb={[{ label: "Operations" }, { label: "Failed / Exceptions" }]}>
-      <ComingSoon feature="Failed / Exceptions" />
-    </PageShell>
+    <div className="flex h-full items-center justify-center text-sm text-text-muted">
+      Redirecting to Reconciliation…
+    </div>
   );
 }

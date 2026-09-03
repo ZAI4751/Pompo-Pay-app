@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+import uuid
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.base import get_settings
@@ -16,9 +17,9 @@ from app.schemas.system import PlatformConfigResponse
 
 
 @pytest.fixture
-async def seeded_user(db_session: AsyncSession) -> AsyncGenerator[User, None]:
+async def operator_user(db_session: AsyncSession) -> AsyncGenerator[User, None]:
     hasher = PasswordHasher()
-    unique = __import__("uuid").uuid4().hex[:8]
+    unique = uuid.uuid4().hex[:8]
     role = Role(code=f"settings_cfg_{unique}", name="Settings config tester")
     user = User(
         role=role,
@@ -32,6 +33,33 @@ async def seeded_user(db_session: AsyncSession) -> AsyncGenerator[User, None]:
     yield user
     await db_session.execute(delete(User).where(User.id == user.id))
     await db_session.execute(delete(Role).where(Role.id == role.id))
+    await db_session.commit()
+
+
+@pytest.fixture
+async def platform_admin(db_session: AsyncSession) -> AsyncGenerator[User, None]:
+    hasher = PasswordHasher()
+    unique = uuid.uuid4().hex[:8]
+    role = await db_session.scalar(select(Role).where(Role.code == "platform_admin"))
+    created_role = False
+    if role is None:
+        role = Role(code="platform_admin", name="Platform administrator", is_system_role=True)
+        db_session.add(role)
+        await db_session.flush()
+        created_role = True
+    user = User(
+        role=role,
+        email=f"settings-admin-{unique}@pompo.mw",
+        full_name="Settings Platform Admin",
+        hashed_password=hasher.hash("correct-horse-battery-staple"),
+        is_active=True,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    yield user
+    await db_session.execute(delete(User).where(User.id == user.id))
+    if created_role:
+        await db_session.execute(delete(Role).where(Role.id == role.id))
     await db_session.commit()
 
 
@@ -51,10 +79,23 @@ async def test_platform_config_requires_authentication(client: AsyncClient) -> N
 
 
 @pytest.mark.asyncio
-async def test_platform_config_returns_running_settings(
-    client: AsyncClient, seeded_user: User
+async def test_platform_config_forbids_non_admin(
+    client: AsyncClient, operator_user: User
 ) -> None:
-    token = await _login(client, seeded_user.email)
+    token = await _login(client, operator_user.email)
+    response = await client.get(
+        "/api/v1/system/config",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Insufficient permissions"
+
+
+@pytest.mark.asyncio
+async def test_platform_config_returns_running_settings(
+    client: AsyncClient, platform_admin: User
+) -> None:
+    token = await _login(client, platform_admin.email)
     response = await client.get(
         "/api/v1/system/config",
         headers={"Authorization": f"Bearer {token}"},
@@ -85,8 +126,8 @@ async def test_platform_config_returns_running_settings(
 
 
 @pytest.mark.asyncio
-async def test_platform_config_omits_secrets(client: AsyncClient, seeded_user: User) -> None:
-    token = await _login(client, seeded_user.email)
+async def test_platform_config_omits_secrets(client: AsyncClient, platform_admin: User) -> None:
+    token = await _login(client, platform_admin.email)
     response = await client.get(
         "/api/v1/system/config",
         headers={"Authorization": f"Bearer {token}"},
@@ -101,8 +142,8 @@ async def test_platform_config_omits_secrets(client: AsyncClient, seeded_user: U
 
 
 @pytest.mark.asyncio
-async def test_platform_config_rejects_writes(client: AsyncClient, seeded_user: User) -> None:
-    token = await _login(client, seeded_user.email)
+async def test_platform_config_rejects_writes(client: AsyncClient, platform_admin: User) -> None:
+    token = await _login(client, platform_admin.email)
     headers = {"Authorization": f"Bearer {token}"}
     patch = await client.patch("/api/v1/system/config", headers=headers, json={"debug": True})
     put = await client.put("/api/v1/system/config", headers=headers, json={"debug": True})

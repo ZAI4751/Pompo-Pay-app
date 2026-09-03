@@ -4,7 +4,7 @@ const { defineConfig } = require("eslint/config");
 module.exports = defineConfig([
   ...expoConfig,
   {
-    ignores: ["dist/*", "node_modules/*", ".expo/*", "coverage/*"],
+    ignores: ["dist/*", "node_modules/*", ".expo/*", "coverage/*", "scripts/*"],
   },
   {
     rules: {

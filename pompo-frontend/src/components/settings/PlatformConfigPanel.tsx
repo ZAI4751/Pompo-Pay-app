@@ -35,11 +35,11 @@ export function PlatformConfigPanel({
     <SettingsPanel
       title={title}
       description={description}
-      badge={
-        <span className="text-[11px] uppercase tracking-[0.12em] text-text-subtle">
-          GET /api/v1/system/config · not writable
-        </span>
-      }
+        badge={
+          <span className="text-[11px] uppercase tracking-[0.12em] text-text-subtle">
+            GET /api/v1/system/config · platform_admin · not writable
+          </span>
+        }
     >
       {keys.map((key) => (
         <SettingRow

@@ -39,6 +39,7 @@ function session(overrides: Partial<CheckoutSession> = {}): CheckoutSession {
 }
 
 let mockCheckout: CheckoutSession | null = session();
+const mockListPaymentMethods = jest.fn();
 
 jest.mock("@/state/CheckoutProvider", () => ({
   useCheckout: () => ({
@@ -53,32 +54,31 @@ jest.mock("@/state/CheckoutProvider", () => ({
 jest.mock("@/state/AuthProvider", () => ({
   useAuth: () => ({
     api: {
-      listPaymentMethods: async () => ({
-        ok: true,
-        data: [
-          {
-            id: "PIM-TEST",
-            provider_code: "simulated",
-            provider_display_name: "Simulated sandbox",
-            instrument_type: "mobile_money",
-            display_name: "Test Airtel Money",
-            masked_identifier: "+265 88•• ••21",
-            status: "active",
-            authorization_state: "completed",
-            is_default: true,
-            is_sandbox: true,
-            last_used_at: null,
-            created_at: "2026-09-03T00:00:00Z",
-          },
-        ],
-      }),
+      listPaymentMethods: () => mockListPaymentMethods(),
     },
   }),
 }));
 
+const chargeableMethod = {
+  id: "PIM-TEST",
+  provider_code: "simulated",
+  provider_display_name: "Simulated sandbox",
+  instrument_type: "mobile_money",
+  display_name: "Test Airtel Money",
+  masked_identifier: "+265 88•• ••21",
+  status: "active",
+  authorization_state: "completed",
+  is_default: true,
+  is_sandbox: true,
+  last_used_at: null,
+  created_at: "2026-09-03T00:00:00Z",
+};
+
 describe("QR and payment screens", () => {
   beforeEach(() => {
     mockCheckout = session();
+    mockListPaymentMethods.mockReset();
+    mockListPaymentMethods.mockResolvedValue({ ok: true, data: [chargeableMethod] });
   });
 
   it("shows merchant preview from backend inspect data", () => {
@@ -100,6 +100,21 @@ describe("QR and payment screens", () => {
     expect(await screen.findByText("How would you like to pay?")).toBeTruthy();
     expect(screen.getAllByText("Chikondi Shop").length).toBeGreaterThan(0);
     expect(await screen.findByText("Test Airtel Money")).toBeTruthy();
+  });
+
+  it("shows a retryable error when payment methods fail to load", async () => {
+    mockListPaymentMethods.mockResolvedValue({
+      ok: false,
+      error: { message: "Unable to load payment methods", requestId: "req-1" },
+    });
+    render(
+      <SafeAreaProvider>
+        <ConfirmScreen />
+      </SafeAreaProvider>,
+    );
+    expect(await screen.findByText("Unable to load payment methods")).toBeTruthy();
+    expect(screen.getByText("Retry")).toBeTruthy();
+    expect(screen.queryByText("Add a payment method")).toBeNull();
   });
 
   it("renders payment success from backend status", () => {

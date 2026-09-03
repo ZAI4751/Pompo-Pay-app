@@ -7,6 +7,7 @@ import type {
   AuthenticatedUser,
   Branch,
   CustomerInsight,
+  CustomerPreferences,
   CustomerRegisterResponse,
   FavoriteMerchant,
   Merchant,
@@ -288,6 +289,27 @@ export class PompoApi {
 
   insights(): Promise<ApiResult<CustomerInsight>> {
     return this.request<CustomerInsight>("/customers/me/insights");
+  }
+
+  getPreferences(): Promise<ApiResult<CustomerPreferences>> {
+    return this.request<CustomerPreferences>("/customers/me/preferences");
+  }
+
+  updatePreferences(
+    body: Partial<
+      Pick<
+        CustomerPreferences,
+        | "notify_payment_success"
+        | "notify_payment_failed"
+        | "notify_payment_updates"
+        | "notify_payment_requests"
+      >
+    >,
+  ): Promise<ApiResult<CustomerPreferences>> {
+    return this.request<CustomerPreferences>("/customers/me/preferences", {
+      method: "PATCH",
+      body,
+    });
   }
 
   listPaymentRequests(): Promise<ApiResult<PaymentRequest[]>> {

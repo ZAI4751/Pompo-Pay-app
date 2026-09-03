@@ -29,7 +29,11 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "mw.pompo.mobile",
-      "permissions": ["CAMERA"]
+      "versionCode": 1,
+      "softwareKeyboardLayoutMode": "resize",
+      "allowBackup": false,
+      "usesCleartextTraffic": false,
+      "permissions": ["CAMERA", "INTERNET", "ACCESS_NETWORK_STATE"]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -37,7 +41,12 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": false
+        }
+      ],
       [
         "expo-splash-screen",
         {

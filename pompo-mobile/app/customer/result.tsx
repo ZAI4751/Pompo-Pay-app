@@ -34,8 +34,8 @@ export default function ResultScreen() {
             {success
               ? "That payment went through."
               : timedOut
-                ? "The provider did not confirm in time. You can check the transaction or try again."
-                : "You can try again or review the transaction."}
+                ? "The provider did not confirm in time. You can check the payment or try again."
+                : "You can try again or review the payment."}
           </Text>
           {session ? (
             <View style={styles.identity}>
@@ -58,7 +58,7 @@ export default function ResultScreen() {
         </Card>
       </FadeIn>
       <PrimaryButton
-        label={success ? "Done" : "View Transaction"}
+        label={success ? "Done" : "View payment"}
         onPress={() => {
           const reference = payment?.reference;
           clear();

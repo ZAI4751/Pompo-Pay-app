@@ -34,6 +34,20 @@ export default function MerchantProfile() {
         </FadeIn>
         <Card style={{ padding: 0, gap: 0, overflow: "hidden" }}>
           <MenuRow
+            icon="qr-code-outline"
+            label="Show QR"
+            color={theme.primary}
+            background={theme.scheme === "dark" ? "#1e3a8a" : "#eff6ff"}
+            onPress={() => router.push("/merchant/qr")}
+          />
+          <MenuRow
+            icon="time-outline"
+            label="Activity"
+            color={theme.primary}
+            background={theme.scheme === "dark" ? "#1e3a8a" : "#eff6ff"}
+            onPress={() => router.push("/merchant/activity")}
+          />
+          <MenuRow
             icon="storefront-outline"
             label="Till"
             color={theme.primary}

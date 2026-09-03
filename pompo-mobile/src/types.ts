@@ -153,6 +153,15 @@ export interface PaymentRequest {
   created_at: string | null;
 }
 
+export interface CustomerPreferences {
+  notify_payment_success: boolean;
+  notify_payment_failed: boolean;
+  notify_payment_updates: boolean;
+  notify_payment_requests: boolean;
+  preferred_mode: string | null;
+  phone_verification: string;
+}
+
 export interface CustomerInsight {
   payments_this_week: number;
   spent_this_week: string;

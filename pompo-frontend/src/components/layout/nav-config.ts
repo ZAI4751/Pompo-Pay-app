@@ -9,6 +9,7 @@ import {
   GitBranch,
   MonitorSmartphone,
   Users,
+  ContactRound,
   ShieldCheck,
   KeyRound,
   KeySquare,
@@ -17,6 +18,7 @@ import {
   Landmark,
   Scale,
   LifeBuoy,
+  ScrollText,
 } from "lucide-react";
 
 export interface NavItem {
@@ -25,7 +27,7 @@ export interface NavItem {
   icon: LucideIcon;
   /** Permission code required to see this item; omitted = visible to all authenticated users. */
   permission?: string;
-  /** True if the backing backend endpoint doesn't exist yet -- routes to a ComingSoon screen. */
+  /** True if the backing backend endpoint doesn't exist yet. */
   comingSoon?: boolean;
 }
 
@@ -45,6 +47,7 @@ export const navGroups: NavGroup[] = [
       { label: "Merchants", href: "/merchants", icon: Store, permission: "merchants:read" },
       { label: "Branches", href: "/branches", icon: GitBranch, permission: "branches:read" },
       { label: "Tills", href: "/tills", icon: MonitorSmartphone, permission: "tills:read" },
+      { label: "Customers", href: "/customers", icon: ContactRound, permission: "users:read" },
       { label: "Users", href: "/users", icon: Users, permission: "users:read" },
       { label: "Roles", href: "/roles", icon: ShieldCheck, permission: "roles:read" },
       { label: "Permissions", href: "/permissions", icon: KeyRound, permission: "permissions:read" },
@@ -75,7 +78,10 @@ export const navGroups: NavGroup[] = [
   },
   {
     label: "Operations",
-    items: [{ label: "Support", href: "/support", icon: LifeBuoy, permission: "users:read" }],
+    items: [
+      { label: "Support", href: "/support", icon: LifeBuoy, permission: "users:read" },
+      { label: "Audit", href: "/audit-logs", icon: ScrollText },
+    ],
   },
   {
     label: "Configuration",

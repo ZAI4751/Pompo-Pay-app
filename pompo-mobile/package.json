@@ -5,13 +5,15 @@
   "private": true,
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "export:android": "expo export --platform android"
+    "export:android": "expo export --platform android",
+    "android:prebuild": "expo prebuild --platform android --non-interactive",
+    "android:apk": "expo prebuild --platform android --non-interactive && node ./scripts/assemble-android-apk.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

@@ -7,7 +7,7 @@ import { Card, ErrorBanner, formatMoney, PrimaryButton, Screen, SecondaryButton,
 import { mapPaymentStatus, paymentStatusDetail, paymentStatusLabel } from "@/domain/paymentStatus";
 import { formatWhen } from "@/format";
 import { useAuth } from "@/state/AuthProvider";
-import type { Payment } from "@/types";
+import type { Payment, PaymentReceipt } from "@/types";
 
 export default function CustomerPaymentDetail() {
   const { reference } = useLocalSearchParams<{ reference: string }>();
@@ -15,6 +15,7 @@ export default function CustomerPaymentDetail() {
   const router = useRouter();
   const { api } = useAuth();
   const [payment, setPayment] = useState<Payment | null>(null);
+  const [receipt, setReceipt] = useState<PaymentReceipt | null>(null);
   const [error, setError] = useState<{ message: string; requestId?: string } | null>(null);
 
   useEffect(() => {
@@ -26,6 +27,11 @@ export default function CustomerPaymentDetail() {
         setPayment(result.data);
       } else {
         setError({ message: result.error.message, requestId: result.error.requestId });
+      }
+    });
+    void api.getReceipt(reference).then((result) => {
+      if (result.ok) {
+        setReceipt(result.data);
       }
     });
   }, [api, reference]);
@@ -46,7 +52,7 @@ export default function CustomerPaymentDetail() {
               <StatusPill label={paymentStatusLabel(payment.status)} tone={tone} />
             </View>
             <Text style={{ color: theme.text, fontSize: 18, fontWeight: "800", marginTop: 8 }}>
-              {payment.merchant_name ?? "Merchant"}
+              {receipt?.merchant_name ?? payment.merchant_name ?? "Merchant"}
             </Text>
             {payment.branch_name ? (
               <Text style={{ color: theme.muted }}>
@@ -56,15 +62,21 @@ export default function CustomerPaymentDetail() {
             ) : null}
             <AmountDisplay value={formatMoney(payment.amount, payment.currency)} />
             <Text style={{ color: theme.muted, marginTop: 8 }}>
-              {payment.status_detail || paymentStatusDetail(payment.status)}
+              {receipt?.status_detail || payment.status_detail || paymentStatusDetail(payment.status)}
             </Text>
             <View style={{ gap: 6, marginTop: 8 }}>
               <Text style={{ color: theme.subtle }}>Reference {payment.reference}</Text>
+              {receipt?.receipt_number ? (
+                <Text style={{ color: theme.subtle }}>Receipt {receipt.receipt_number}</Text>
+              ) : null}
               {payment.created_at ? (
                 <Text style={{ color: theme.subtle }}>{formatWhen(payment.created_at)}</Text>
               ) : null}
               {payment.attempts[0]?.provider_reference ? (
                 <Text style={{ color: theme.subtle }}>Provider ref {payment.attempts[0].provider_reference}</Text>
+              ) : null}
+              {receipt?.disclaimer ? (
+                <Text style={{ color: theme.subtle, marginTop: 8 }}>{receipt.disclaimer}</Text>
               ) : null}
             </View>
           </Card>
@@ -76,12 +88,16 @@ export default function CustomerPaymentDetail() {
           onPress={() =>
             void Share.share({
               message: [
-                "POMPO PAYMENT RECEIPT",
-                payment.merchant_name ?? "Merchant",
+                receipt?.title ?? "POMPO PAYMENT RECEIPT",
+                receipt?.merchant_name ?? payment.merchant_name ?? "Merchant",
                 formatMoney(payment.amount, payment.currency),
                 paymentStatusLabel(payment.status),
                 `Reference ${payment.reference}`,
-              ].join("\n"),
+                receipt?.receipt_number ? `Receipt ${receipt.receipt_number}` : "",
+                receipt?.disclaimer ?? "",
+              ]
+                .filter(Boolean)
+                .join("\n"),
             })
           }
         />

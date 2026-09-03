@@ -62,6 +62,13 @@ export default function CustomerProfile() {
             onPress={() => router.push("/customer/notifications")}
           />
           <MenuRow
+            icon="options-outline"
+            label="Notification settings"
+            color={theme.primary}
+            background={theme.scheme === "dark" ? "#1e3a8a" : "#eff6ff"}
+            onPress={() => router.push("/customer/preferences" as Href)}
+          />
+          <MenuRow
             icon="lock-closed-outline"
             label="Security"
             color={theme.primary}

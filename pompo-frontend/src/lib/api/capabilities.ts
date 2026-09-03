@@ -20,6 +20,8 @@ export const API_CAPABILITIES = {
   paymentsCancel: "live",
   paymentsProcess: "live",
   paymentsList: "live",
+  paymentAttempts: "live",
+  customersStats: "live",
   providers: "live",
   health: "live",
   tills: "live",

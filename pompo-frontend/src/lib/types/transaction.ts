@@ -1,11 +1,6 @@
 /**
- * Mirrors app/models/payment.py's TransactionStatus enum exactly. The
- * transaction API itself does not exist on the backend yet (payment
- * milestones are future work) -- this type exists so the Transactions
- * screen's table/filter UI is ready to receive real data later without
- * a redesign. Money is always a decimal string, never a float, matching
- * how the backend stores it (Numeric(18,2)) -- never do float arithmetic
- * on amount in this codebase.
+ * Mirrors payment status values on GET /payments and GET /payments/{reference}.
+ * Payments are the transaction record. Money is always a decimal string.
  */
 
 export type TransactionStatus =

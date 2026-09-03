@@ -133,6 +133,22 @@ async def get_current_user(
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
 
 
+async def require_platform_admin(
+    current_user: CurrentUserDep,
+    authorization_service: AuthorizationServiceDep,
+) -> User:
+    """Require the platform_admin role for Master Admin control-plane reads."""
+    from app.services.authorization import AuthorizationDeniedError
+
+    try:
+        return await authorization_service.require_platform_admin(current_user)
+    except AuthorizationDeniedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions",
+        ) from exc
+
+
 def require_permission(permission_code: str) -> Callable[..., Awaitable[User]]:
     """Build a reusable dependency requiring one exact permission code."""
 
