@@ -185,7 +185,7 @@ export default function QRCodesPage() {
   return (
     <PageShell
       title="QR Codes"
-      breadcrumb={[{ label: "Operations" }, { label: "QR Codes" }]}
+      breadcrumb={[{ label: "Payments" }, { label: "QR Codes" }]}
       actions={
         <div className="flex items-center gap-2">
           {isDemoSession ? <MockDataBadge /> : null}

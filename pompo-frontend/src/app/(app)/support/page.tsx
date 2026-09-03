@@ -26,8 +26,8 @@ export default function SupportPage() {
       actions={isDemoSession ? <MockDataBadge /> : undefined}
     >
       <p className="mb-4 max-w-2xl text-sm text-text-muted">
-        Lightweight customer reports. This is not a ticketing platform. Payment
-        references are preserved; internal logs are not shown.
+        Lightweight customer reports. Payment references are preserved; secrets
+        and stack traces are not shown.
       </p>
       <Card>
         <CardHeader>
@@ -37,7 +37,10 @@ export default function SupportPage() {
           {rows === null ? (
             <p className="text-sm text-text-muted">Loading…</p>
           ) : rows.length === 0 ? (
-            <EmptyState title="No support requests" />
+            <EmptyState
+              title="No support requests"
+              description="Customer reports from the mobile app appear here. Empty is a real queue."
+            />
           ) : (
             <div className="space-y-3">
               {rows.map((row) => (
@@ -49,8 +52,9 @@ export default function SupportPage() {
                   <p className="mt-1 text-sm text-text-muted">{row.message}</p>
                   <div className="mt-2 flex flex-wrap gap-3 text-xs text-text-muted">
                     <span>{row.category}</span>
-                    <MonoId>{row.public_identifier}</MonoId>
+                    <span>Request {row.public_identifier}</span>
                     {row.payment_reference ? <MonoId>{row.payment_reference}</MonoId> : null}
+                    {row.created_at ? <span>{new Date(row.created_at).toLocaleString()}</span> : null}
                   </div>
                 </div>
               ))}

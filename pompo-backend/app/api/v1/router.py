@@ -17,11 +17,13 @@ from app.api.v1 import (
     rbac,
     settlements,
     support,
+    system,
     webhooks,
 )
 
 api_v1_router = APIRouter()
 api_v1_router.include_router(health.router)
+api_v1_router.include_router(system.router)
 api_v1_router.include_router(auth.router)
 api_v1_router.include_router(customers.router)
 api_v1_router.include_router(rbac.router)

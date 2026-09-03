@@ -41,7 +41,7 @@ export default function SettlementsPage() {
   }, [canRead]);
 
   return (
-    <PageShell title="Settlements" breadcrumb={[{ label: "Operations" }, { label: "Settlements" }]}>
+    <PageShell title="Settlements" breadcrumb={[{ label: "Financial operations" }, { label: "Settlements" }]}>
       {!canRead && (
         <ErrorState kind="forbidden" description="You do not have permission to view settlements." />
       )}
@@ -106,6 +106,7 @@ export default function SettlementsPage() {
           <TableHead>
             <tr>
               <Th>Settlement</Th>
+              <Th>Batch</Th>
               <Th>Date</Th>
               <Th>Gross</Th>
               <Th>Provider fee</Th>
@@ -120,6 +121,9 @@ export default function SettlementsPage() {
                 <Td>
                   <MonoId>{row.public_identifier}</MonoId>
                   <div className="text-xs text-text-subtle">{row.provider_settlement_reference}</div>
+                </Td>
+                <Td>
+                  <MonoId>{row.batch_id}</MonoId>
                 </Td>
                 <Td>{row.settlement_date}</Td>
                 <Td>{money(row.gross_amount)}</Td>

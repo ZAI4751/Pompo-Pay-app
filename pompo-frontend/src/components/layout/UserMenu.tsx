@@ -2,7 +2,8 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, LogOut, User as UserIcon } from "lucide-react";
+import { ChevronDown, LogOut, Settings } from "lucide-react";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { cn } from "@/lib/utils/cn";
 
@@ -72,15 +73,15 @@ export function UserMenu() {
               <p className="truncate text-sm font-medium text-text">{user.full_name}</p>
               <p className="truncate text-xs text-text-muted">{user.email}</p>
             </div>
-            <button
-              type="button"
+            <Link
+              href="/settings"
               role="menuitem"
-              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-text-muted"
-              disabled
+              onClick={() => setOpen(false)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-text-muted hover:bg-primary-light hover:text-text"
             >
-              <UserIcon className="h-4 w-4" aria-hidden="true" />
-              Profile
-            </button>
+              <Settings className="h-4 w-4" aria-hidden="true" />
+              Settings
+            </Link>
             <button
               type="button"
               role="menuitem"

@@ -34,7 +34,7 @@ export default function HealthPage() {
   return (
     <PageShell
       title="Health"
-      breadcrumb={[{ label: "System" }, { label: "Health" }]}
+      breadcrumb={[{ label: "Configuration" }, { label: "Health" }]}
       actions={isDemoSession ? <MockDataBadge /> : undefined}
     >
       {result === null && (

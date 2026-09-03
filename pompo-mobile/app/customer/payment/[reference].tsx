@@ -37,6 +37,7 @@ export default function CustomerPaymentDetail() {
     <Screen>
       <Title>Receipt</Title>
       {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
+      {!payment && !error ? <Text style={{ color: theme.muted }}>Loading receipt…</Text> : null}
       {payment ? (
         <FadeIn>
           <Card>

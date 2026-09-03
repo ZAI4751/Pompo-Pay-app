@@ -1,16 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { LayoutGroup, m } from "framer-motion";
 import {
-  ArrowLeftRight,
   Building2,
-  CheckCircle2,
+  HeartPulse,
+  Landmark,
+  LifeBuoy,
   Plug,
+  Scale,
   Store,
   Users,
-  Wallet,
-  XCircle,
+  Webhook,
 } from "lucide-react";
 import { PageShell } from "@/components/layout/PageShell";
 import { MetricCard } from "@/components/ui/MetricCard";
@@ -20,41 +20,37 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { MockDataBadge } from "@/components/ui/MockDataBadge";
 import { MonoId } from "@/components/ui/Table";
 import { HealthIndicator } from "@/components/ui/HealthIndicator";
-import { ActivityTimeline } from "@/components/ui/ActivityTimeline";
 import { MetricSkeleton } from "@/components/ui/SkeletonCard";
 import { Stagger, StaggerItem } from "@/components/motion/Stagger";
-import { ChartLegend, TransactionAreaChart } from "@/components/charts/TransactionAreaChart";
-import { RadialMeter } from "@/components/charts/RadialMeter";
+import { Badge } from "@/components/ui/Badge";
 import { merchantsService } from "@/lib/api/services/merchants";
 import { branchesService } from "@/lib/api/services/branches";
 import { healthService } from "@/lib/api/services/health";
 import { paymentsService } from "@/lib/api/services/payments";
 import { customersService, type CustomerStats } from "@/lib/api/services/customers";
-import { transactionsService } from "@/lib/api/services/transactions";
+import { webhooksService } from "@/lib/api/services/webhooks";
+import { reconciliationService, settlementsService } from "@/lib/api/services/settlements";
 import { USE_MOCKS } from "@/lib/api/config";
-import { formatCompactCount, formatCompactMwk } from "@/lib/format/money";
 import { cn } from "@/lib/utils/cn";
-import type { Transaction } from "@/lib/types/transaction";
+import {
+  isOperationalLiveRail,
+  providerLifecycle,
+  providerLifecycleTone,
+} from "@/lib/providers/lifecycle";
 import type { Merchant } from "@/lib/types/merchant";
 import type { HealthResponse } from "@/lib/types/health";
 import type { PaymentProvider } from "@/lib/types/payment";
-import { mockVolumeSeries, type OpsPeriod } from "@/mocks/data";
-
-const periods: { id: OpsPeriod; label: string }[] = [
-  { id: "24h", label: "Last 24h" },
-  { id: "7d", label: "Last 7 days" },
-  { id: "30d", label: "Last 30 days" },
-];
+import type { ReconciliationSummary, SettlementSummary } from "@/lib/types/settlement";
 
 export default function DashboardPage() {
-  const [transactions, setTransactions] = useState<Transaction[] | null>(USE_MOCKS ? null : []);
   const [merchants, setMerchants] = useState<Merchant[] | null>(null);
   const [branchTotal, setBranchTotal] = useState<number | null>(null);
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [providers, setProviders] = useState<PaymentProvider[] | null>(null);
   const [customerStats, setCustomerStats] = useState<CustomerStats | null>(null);
-  const [period, setPeriod] = useState<OpsPeriod>("7d");
-  const [metric, setMetric] = useState<"volume" | "count">("volume");
+  const [webhookFailures, setWebhookFailures] = useState<number | null>(null);
+  const [reconSummary, setReconSummary] = useState<ReconciliationSummary | null>(null);
+  const [settlementSummary, setSettlementSummary] = useState<SettlementSummary | null>(null);
 
   useEffect(() => {
     void merchantsService.list().then((result) => {
@@ -71,6 +67,7 @@ export default function DashboardPage() {
         );
       } else {
         setMerchants([]);
+        setBranchTotal(0);
       }
     });
     void healthService.check().then((result) => {
@@ -86,27 +83,23 @@ export default function DashboardPage() {
           : { customer_count: 0, payment_requests: {}, support_open_count: 0 },
       );
     });
-    if (USE_MOCKS) {
-      void transactionsService.list().then((result) => {
-        setTransactions(result.status === "success" ? result.data.items : []);
-      });
-    }
+    void webhooksService.list({ processing_status: "failed", limit: 50 }).then((result) => {
+      setWebhookFailures(result.status === "success" ? result.data.length : 0);
+    });
+    void reconciliationService.summary().then((result) => {
+      setReconSummary(result.status === "success" ? result.data : null);
+    });
+    void settlementsService.summary().then((result) => {
+      setSettlementSummary(result.status === "success" ? result.data : null);
+    });
   }, []);
 
-  const series = mockVolumeSeries[period];
-  const totals = useMemo(() => {
-    const volume = series.reduce((sum, point) => sum + point.volume, 0);
-    const count = series.reduce((sum, point) => sum + point.count, 0);
-    const failed = series.reduce((sum, point) => sum + point.failed, 0);
-    const successful = Math.max(count - failed, 0);
-    const successRate = count === 0 ? 0 : (successful / count) * 100;
-    return { volume, count, failed, successful, successRate };
-  }, [series]);
-
-  const merchantList = merchants ?? [];
-  const providerList = providers ?? [];
+  const merchantList = useMemo(() => merchants ?? [], [merchants]);
+  const providerList = useMemo(() => providers ?? [], [providers]);
   const activeMerchants = merchantList.filter((merchant) => merchant.is_active).length;
-  const liveProviders = providerList.filter((provider) => provider.is_active).length;
+  const liveRails = providerList.filter(isOperationalLiveRail).length;
+  const contractPending = providerList.filter((provider) => providerLifecycle(provider) === "CONTRACT NOT READY").length;
+  const pendingRequests = Object.values(customerStats?.payment_requests ?? {}).reduce((sum, count) => sum + count, 0);
   const systemHeadline = health
     ? health.status === "healthy"
       ? "Healthy"
@@ -118,22 +111,31 @@ export default function DashboardPage() {
   const railMix = useMemo(() => {
     const groups = [
       {
-        id: "active",
-        label: "Active rails",
+        id: "live",
+        label: "Live",
         tone: "bg-blue-500",
-        count: providerList.filter((p) => p.is_active && p.health_state === "active").length,
+        count: providerList.filter((p) => providerLifecycle(p) === "LIVE").length,
       },
       {
         id: "sandbox",
-        label: "Sandbox",
+        label: "Simulated",
         tone: "bg-emerald-500",
-        count: providerList.filter((p) => p.is_simulated).length,
+        count: providerList.filter((p) => providerLifecycle(p) === "SIMULATED").length,
+      },
+      {
+        id: "contract",
+        label: "Contract not ready",
+        tone: "bg-slate-400",
+        count: providerList.filter((p) => providerLifecycle(p) === "CONTRACT NOT READY").length,
       },
       {
         id: "blocked",
-        label: "Disabled / down",
+        label: "Disabled / unavailable",
         tone: "bg-orange-500",
-        count: providerList.filter((p) => !p.is_active || p.health_state === "unavailable").length,
+        count: providerList.filter((p) => {
+          const state = providerLifecycle(p);
+          return state === "DISABLED" || state === "UNAVAILABLE" || state === "DEGRADED";
+        }).length,
       },
     ];
     const total = Math.max(
@@ -144,7 +146,11 @@ export default function DashboardPage() {
   }, [providerList]);
 
   return (
-    <PageShell title="Dashboard" breadcrumb={[{ label: "Overview" }, { label: "Dashboard" }]}>
+    <PageShell
+      title="Dashboard"
+      breadcrumb={[{ label: "Overview" }, { label: "Dashboard" }]}
+      actions={USE_MOCKS ? <MockDataBadge /> : undefined}
+    >
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-brand text-primary">Operations</p>
@@ -152,37 +158,19 @@ export default function DashboardPage() {
             Payment control center
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-text-muted">
-            Merchant, rail, and platform health from the live API. Volume charts remain labeled demo
-            series until a settlement telemetry endpoint exists.
+            Counts come from live APIs. There is no global payment-volume telemetry for platform
+            administrators, so this page does not invent a ledger or demo chart.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs font-medium text-text-muted shadow-sm dark:bg-slate-900">
-            <span
-              className={cn(
-                "h-2 w-2 rounded-full",
-                health?.status === "healthy" ? "bg-success" : "bg-warning",
-              )}
-            />
-            System {systemHeadline}
-          </span>
-          <Segmented options={periods} value={period} onChange={setPeriod} />
-        </div>
+        <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs font-medium text-text-muted shadow-sm dark:bg-slate-900">
+          <span
+            className={cn("h-2 w-2 rounded-full", health?.status === "healthy" ? "bg-success" : "bg-warning")}
+          />
+          System {systemHeadline}
+        </span>
       </div>
 
       <Stagger className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StaggerItem>
-          <MetricCard
-            label="Transaction volume"
-            value={formatCompactMwk(totals.volume)}
-            numericValue={totals.volume}
-            formatNumeric={formatCompactMwk}
-            icon={Wallet}
-            emphasis="primary"
-            series={series.map((point) => point.volume)}
-            hint={`Demo series · ${period}`}
-          />
-        </StaggerItem>
         <StaggerItem>
           {merchants === null ? (
             <MetricSkeleton />
@@ -202,10 +190,10 @@ export default function DashboardPage() {
             <MetricSkeleton />
           ) : (
             <MetricCard
-              label="Live providers"
-              value={`${liveProviders}/${providerList.length}`}
+              label="Live rails"
+              value={`${liveRails}/${providerList.length}`}
               icon={Plug}
-              hint="GET /payments/providers"
+              hint={`${contractPending} awaiting contract`}
             />
           )}
         </StaggerItem>
@@ -237,104 +225,122 @@ export default function DashboardPage() {
             />
           )}
         </StaggerItem>
+        <StaggerItem>
+          {customerStats === null ? (
+            <MetricSkeleton />
+          ) : (
+            <MetricCard
+              label="Open support"
+              value={String(customerStats.support_open_count)}
+              numericValue={customerStats.support_open_count}
+              formatNumeric={(n) => String(Math.round(n))}
+              icon={LifeBuoy}
+              hint="GET /customers/stats"
+            />
+          )}
+        </StaggerItem>
+        <StaggerItem>
+          {customerStats === null ? (
+            <MetricSkeleton />
+          ) : (
+            <MetricCard
+              label="Payment requests"
+              value={String(pendingRequests)}
+              numericValue={pendingRequests}
+              formatNumeric={(n) => String(Math.round(n))}
+              icon={HeartPulse}
+              hint="Counts by status from /customers/stats"
+            />
+          )}
+        </StaggerItem>
+        <StaggerItem>
+          {webhookFailures === null ? (
+            <MetricSkeleton />
+          ) : (
+            <MetricCard
+              label="Failed webhooks"
+              value={String(webhookFailures)}
+              numericValue={webhookFailures}
+              formatNumeric={(n) => String(Math.round(n))}
+              icon={Webhook}
+              hint="GET /webhooks?processing_status=failed"
+            />
+          )}
+        </StaggerItem>
+        <StaggerItem>
+          {reconSummary === null && settlementSummary === null ? (
+            <MetricSkeleton />
+          ) : (
+            <MetricCard
+              label="Recon exceptions"
+              value={String((reconSummary?.discrepancy ?? 0) + (reconSummary?.unmatched ?? 0))}
+              icon={Scale}
+              hint={
+                settlementSummary
+                  ? `${settlementSummary.total_settlements} settlement rows`
+                  : "GET /reconciliation/summary"
+              }
+            />
+          )}
+        </StaggerItem>
       </Stagger>
 
-      <section className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(280px,0.8fr)]">
-        <Card glow>
+      <section className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
+        <Card>
           <CardHeader>
             <div>
-              <CardEyebrow>Activity</CardEyebrow>
-              <CardTitle className="mt-0.5">Volume and failures</CardTitle>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <MockDataBadge />
-              <Segmented
-                options={[
-                  { id: "volume", label: "Volume" },
-                  { id: "count", label: "Count" },
-                ]}
-                value={metric}
-                onChange={setMetric}
-              />
+              <CardEyebrow>Financial control</CardEyebrow>
+              <CardTitle className="mt-0.5">Settlements and reconciliation</CardTitle>
             </div>
           </CardHeader>
           <CardBody>
-            <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <p className="text-3xl font-semibold tabular-nums text-text">
-                  {metric === "volume" ? formatCompactMwk(totals.volume) : formatCompactCount(totals.count)}
-                </p>
-                <p className="mt-1 text-xs text-text-subtle">
-                  {metric === "volume" ? "Settled volume (MWK)" : "Transaction count"} · dashed line is
-                  failed attempts
-                </p>
+            {!reconSummary && !settlementSummary ? (
+              <EmptyState
+                title="No financial-control summary yet"
+                description="Settlement batches and reconciliation exceptions appear after provider ingestion. Resolving a discrepancy does not rewrite the original payment."
+              />
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <MiniStat
+                  icon={Landmark}
+                  label="Settlements"
+                  value={String(settlementSummary?.total_settlements ?? 0)}
+                />
+                <MiniStat icon={Scale} label="Matched" value={String(reconSummary?.matched ?? 0)} />
+                <MiniStat icon={Scale} label="Unmatched" value={String(reconSummary?.unmatched ?? 0)} />
+                <MiniStat icon={Scale} label="Discrepancy" value={String(reconSummary?.discrepancy ?? 0)} />
               </div>
-              <div className="flex gap-4 text-xs text-text-muted">
-                <span className="inline-flex items-center gap-1.5">
-                  <ArrowLeftRight className="h-3.5 w-3.5" /> Window {period}
-                </span>
-                <span className="inline-flex items-center gap-1.5 text-error">
-                  <XCircle className="h-3.5 w-3.5" /> {formatCompactCount(totals.failed)} failed
-                </span>
-              </div>
-            </div>
-            <TransactionAreaChart data={series} metric={metric} />
-            <div className="mt-2">
-              <ChartLegend />
-            </div>
+            )}
           </CardBody>
         </Card>
 
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div>
-                <CardEyebrow>Quality</CardEyebrow>
-                <CardTitle className="mt-0.5">Window success</CardTitle>
-              </div>
-              <MockDataBadge />
-            </CardHeader>
-            <CardBody className="flex flex-col gap-4">
-              <RadialMeter
-                value={totals.successRate}
-                label="Success rate"
-                caption={`${formatCompactCount(totals.failed)} failed of ${formatCompactCount(totals.count)}`}
-              />
-              <div className="grid grid-cols-2 gap-3 border-t border-border pt-4">
-                <MiniStat icon={CheckCircle2} label="Settled" value={formatCompactCount(totals.successful)} />
-                <MiniStat icon={XCircle} label="Failed" value={formatCompactCount(totals.failed)} />
-              </div>
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <div>
-                <CardEyebrow>Rails</CardEyebrow>
-                <CardTitle className="mt-0.5">Provider mix</CardTitle>
-              </div>
-            </CardHeader>
-            <CardBody className="space-y-4">
-              {providers === null ? (
-                <MetricSkeleton />
-              ) : providerList.length === 0 ? (
-                <p className="text-sm text-text-muted">No providers returned. Seed the catalog or grant providers:read.</p>
-              ) : (
-                railMix.map((group) => (
-                  <div key={group.id}>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-text-muted">{group.label}</span>
-                      <span className="font-semibold tabular-nums text-text">{group.count}</span>
-                    </div>
-                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-inset">
-                      <div className={cn("h-full rounded-full", group.tone)} style={{ width: `${group.share}%` }} />
-                    </div>
+        <Card>
+          <CardHeader>
+            <div>
+              <CardEyebrow>Rails</CardEyebrow>
+              <CardTitle className="mt-0.5">Provider mix</CardTitle>
+            </div>
+          </CardHeader>
+          <CardBody className="space-y-4">
+            {providers === null ? (
+              <MetricSkeleton />
+            ) : providerList.length === 0 ? (
+              <p className="text-sm text-text-muted">No providers returned. Seed the catalog or grant providers:read.</p>
+            ) : (
+              railMix.map((group) => (
+                <div key={group.id}>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-text-muted">{group.label}</span>
+                    <span className="font-semibold tabular-nums text-text">{group.count}</span>
                   </div>
-                ))
-              )}
-            </CardBody>
-          </Card>
-        </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-inset">
+                    <div className={cn("h-full rounded-full", group.tone)} style={{ width: `${group.share}%` }} />
+                  </div>
+                </div>
+              ))
+            )}
+          </CardBody>
+        </Card>
       </section>
 
       <section className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-5">
@@ -351,43 +357,39 @@ export default function DashboardPage() {
             ) : providerList.length === 0 ? (
               <p className="text-sm text-text-muted">No provider catalog rows.</p>
             ) : (
-              providerList.map((provider) => (
-                <div
-                  key={provider.code}
-                  className="rounded-2xl border border-border bg-surface-inset/60 px-3.5 py-3 transition-colors hover:border-primary/30"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-text" title={provider.display_name ?? provider.code}>
-                        {provider.display_name ?? provider.code}
-                      </p>
-                      <MonoId>
-                        {provider.code}
-                        {provider.is_simulated ? " · simulated" : ""}
-                      </MonoId>
-                    </div>
-                    <HealthIndicator
-                      state={
-                        !provider.is_active
-                          ? "idle"
-                          : provider.health_state === "degraded"
-                            ? "degraded"
-                            : provider.health_state === "unavailable"
-                              ? "unavailable"
-                              : provider.health_state === "active"
-                                ? "active"
+              providerList.map((provider) => {
+                const lifecycle = providerLifecycle(provider);
+                return (
+                  <div
+                    key={provider.code}
+                    className="rounded-2xl border border-border bg-surface-inset/60 px-3.5 py-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-text" title={provider.display_name ?? provider.code}>
+                          {provider.display_name ?? provider.code}
+                        </p>
+                        <MonoId>{provider.code}</MonoId>
+                      </div>
+                      <HealthIndicator
+                        state={
+                          lifecycle === "LIVE"
+                            ? "active"
+                            : lifecycle === "DEGRADED"
+                              ? "degraded"
+                              : lifecycle === "UNAVAILABLE"
+                                ? "unavailable"
                                 : "idle"
-                      }
-                      label={provider.is_simulated ? "Sandbox" : provider.environment}
-                    />
+                        }
+                        label={lifecycle}
+                      />
+                    </div>
+                    <div className="mt-2">
+                      <Badge tone={providerLifecycleTone(lifecycle)}>{lifecycle}</Badge>
+                    </div>
                   </div>
-                  <p className="mt-2 text-[11px] text-text-subtle">
-                    Push {provider.capabilities.supports_push_payment ? "yes" : "no"} · Status{" "}
-                    {provider.capabilities.supports_status_query ? "yes" : "no"} · QR{" "}
-                    {provider.capabilities.supports_qr ? "yes" : "no"}
-                  </p>
-                </div>
-              ))
+                );
+              })
             )}
           </CardBody>
         </Card>
@@ -424,8 +426,8 @@ export default function DashboardPage() {
         </Card>
       </section>
 
-      <section className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-5">
-        <Card className="xl:col-span-3">
+      <section className="mt-4">
+        <Card>
           <CardHeader>
             <div>
               <CardEyebrow>Business</CardEyebrow>
@@ -480,31 +482,6 @@ export default function DashboardPage() {
             )}
           </CardBody>
         </Card>
-
-        <Card className="xl:col-span-2">
-          <CardHeader>
-            <div>
-              <CardEyebrow>Recent activity</CardEyebrow>
-              <CardTitle className="mt-0.5">Latest payments</CardTitle>
-            </div>
-          </CardHeader>
-          <CardBody className="p-0">
-            {transactions === null ? (
-              <div className="p-5">
-                <MetricSkeleton />
-              </div>
-            ) : USE_MOCKS && transactions.length > 0 ? (
-              <ActivityTimeline items={transactions} />
-            ) : (
-              <div className="p-5">
-                <EmptyState
-                  title="No payment list API"
-                  description="Look up a payment by reference on Payments. This panel will not invent a ledger."
-                />
-              </div>
-            )}
-          </CardBody>
-        </Card>
       </section>
     </PageShell>
   );
@@ -515,55 +492,17 @@ function MiniStat({
   label,
   value,
 }: {
-  icon: typeof CheckCircle2;
+  icon: typeof Landmark;
   label: string;
   value: string;
 }) {
   return (
-    <div>
+    <div className="rounded-xl border border-border px-3 py-3">
       <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-subtle">
         <Icon className="h-3.5 w-3.5" />
         {label}
       </p>
       <p className="mt-1 text-lg font-semibold tabular-nums text-text">{value}</p>
     </div>
-  );
-}
-
-function Segmented<T extends string>({
-  options,
-  value,
-  onChange,
-}: {
-  options: { id: T; label: string }[];
-  value: T;
-  onChange: (next: T) => void;
-}) {
-  const layoutKey = options.map((option) => option.id).join("-");
-  return (
-    <LayoutGroup id={`segmented-${layoutKey}`}>
-      <div className="relative inline-flex rounded-full border border-border bg-white p-1 dark:bg-slate-900">
-        {options.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            onClick={() => onChange(option.id)}
-            className={cn(
-              "relative rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors duration-200",
-              value === option.id ? "text-text" : "text-text-muted hover:text-text",
-            )}
-          >
-            {value === option.id && (
-              <m.span
-                layoutId={`segmented-${layoutKey}`}
-                className="absolute inset-0 rounded-full bg-primary-light"
-                transition={{ type: "spring", stiffness: 400, damping: 28 }}
-              />
-            )}
-            <span className="relative z-10">{option.label}</span>
-          </button>
-        ))}
-      </div>
-    </LayoutGroup>
   );
 }

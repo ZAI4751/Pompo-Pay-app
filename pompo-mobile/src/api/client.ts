@@ -221,11 +221,21 @@ export class PompoApi {
     q?: string;
     status?: string;
     reference?: string;
+    merchant_id?: string;
+    amount_min?: string;
+    amount_max?: string;
+    created_from?: string;
+    created_to?: string;
   }): Promise<ApiResult<Payment[]>> {
     const query = new URLSearchParams();
     if (params?.q) query.set("q", params.q);
     if (params?.status) query.set("status", params.status);
     if (params?.reference) query.set("reference", params.reference);
+    if (params?.merchant_id) query.set("merchant_id", params.merchant_id);
+    if (params?.amount_min) query.set("amount_min", params.amount_min);
+    if (params?.amount_max) query.set("amount_max", params.amount_max);
+    if (params?.created_from) query.set("created_from", params.created_from);
+    if (params?.created_to) query.set("created_to", params.created_to);
     const suffix = query.toString() ? `?${query.toString()}` : "";
     return this.request<Payment[]>(`/payments/mine${suffix}`);
   }
@@ -297,6 +307,7 @@ export class PompoApi {
     merchant_id?: string;
     branch_id?: string;
     till_id?: string;
+    expires_in_seconds?: number;
     idempotency_key: string;
   }): Promise<ApiResult<PaymentRequest>> {
     return this.request<PaymentRequest>("/payment-requests", { method: "POST", body });
@@ -307,6 +318,7 @@ export class PompoApi {
     description?: string;
     source_payment_reference?: string;
     participants: { amount: string; label?: string }[];
+    expires_in_seconds?: number;
     idempotency_key: string;
   }): Promise<ApiResult<{ public_identifier: string; requests: PaymentRequest[] }>> {
     return this.request("/payment-requests/splits", { method: "POST", body });
@@ -331,6 +343,10 @@ export class PompoApi {
 
   markNotificationRead(id: string): Promise<ApiResult<AppNotification>> {
     return this.request(`/notifications/${encodeURIComponent(id)}/read`, { method: "POST" });
+  }
+
+  markAllNotificationsRead(): Promise<ApiResult<NotificationList>> {
+    return this.request<NotificationList>("/notifications/read-all", { method: "POST" });
   }
 
   createSupportRequest(body: {

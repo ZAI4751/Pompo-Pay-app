@@ -3,9 +3,15 @@ import { useCallback, useEffect, useState } from "react";
 import { FlatList, Share, Text, View } from "react-native";
 
 import { BottomNav } from "@/components/nav";
-import { Card, ErrorBanner, GlassInput, PrimaryButton, Screen, Title, useTheme } from "@/components/ui";
+import { Card, EmptyState, ErrorBanner, GlassInput, PrimaryButton, Screen, Title, useTheme } from "@/components/ui";
 import { useAuth } from "@/state/AuthProvider";
 import type { PaymentRequest } from "@/types";
+
+const EXPIRY_OPTIONS = [
+  { label: "1 hour", seconds: 3600 },
+  { label: "24 hours", seconds: 86400 },
+  { label: "7 days", seconds: 604800 },
+] as const;
 
 export default function PaymentRequestsScreen() {
   const theme = useTheme();
@@ -22,6 +28,7 @@ export default function PaymentRequestsScreen() {
   const [shareC, setShareC] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [expiresIn, setExpiresIn] = useState(86400);
 
   const load = useCallback(async () => {
     const result = await api.listPaymentRequests();
@@ -63,6 +70,22 @@ export default function PaymentRequestsScreen() {
           />
           <GlassInput placeholder="Amount MWK" keyboardType="decimal-pad" value={amount} onChangeText={setAmount} />
           <GlassInput placeholder="Description" value={description} onChangeText={setDescription} />
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 8 }}>
+            {EXPIRY_OPTIONS.map((option) => (
+              <Text
+                key={option.seconds}
+                accessibilityRole="button"
+                onPress={() => setExpiresIn(option.seconds)}
+                style={{
+                  color: expiresIn === option.seconds ? theme.primary : theme.muted,
+                  fontWeight: "700",
+                  fontSize: 12,
+                }}
+              >
+                Expires {option.label}
+              </Text>
+            ))}
+          </View>
           <PrimaryButton
             label="Create request"
             loading={loading}
@@ -77,6 +100,7 @@ export default function PaymentRequestsScreen() {
                 amount,
                 description,
                 source_payment_reference: sourceReference.trim(),
+                expires_in_seconds: expiresIn,
                 idempotency_key: `req-${Date.now()}`,
               });
               setLoading(false);
@@ -129,6 +153,7 @@ export default function PaymentRequestsScreen() {
                 total_amount: splitTotal,
                 description,
                 source_payment_reference: sourceReference.trim(),
+                expires_in_seconds: expiresIn,
                 participants: [
                   { amount: shareA, label: "Person A" },
                   { amount: shareB, label: "Person B" },
@@ -152,15 +177,26 @@ export default function PaymentRequestsScreen() {
         <FlatList
           data={rows}
           keyExtractor={(item) => item.id}
+          ListEmptyComponent={
+            <EmptyState
+              title="No requests yet"
+              body="Create a request or split. Recipients pay the merchant directly. POMPO does not hold the money."
+            />
+          }
           renderItem={({ item }) => (
             <Card>
               <Text style={{ color: theme.text, fontWeight: "700" }}>
-                {item.merchant_name ?? "Merchant"} · {item.status}
+                {item.merchant_name ?? "Merchant"} · {item.status.toUpperCase()}
               </Text>
               <Text style={{ color: theme.muted }}>
                 {item.amount} {item.currency}
+                {item.description ? ` · ${item.description}` : ""}
               </Text>
+              {item.expires_at ? (
+                <Text style={{ color: theme.subtle, marginTop: 4, fontSize: 12 }}>Expires {item.expires_at}</Text>
+              ) : null}
               <Text
+                accessibilityRole="link"
                 style={{ color: theme.primary, marginTop: 8 }}
                 onPress={() =>
                   router.push({

@@ -25,6 +25,11 @@ export interface Payment {
   description: string | null;
   failure_reason: string | null;
   attempts: PaymentAttempt[];
+  merchant_name?: string | null;
+  branch_name?: string | null;
+  till_name?: string | null;
+  created_at?: string | null;
+  completed_at?: string | null;
 }
 
 export interface ProviderCapabilities {

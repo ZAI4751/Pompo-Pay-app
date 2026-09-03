@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { MonoId } from "@/components/ui/Table";
+import { MonoId, Table, TableBody, TableHead, Td, Th, Tr } from "@/components/ui/Table";
 import { MockDataBadge } from "@/components/ui/MockDataBadge";
 import { paymentsService } from "@/lib/api/services/payments";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -36,12 +37,21 @@ function asTxnStatus(status: string): TransactionStatus {
 }
 
 export default function PaymentsPage() {
-  const { isDemoSession } = useAuth();
+  const { isDemoSession, user } = useAuth();
   const { hasPermission } = usePermissions();
   const { push } = useToast();
   const [reference, setReference] = useState("");
   const [result, setResult] = useState<ApiResult<Payment> | null>(null);
   const [loading, setLoading] = useState(false);
+  const [list, setList] = useState<ApiResult<Payment[]> | null>(null);
+  const merchantScoped = Boolean(user?.merchant_id);
+
+  useEffect(() => {
+    if (!merchantScoped) {
+      return;
+    }
+    void paymentsService.list({ limit: 50 }).then(setList);
+  }, [merchantScoped]);
 
   async function lookup(event: FormEvent) {
     event.preventDefault();
@@ -74,13 +84,62 @@ export default function PaymentsPage() {
   return (
     <PageShell
       title="Payments"
-      breadcrumb={[{ label: "Operations" }, { label: "Payments" }]}
+      breadcrumb={[{ label: "Payments" }, { label: "Payments" }]}
       actions={isDemoSession ? <MockDataBadge /> : undefined}
     >
       <p className="mb-4 max-w-2xl text-sm text-text-muted">
-        There is no payment list or search API. Retrieve a single payment by reference. New
-        checkouts belong on POS or merchant clients once a till exists under Business → Tills.
+        {merchantScoped
+          ? "Merchant-scoped payment list from GET /payments. Lookup by reference still works for a single receipt."
+          : "Platform administrators have no global payment list. Use reference lookup, or open a merchant-scoped operator session. This page will not invent a ledger."}
       </p>
+
+      {merchantScoped && list?.status === "error" && (
+        <ErrorState kind={list.kind} description={list.message} requestId={list.requestId} />
+      )}
+
+      {merchantScoped && list?.status === "success" && list.data.length === 0 && (
+        <EmptyState
+          title="No payments for this merchant"
+          description="Payments appear after a till accepts a checkout. Empty is a real result."
+        />
+      )}
+
+      {merchantScoped && list?.status === "success" && list.data.length > 0 && (
+        <div className="mb-4">
+          <Table>
+            <TableHead>
+              <Th>Reference</Th>
+              <Th>Amount</Th>
+              <Th>Status</Th>
+              <Th>Method</Th>
+              <Th>Created</Th>
+            </TableHead>
+            <TableBody>
+              {list.data.map((row) => (
+                <Tr
+                  key={row.id}
+                  className="cursor-pointer"
+                  onClick={() => {
+                    setReference(row.reference);
+                    void paymentsService.getByReference(row.reference).then(setResult);
+                  }}
+                >
+                  <Td>
+                    <MonoId>{row.reference}</MonoId>
+                    <div className="text-xs text-text-subtle">{row.merchant_name ?? row.merchant_id}</div>
+                  </Td>
+                  <Td>{formatMwk(row.amount)}</Td>
+                  <Td>
+                    <StatusBadge status={asTxnStatus(row.status)} />
+                  </Td>
+                  <Td>{row.payment_method}</Td>
+                  <Td>{row.created_at ? new Date(row.created_at).toLocaleString() : "—"}</Td>
+                </Tr>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       <Card className="mb-4">
         <CardHeader>

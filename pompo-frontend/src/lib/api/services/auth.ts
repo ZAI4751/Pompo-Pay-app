@@ -4,6 +4,7 @@
  */
 
 import { apiRequest } from "../client";
+import { USE_MOCKS } from "../config";
 import type { AuthenticatedUser, LoginRequest, TokenResponse } from "@/lib/types/auth";
 import type { ApiResult } from "@/lib/types/common";
 
@@ -33,5 +34,30 @@ export const authService = {
       accessToken,
       skipUnauthorizedHandler: true,
     });
+  },
+
+  changePassword(currentPassword: string, newPassword: string): Promise<ApiResult<undefined>> {
+    if (USE_MOCKS) {
+      return Promise.resolve({
+        status: "error",
+        kind: "unavailable",
+        message: "Demo mode cannot change passwords. Sign in against the backend.",
+      });
+    }
+    return apiRequest<undefined>("/auth/change-password", {
+      method: "POST",
+      body: { current_password: currentPassword, new_password: newPassword },
+    });
+  },
+
+  logoutAll(): Promise<ApiResult<undefined>> {
+    if (USE_MOCKS) {
+      return Promise.resolve({
+        status: "error",
+        kind: "unavailable",
+        message: "Demo mode cannot revoke sessions. Sign in against the backend.",
+      });
+    }
+    return apiRequest<undefined>("/auth/logout-all", { method: "POST" });
   },
 };

@@ -30,6 +30,31 @@ export interface PaymentRequestRow {
   created_at: string | null;
 }
 
+export interface NotificationPreferences {
+  notify_payment_success: boolean;
+  notify_payment_failed: boolean;
+  notify_payment_updates: boolean;
+  notify_payment_requests: boolean;
+  preferred_mode: string | null;
+  phone_verification: string;
+}
+
+export interface NotificationInbox {
+  unread_count: number;
+  items: Array<{
+    id: string;
+    public_identifier: string;
+    notification_type: string;
+    title: string;
+    body: string;
+    entity_type: string | null;
+    entity_id: string | null;
+    payment_reference: string | null;
+    read_at: string | null;
+    created_at: string | null;
+  }>;
+}
+
 export const customersService = {
   async stats(): Promise<ApiResult<CustomerStats>> {
     if (USE_MOCKS) {
@@ -53,5 +78,52 @@ export const customersService = {
       return { status: "success", data: [] };
     }
     return apiRequest<PaymentRequestRow[]>("/payment-requests");
+  },
+
+  async preferences(): Promise<ApiResult<NotificationPreferences>> {
+    if (USE_MOCKS) {
+      return {
+        status: "error",
+        kind: "unavailable",
+        message: "Notification preferences require a live backend session.",
+      };
+    }
+    return apiRequest<NotificationPreferences>("/customers/me/preferences");
+  },
+
+  async updatePreferences(
+    payload: Partial<
+      Pick<
+        NotificationPreferences,
+        | "notify_payment_success"
+        | "notify_payment_failed"
+        | "notify_payment_updates"
+        | "notify_payment_requests"
+      >
+    >,
+  ): Promise<ApiResult<NotificationPreferences>> {
+    if (USE_MOCKS) {
+      return {
+        status: "error",
+        kind: "unavailable",
+        message: "Demo mode cannot persist notification preferences.",
+      };
+    }
+    return apiRequest<NotificationPreferences>("/customers/me/preferences", {
+      method: "PATCH",
+      body: payload,
+    });
+  },
+
+  async notifications(unreadOnly = false): Promise<ApiResult<NotificationInbox>> {
+    if (USE_MOCKS) {
+      return {
+        status: "error",
+        kind: "unavailable",
+        message: "The notification inbox requires a live backend session.",
+      };
+    }
+    const query = unreadOnly ? "?unread_only=true" : "";
+    return apiRequest<NotificationInbox>(`/notifications${query}`);
   },
 };

@@ -46,7 +46,7 @@ export default function MerchantHome() {
     <Screen padded={false}>
       <View style={styles.body}>
         <View style={styles.top}>
-          <Greeting name={firstName} subtitle="Ready to take payments" />
+          <Greeting name={firstName} subtitle="Merchant dashboard" />
           <ModeSwitch />
         </View>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>

@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -36,40 +36,67 @@ export default function CustomerHome() {
     });
   }, [api]);
 
+  const payAgain = recent.find((payment) => payment.status === "success");
+
   return (
     <Screen padded={false}>
       <View style={styles.body}>
         <View style={styles.top}>
-          <Greeting name={firstName} subtitle="Welcome back" />
+          <Greeting name={firstName} subtitle="Pay with POMPO" />
           <ModeSwitch />
         </View>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           <FadeIn>
             <PressScale
               accessibilityRole="button"
-              accessibilityLabel="Scan QR"
+              accessibilityLabel="Scan and pay"
               onPress={() => router.push("/customer/scan")}
             >
               <HeroCard>
                 <View style={styles.heroTop}>
-                  <Text style={styles.heroKicker}>POMPO</Text>
+                  <Text style={styles.heroKicker}>PAY WITH POMPO</Text>
                   <View style={styles.heroBadge}>
                     <Text style={styles.heroBadgeText}>Scan</Text>
                   </View>
                 </View>
                 <View>
                   <Text style={styles.heroTitle}>Scan & pay</Text>
-                  <Text style={styles.heroHint}>OPEN → SCAN → PAY</Text>
+                  <Text style={styles.heroHint}>SCAN → MERCHANT → PAY</Text>
                 </View>
               </HeroCard>
             </PressScale>
           </FadeIn>
           <FadeIn delay={60}>
             <View style={styles.actions}>
-              <ActionTile label="Scan" icon="scan-outline" onPress={() => router.push("/customer/scan")} />
-              <ActionTile label="Activity" icon="time-outline" onPress={() => router.push("/customer/history")} />
-              <ActionTile label="Requests" icon="send-outline" onPress={() => router.push("/customer/requests/index")} />
-              <ActionTile label="Inbox" icon="notifications-outline" onPress={() => router.push("/customer/notifications")} />
+              <ActionTile
+                label="Methods"
+                icon="card-outline"
+                onPress={() => router.push("/customer/methods" as Href)}
+              />
+              {payAgain ? (
+                <ActionTile
+                  label="Pay again"
+                  icon="refresh-outline"
+                  onPress={() =>
+                    router.push({
+                      pathname: "/customer/repeat/[reference]",
+                      params: { reference: payAgain.reference },
+                    })
+                  }
+                />
+              ) : (
+                <ActionTile label="Activity" icon="time-outline" onPress={() => router.push("/customer/history")} />
+              )}
+              <ActionTile
+                label="Requests"
+                icon="send-outline"
+                onPress={() => router.push("/customer/requests/index")}
+              />
+              <ActionTile
+                label="Inbox"
+                icon="notifications-outline"
+                onPress={() => router.push("/customer/notifications")}
+              />
             </View>
           </FadeIn>
           {insights ? (
@@ -85,7 +112,7 @@ export default function CustomerHome() {
           ) : null}
           {merchants.length ? (
             <FadeIn delay={100}>
-              <SectionHeader title="Merchants" action="See all" onAction={() => router.push("/customer/merchants")} />
+              <SectionHeader title="Recent merchants" action="See all" onAction={() => router.push("/customer/merchants")} />
               <View style={[styles.list, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 {merchants.map((merchant, index) => (
                   <View
@@ -106,13 +133,13 @@ export default function CustomerHome() {
             </FadeIn>
           ) : null}
           <FadeIn delay={110}>
-            <SectionHeader title="Recent activity" action="See all" onAction={() => router.push("/customer/history")} />
+            <SectionHeader title="Receipts" action="See all" onAction={() => router.push("/customer/history")} />
             <View style={[styles.list, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               {recent.length === 0 ? (
                 <View style={styles.emptyRecent}>
                   <Text style={{ color: theme.text, fontWeight: "700" }}>No payments yet</Text>
                   <Text style={{ color: theme.subtle, fontSize: 12, textAlign: "center" }}>
-                    Scan a merchant QR to make your first payment.
+                    Scan a merchant QR to make your first payment. POMPO does not hold a wallet balance.
                   </Text>
                 </View>
               ) : (

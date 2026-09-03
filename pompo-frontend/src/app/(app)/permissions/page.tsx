@@ -26,7 +26,7 @@ export default function PermissionsPage() {
   return (
     <PageShell
       title="Permissions"
-      breadcrumb={[{ label: "Identity & Access" }, { label: "Permissions" }]}
+      breadcrumb={[{ label: "Organization" }, { label: "Permissions" }]}
       actions={isDemoSession ? <MockDataBadge /> : undefined}
     >
       <p className="mb-4 max-w-2xl text-sm text-text-muted">

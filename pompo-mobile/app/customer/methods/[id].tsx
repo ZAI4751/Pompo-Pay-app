@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Text } from "react-native";
 
 import { Card, ErrorBanner, PrimaryButton, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
+import { paymentMethodStateLabel } from "@/domain/paymentMethod";
 import { useAuth } from "@/state/AuthProvider";
 import type { PaymentMethod } from "@/types";
 
@@ -45,11 +46,7 @@ export default function PaymentMethodDetailScreen() {
       <Card>
         <Text style={{ color: theme.text, fontWeight: "800" }}>{row.masked_identifier}</Text>
         <Text style={{ color: theme.muted, marginTop: 8 }}>{row.provider_display_name}</Text>
-        <Text style={{ color: theme.subtle, marginTop: 8 }}>
-          {row.status.toUpperCase()}
-          {row.is_default ? " · DEFAULT" : ""}
-          {row.is_sandbox ? " · TEST / SANDBOX" : ""}
-        </Text>
+        <Text style={{ color: theme.subtle, marginTop: 8 }}>{paymentMethodStateLabel(row)}</Text>
         {row.last_used_at ? (
           <Text style={{ color: theme.subtle, marginTop: 8 }}>Last used {row.last_used_at}</Text>
         ) : null}

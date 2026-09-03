@@ -223,7 +223,7 @@ export default function ApiKeysPage() {
   return (
     <PageShell
       title="API Keys"
-      breadcrumb={[{ label: "Platform" }, { label: "API Keys" }]}
+      breadcrumb={[{ label: "Integrations" }, { label: "API Keys" }]}
       actions={
         <div className="flex items-center gap-2">
           {isDemoSession && <MockDataBadge />}
@@ -278,7 +278,9 @@ export default function ApiKeysPage() {
             <tr>
               <Th>Client</Th>
               <Th>Type</Th>
+              <Th>Scope</Th>
               <Th>Key prefix</Th>
+              <Th>Created</Th>
               <Th>Last used</Th>
               <Th>Status</Th>
               <Th>Actions</Th>
@@ -296,12 +298,23 @@ export default function ApiKeysPage() {
                   </Td>
                   <Td>{row.client_type}</Td>
                   <Td>
+                    <div className="text-xs text-text-muted">
+                      {row.environment} · merchant {row.merchant_id.slice(0, 8)}
+                      {row.branch_id ? ` · branch ${row.branch_id.slice(0, 8)}` : ""}
+                      {row.till_id ? ` · till ${row.till_id.slice(0, 8)}` : ""}
+                    </div>
+                  </Td>
+                  <Td>
                     <MonoId>{activeKey?.key_prefix ?? "—"}</MonoId>
                   </Td>
+                  <Td>{new Date(row.created_at).toLocaleString()}</Td>
                   <Td>{row.last_used_at ? new Date(row.last_used_at).toLocaleString() : "—"}</Td>
                   <Td>
                     <ActiveBadge isActive={row.status === "active"} />
                     <span className="ml-2 capitalize">{row.status}</span>
+                    {row.revoked_at ? (
+                      <div className="text-xs text-text-subtle">Revoked {new Date(row.revoked_at).toLocaleString()}</div>
+                    ) : null}
                   </Td>
                   <Td>
                     <div className="flex flex-wrap gap-2">

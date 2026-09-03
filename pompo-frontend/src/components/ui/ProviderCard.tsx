@@ -5,20 +5,14 @@ import { Button } from "./Button";
 import { Card, CardBody, CardHeader, CardTitle } from "./Card";
 import { HealthIndicator } from "./HealthIndicator";
 import { cn } from "@/lib/utils/cn";
+import { providerLifecycle, providerLifecycleTone } from "@/lib/providers/lifecycle";
 import type { PaymentProvider } from "@/lib/types/payment";
 
-function healthTone(state: string): "success" | "warning" | "error" | "neutral" | "info" {
-  if (state === "active") return "success";
-  if (state === "degraded") return "warning";
-  if (state === "unavailable") return "error";
-  return "neutral";
-}
-
 function liveState(provider: PaymentProvider): "active" | "degraded" | "unavailable" | "idle" {
-  if (!provider.is_active) return "idle";
-  if (provider.health_state === "degraded") return "degraded";
-  if (provider.health_state === "unavailable") return "unavailable";
-  if (provider.health_state === "active") return "active";
+  const lifecycle = providerLifecycle(provider);
+  if (lifecycle === "LIVE") return "active";
+  if (lifecycle === "DEGRADED") return "degraded";
+  if (lifecycle === "UNAVAILABLE") return "unavailable";
   return "idle";
 }
 
@@ -48,22 +42,19 @@ export function ProviderCard({
             {provider.code} · {provider.provider_type} · priority {provider.priority}
           </p>
         </div>
-        <div className="flex max-w-[12rem] flex-wrap items-center justify-end gap-1.5">
+        <div className="flex max-w-[14rem] flex-wrap items-center justify-end gap-1.5">
+          <Badge tone={providerLifecycleTone(providerLifecycle(provider))}>
+            {providerLifecycle(provider)}
+          </Badge>
           <Badge tone={provider.is_active ? "success" : "neutral"}>
             {provider.is_active ? "Enabled" : "Disabled"}
           </Badge>
-          <Badge tone={healthTone(provider.health_state)}>{provider.health_state}</Badge>
-          <Badge tone="info">{provider.is_simulated ? "Simulated" : provider.environment}</Badge>
         </div>
       </CardHeader>
       <CardBody className="space-y-3 text-sm text-text-muted">
         <HealthIndicator
           state={liveState(provider)}
-          label={
-            provider.live_contract_ready
-              ? "Contract ready"
-              : "Awaiting contract"
-          }
+          label={providerLifecycle(provider)}
         />
         {!compact && (
           <>

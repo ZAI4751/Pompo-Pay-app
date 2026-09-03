@@ -82,7 +82,7 @@ export default function RolesPage() {
   return (
     <PageShell
       title="Roles"
-      breadcrumb={[{ label: "Identity & Access" }, { label: "Roles" }]}
+      breadcrumb={[{ label: "Organization" }, { label: "Roles" }]}
       actions={
         <div className="flex items-center gap-2">
           {isDemoSession && <MockDataBadge />}

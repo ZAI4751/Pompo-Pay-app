@@ -59,13 +59,13 @@ export default function ProvidersPage() {
   return (
     <PageShell
       title="Payment Providers"
-      breadcrumb={[{ label: "Operations" }, { label: "Providers" }]}
+      breadcrumb={[{ label: "Payments" }, { label: "Providers" }]}
       actions={isDemoSession ? <MockDataBadge /> : undefined}
     >
       <p className="mb-4 max-w-2xl text-sm text-text-muted">
-        Rails are enabled only when a live contract is ready and credentials are
-        configured. Airtel Money Malawi can be enabled from this page; TNM and
-        bank rails remain awaiting their contracts.
+        Rails are never treated as live merely because they appear in the catalog.
+        Simulated sandbox is labeled SIMULATED. TNM Mpamba and Standard Bank stay
+        CONTRACT NOT READY until a live contract exists. Credentials are never shown.
       </p>
 
       {result === null && (

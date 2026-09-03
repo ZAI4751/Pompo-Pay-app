@@ -124,7 +124,7 @@ export default function MerchantsPage() {
   return (
     <PageShell
       title="Merchants"
-      breadcrumb={[{ label: "Business" }, { label: "Merchants" }]}
+      breadcrumb={[{ label: "Organization" }, { label: "Merchants" }]}
       actions={
         <div className="flex items-center gap-2">
           {isDemoSession && <MockDataBadge />}

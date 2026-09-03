@@ -70,7 +70,7 @@ export default function RoleDetailPage({ params }: { params: Promise<{ id: strin
   return (
     <PageShell
       title="Role Detail"
-      breadcrumb={[{ label: "Identity & Access" }, { label: "Roles", href: "/roles" }, { label: "Detail" }]}
+      breadcrumb={[{ label: "Organization" }, { label: "Roles", href: "/roles" }, { label: "Detail" }]}
       actions={isDemoSession ? <MockDataBadge /> : undefined}
     >
       {result === null && (

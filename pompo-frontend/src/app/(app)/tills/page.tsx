@@ -115,7 +115,7 @@ export default function TillsPage() {
   return (
     <PageShell
       title="Tills"
-      breadcrumb={[{ label: "Business" }, { label: "Tills" }]}
+      breadcrumb={[{ label: "Organization" }, { label: "Tills" }]}
       actions={
         <div className="flex items-center gap-2">
           {isDemoSession && <MockDataBadge />}

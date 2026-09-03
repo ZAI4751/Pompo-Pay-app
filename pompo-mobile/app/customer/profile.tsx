@@ -41,6 +41,13 @@ export default function CustomerProfile() {
             onPress={() => router.push("/customer/methods" as Href)}
           />
           <MenuRow
+            icon="send-outline"
+            label="Payment requests"
+            color={theme.primary}
+            background={theme.scheme === "dark" ? "#1e3a8a" : "#eff6ff"}
+            onPress={() => router.push("/customer/requests/index")}
+          />
+          <MenuRow
             icon="storefront-outline"
             label="Merchants"
             color={theme.primary}

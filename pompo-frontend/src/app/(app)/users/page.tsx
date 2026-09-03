@@ -10,7 +10,7 @@ export default function UsersPage() {
   return (
     <PageShell
       title="Users"
-      breadcrumb={[{ label: "Identity & Access" }, { label: "Users" }]}
+      breadcrumb={[{ label: "Organization" }, { label: "Users" }]}
       actions={isDemoSession ? <MockDataBadge /> : undefined}
     >
       <BackendUnavailable

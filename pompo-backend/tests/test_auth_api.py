@@ -228,3 +228,89 @@ async def test_logout_then_refresh_fails(client: AsyncClient, seeded_user: User)
         "/api/v1/auth/refresh", json={"refresh_token": refresh_token}
     )
     assert refresh_response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_change_password_requires_authentication(client: AsyncClient) -> None:
+    response = await client.post(
+        "/api/v1/auth/change-password",
+        json={"current_password": "x", "new_password": "new-password-123"},
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_change_password_rejects_wrong_current_password(
+    client: AsyncClient, seeded_user: User
+) -> None:
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": seeded_user.email, "password": "correct-horse-battery-staple"},
+    )
+    access_token = login_response.json()["access_token"]
+    response = await client.post(
+        "/api/v1/auth/change-password",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"current_password": "not-the-password", "new_password": "new-password-123"},
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Incorrect current password"
+
+
+@pytest.mark.asyncio
+async def test_change_password_revokes_refresh_sessions(
+    client: AsyncClient, seeded_user: User
+) -> None:
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": seeded_user.email, "password": "correct-horse-battery-staple"},
+    )
+    access_token = login_response.json()["access_token"]
+    refresh_token = login_response.json()["refresh_token"]
+
+    changed = await client.post(
+        "/api/v1/auth/change-password",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "current_password": "correct-horse-battery-staple",
+            "new_password": "replacement-password-123",
+        },
+    )
+    assert changed.status_code == 204
+    assert "password" not in changed.text.lower() or changed.text == ""
+
+    replay = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
+    assert replay.status_code == 401
+
+    old_password = await client.post(
+        "/api/v1/auth/login",
+        json={"email": seeded_user.email, "password": "correct-horse-battery-staple"},
+    )
+    assert old_password.status_code == 401
+
+    new_login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": seeded_user.email, "password": "replacement-password-123"},
+    )
+    assert new_login.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_logout_all_revokes_refresh_sessions(
+    client: AsyncClient, seeded_user: User
+) -> None:
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": seeded_user.email, "password": "correct-horse-battery-staple"},
+    )
+    access_token = login_response.json()["access_token"]
+    refresh_token = login_response.json()["refresh_token"]
+
+    revoked = await client.post(
+        "/api/v1/auth/logout-all",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert revoked.status_code == 204
+
+    replay = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
+    assert replay.status_code == 401

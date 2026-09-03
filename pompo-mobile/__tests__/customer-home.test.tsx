@@ -74,8 +74,11 @@ describe("Customer home", () => {
     );
     expect(await screen.findByText("Hello Ada")).toBeTruthy();
     expect(screen.getByText("Scan & pay")).toBeTruthy();
-    expect(screen.getByText("OPEN → SCAN → PAY")).toBeTruthy();
+    expect(screen.getByText("PAY WITH POMPO")).toBeTruthy();
+    expect(screen.getByText("SCAN → MERCHANT → PAY")).toBeTruthy();
     expect(await screen.findByText("Chikondi Shop")).toBeTruthy();
+    expect(screen.getByText("Pay again")).toBeTruthy();
+    expect(screen.getByText("Methods")).toBeTruthy();
     expect(screen.queryByText(/wallet/i)).toBeNull();
     expect(screen.queryByText(/top up/i)).toBeNull();
     expect(screen.queryByText(/US Dollar/i)).toBeNull();

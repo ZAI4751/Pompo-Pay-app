@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 
 import { Card, ErrorBanner, GlassInput, PrimaryButton, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
+import { catalogOfferLabel } from "@/domain/paymentMethod";
 import { useAuth } from "@/state/AuthProvider";
 import type { PaymentMethodCatalogItem } from "@/types";
 
@@ -64,13 +65,7 @@ export default function AddPaymentMethodScreen() {
       {catalog.map((item) => (
         <Card key={`${item.provider_code}-${item.instrument_type}`}>
           <Text style={{ color: theme.text, fontWeight: "800" }}>{item.label}</Text>
-          <Text style={{ color: theme.muted, marginTop: 4 }}>
-            {item.available
-              ? item.is_sandbox
-                ? "TEST / SANDBOX"
-                : "Available"
-              : item.reason ?? "Not available yet"}
-          </Text>
+          <Text style={{ color: theme.muted, marginTop: 4 }}>{catalogOfferLabel(item)}</Text>
           {item.available ? (
             <PrimaryButton
               label={selected?.label === item.label ? "Selected" : "Select"}

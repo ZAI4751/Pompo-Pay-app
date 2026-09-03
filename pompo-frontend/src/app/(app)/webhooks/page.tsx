@@ -31,7 +31,7 @@ export default function WebhooksPage() {
   }, [canRead]);
 
   return (
-    <PageShell title="Webhooks" breadcrumb={[{ label: "Operations" }, { label: "Webhooks" }]}>
+    <PageShell title="Webhooks" breadcrumb={[{ label: "Integrations" }, { label: "Webhooks" }]}>
       {!canRead && (
         <ErrorState kind="forbidden" description="You do not have permission to view webhook events." />
       )}
@@ -69,6 +69,7 @@ export default function WebhooksPage() {
               <Th>Status</Th>
               <Th>Retries</Th>
               <Th>Signature</Th>
+              <Th>Failure</Th>
             </tr>
           </TableHead>
           <TableBody>
@@ -87,6 +88,7 @@ export default function WebhooksPage() {
                 </Td>
                 <Td>{event.processing_attempts}</Td>
                 <Td>{event.signature_verified ? "verified" : "unverified"}</Td>
+                <Td>{event.failure_category ?? "—"}</Td>
               </Tr>
             ))}
           </TableBody>
@@ -109,15 +111,23 @@ export default function WebhooksPage() {
               <p>{selected.failure_category ?? "—"}</p>
             </div>
             <div>
+              <p className="text-text-subtle">Failure code</p>
+              <p>{selected.failure_code ?? "—"}</p>
+            </div>
+            <div>
+              <p className="text-text-subtle">Signature / timestamp</p>
+              <p>
+                {selected.signature_verified ? "Signature verified" : "Signature unverified"} ·{" "}
+                {selected.timestamp_validated ? "timestamp valid" : "timestamp not validated"}
+              </p>
+            </div>
+            <div>
               <p className="text-text-subtle">Processed at</p>
               <p>{selected.processed_at ? new Date(selected.processed_at).toLocaleString() : "—"}</p>
             </div>
-            <div>
-              <p className="text-text-subtle">Safe payload</p>
-              <pre className="max-h-64 overflow-auto rounded bg-surface-elevated p-3 text-xs">
-                {JSON.stringify(selected.payload, null, 2)}
-              </pre>
-            </div>
+            <p className="text-xs text-text-subtle">
+              Raw webhook payloads are withheld in this console so secrets cannot leak.
+            </p>
           </div>
         )}
       </Modal>

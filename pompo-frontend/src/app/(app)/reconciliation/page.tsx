@@ -69,8 +69,12 @@ export default function ReconciliationPage() {
   return (
     <PageShell
       title="Reconciliation"
-      breadcrumb={[{ label: "Operations" }, { label: "Reconciliation" }]}
+      breadcrumb={[{ label: "Financial operations" }, { label: "Reconciliation" }]}
     >
+      <p className="mb-4 max-w-2xl text-sm text-text-muted">
+        Discrepancies stay visible until an operator records a note. Recording a
+        resolution documents the investigation. It does not rewrite the original payment.
+      </p>
       {!canRead && (
         <ErrorState
           kind="forbidden"

@@ -97,7 +97,7 @@ export default function BranchesPage() {
   return (
     <PageShell
       title="Branches"
-      breadcrumb={[{ label: "Business" }, { label: "Branches" }]}
+      breadcrumb={[{ label: "Organization" }, { label: "Branches" }]}
       actions={
         <div className="flex items-center gap-2">
           {isDemoSession && <MockDataBadge />}

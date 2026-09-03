@@ -15,6 +15,22 @@ const LIST_UNAVAILABLE: ApiResult<never> = {
 };
 
 export const paymentsService = {
+  async list(filters: { status?: string; q?: string; limit?: number } = {}): Promise<ApiResult<Payment[]>> {
+    if (USE_MOCKS) {
+      return {
+        status: "error",
+        kind: "unavailable",
+        message: "Demo mode cannot list live payments. Sign in against the backend.",
+      };
+    }
+    const params = new URLSearchParams();
+    if (filters.status) params.set("status", filters.status);
+    if (filters.q) params.set("q", filters.q);
+    if (filters.limit !== undefined) params.set("limit", String(filters.limit));
+    const query = params.toString();
+    return apiRequest<Payment[]>(`/payments${query ? `?${query}` : ""}`);
+  },
+
   async getByReference(reference: string): Promise<ApiResult<Payment>> {
     if (USE_MOCKS) {
       await new Promise((resolve) => setTimeout(resolve, LATENCY_MS));

@@ -49,8 +49,9 @@ export default function ScanScreen() {
 
   if (!permission) {
     return (
-      <Screen atmosphere={false}>
-        <Text style={{ color: theme.text, fontWeight: "800", fontSize: 22 }}>Camera</Text>
+      <Screen>
+        <Text style={{ color: theme.text, fontWeight: "800", fontSize: 22 }}>Preparing scanner</Text>
+        <Text style={{ color: theme.muted, marginTop: 8 }}>Checking camera permission…</Text>
       </Screen>
     );
   }
@@ -60,9 +61,17 @@ export default function ScanScreen() {
       <Screen>
         <Text style={{ color: theme.text, fontWeight: "800", fontSize: 22 }}>Camera access</Text>
         <Text style={{ color: theme.muted, marginVertical: 12 }}>
-          POMPO needs the camera to scan merchant QR codes.
+          Allow the camera to scan, or enter the QR code manually. Both paths use the same POMPO validation.
         </Text>
         <PrimaryButton label="Allow camera" onPress={() => void requestPermission()} />
+        {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
+        <GlassInput
+          placeholder="Enter QR code manually"
+          value={manualCode}
+          autoCapitalize="characters"
+          onChangeText={setManualCode}
+        />
+        <SecondaryButton label="Continue with code" onPress={() => void onScan(manualCode)} />
         <SecondaryButton label="Back" onPress={() => router.back()} />
       </Screen>
     );
@@ -110,11 +119,13 @@ export default function ScanScreen() {
         ) : (
           <View style={styles.manualWrap}>
             <Text style={styles.footerHint}>Align the code inside the frame</Text>
+            <Text style={styles.manualHint}>Can’t scan? Enter the code instead. Same merchant check as the camera.</Text>
             <GlassInput
               placeholder="Enter QR code manually"
               value={manualCode}
               autoCapitalize="characters"
               onChangeText={setManualCode}
+              accessibilityLabel="QR code"
             />
             <SecondaryButton
               label="Enter QR code manually"
@@ -165,6 +176,11 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
     fontSize: 13,
     fontWeight: "600",
-    paddingBottom: 24,
+  },
+  manualHint: {
+    textAlign: "center",
+    color: "#64748b",
+    fontSize: 12,
+    lineHeight: 18,
   },
 });
