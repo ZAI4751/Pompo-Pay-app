@@ -2,7 +2,6 @@ import { useRouter, type Href } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 
-import { BottomNav } from "@/components/nav";
 import { Card, EmptyState, ErrorBanner, PrimaryButton, Screen, Title, useTheme } from "@/components/ui";
 import { catalogOfferLabel, paymentMethodStateLabel } from "@/domain/paymentMethod";
 import { useAuth } from "@/state/AuthProvider";
@@ -94,7 +93,6 @@ export default function PaymentMethodsScreen() {
           <PrimaryButton label="Add payment method" onPress={() => router.push("/customer/methods/add" as Href)} />
         </ScrollView>
       </View>
-      <BottomNav active="profile" />
     </Screen>
   );
 }

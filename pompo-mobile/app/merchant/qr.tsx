@@ -5,7 +5,6 @@ import { ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 
 import { AmountDisplay, FadeIn, GlassInput } from "@/components/glass";
-import { BottomNav } from "@/components/nav";
 import { Card, EmptyState, ErrorBanner, formatMoney, PrimaryButton, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
 import { canCreateQr, canRevokeQr } from "@/domain/roles";
 import { useAuth } from "@/state/AuthProvider";
@@ -216,7 +215,6 @@ export default function MerchantQrScreen() {
           ))}
         </ScrollView>
       </View>
-      <BottomNav active="qr" />
     </Screen>
   );
 }

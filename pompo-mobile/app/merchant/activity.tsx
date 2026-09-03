@@ -4,7 +4,6 @@ import { FlatList, RefreshControl, Text, View } from "react-native";
 
 import { PaymentRow } from "@/components/activity";
 import { GlassInput, PressScale } from "@/components/glass";
-import { BottomNav } from "@/components/nav";
 import { EmptyState, ErrorBanner, Screen, Title, useTheme } from "@/components/ui";
 import { mapPaymentStatus } from "@/domain/paymentStatus";
 import { useAuth } from "@/state/AuthProvider";
@@ -138,7 +137,6 @@ export default function MerchantActivity() {
           )}
         />
       </View>
-      <BottomNav active="activity" />
     </Screen>
   );
 }

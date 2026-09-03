@@ -2,7 +2,6 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, Text, View } from "react-native";
 
-import { BottomNav } from "@/components/nav";
 import { Card, ErrorBanner, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
 import { useAuth } from "@/state/AuthProvider";
 import type { FavoriteMerchant } from "@/types";
@@ -65,7 +64,6 @@ export default function MerchantsScreen() {
           )}
         />
       </View>
-      <BottomNav active="profile" />
     </Screen>
   );
 }

@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { InitialsAvatar, PressScale } from "@/components/glass";
+import { activeTabFromPathname, type BottomNavActive } from "@/domain/appShell";
 import { useTheme } from "@/theme";
 import { useAuth } from "@/state/AuthProvider";
 import { useAppMode } from "@/state/ModeProvider";
@@ -34,11 +35,13 @@ export function ModeSwitch() {
   );
 }
 
-export function BottomNav({ active }: { active: "home" | "history" | "profile" | "qr" | "activity" }) {
+export function BottomNav({ active }: { active?: BottomNavActive }) {
   const theme = useTheme();
   const { user } = useAuth();
   const { mode } = useAppMode();
   const router = useRouter();
+  const pathname = usePathname();
+  const resolvedActive = active ?? activeTabFromPathname(pathname);
   const insets = useSafeAreaInsets();
   const isMerchant = mode === "merchant";
   const items = isMerchant
@@ -70,8 +73,8 @@ export function BottomNav({ active }: { active: "home" | "history" | "profile" |
           <NavItem
             key={item.key}
             label={item.label}
-            icon={item.key === active ? item.iconActive : item.icon}
-            active={item.key === active}
+            icon={item.key === resolvedActive ? item.iconActive : item.icon}
+            active={item.key === resolvedActive}
             onPress={() => router.replace(item.href as never)}
           />
         ))}
@@ -87,13 +90,13 @@ export function BottomNav({ active }: { active: "home" | "history" | "profile" |
         </PressScale>
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ selected: active === "profile" }}
+          accessibilityState={{ selected: resolvedActive === "profile" }}
           onPress={() => router.replace(profileHref as never)}
           style={styles.navItem}
           hitSlop={8}
         >
-          <InitialsAvatar name={user?.full_name ?? "POMPO"} size={28} active={active === "profile"} />
-          <Text style={{ color: active === "profile" ? theme.primary : theme.subtle, fontWeight: "700", fontSize: 10 }}>
+          <InitialsAvatar name={user?.full_name ?? "POMPO"} size={28} active={resolvedActive === "profile"} />
+          <Text style={{ color: resolvedActive === "profile" ? theme.primary : theme.subtle, fontWeight: "700", fontSize: 10 }}>
             Profile
           </Text>
         </Pressable>

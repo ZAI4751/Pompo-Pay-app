@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Switch, Text, View } from "react-native";
 
-import { BottomNav } from "@/components/nav";
 import { Card, ErrorBanner, Screen, Title, useTheme } from "@/components/ui";
 import { useAuth } from "@/state/AuthProvider";
 import type { CustomerPreferences } from "@/types";
@@ -88,7 +87,6 @@ export default function PreferencesScreen() {
           )}
         </Card>
       </View>
-      <BottomNav active="profile" />
     </Screen>
   );
 }

@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ActionTile, PaymentRow, SectionHeader } from "@/components/activity";
 import { FadeIn, HeroCard, PressScale } from "@/components/glass";
-import { BottomNav, ModeSwitch } from "@/components/nav";
+import { ModeSwitch } from "@/components/nav";
 import { Card, EmptyState, ErrorBanner, Greeting, PrimaryButton, Screen, useTheme } from "@/components/ui";
 import { useAuth } from "@/state/AuthProvider";
 import { useAppMode } from "@/state/ModeProvider";
@@ -82,7 +82,6 @@ export default function MerchantHome() {
             />
           </View>
         </View>
-        <BottomNav active="home" />
       </Screen>
     );
   }
@@ -164,7 +163,6 @@ export default function MerchantHome() {
           </FadeIn>
         </ScrollView>
       </View>
-      <BottomNav active="home" />
     </Screen>
   );
 }

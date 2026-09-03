@@ -4,7 +4,6 @@ import { FlatList, RefreshControl, Text, View } from "react-native";
 
 import { PaymentRow } from "@/components/activity";
 import { GlassInput, PressScale } from "@/components/glass";
-import { BottomNav } from "@/components/nav";
 import { EmptyState, ErrorBanner, Screen, Title, useTheme } from "@/components/ui";
 import { groupLabel } from "@/format";
 import { cachedPayments, isOffline, markOffline, markOnline, rememberPayments } from "@/offline/cache";
@@ -210,7 +209,6 @@ export default function HistoryScreen() {
           }}
         />
       </View>
-      <BottomNav active="history" />
     </Screen>
   );
 }

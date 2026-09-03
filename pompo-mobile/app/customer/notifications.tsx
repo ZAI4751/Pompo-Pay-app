@@ -2,7 +2,6 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, Text, View } from "react-native";
 
-import { BottomNav } from "@/components/nav";
 import { Card, EmptyState, ErrorBanner, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
 import { useAuth } from "@/state/AuthProvider";
 import type { AppNotification } from "@/types";
@@ -101,7 +100,6 @@ export default function NotificationsScreen() {
           )}
         />
       </View>
-      <BottomNav active="profile" />
     </Screen>
   );
 }

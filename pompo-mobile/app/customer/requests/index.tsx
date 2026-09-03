@@ -2,7 +2,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, Share, Text, View } from "react-native";
 
-import { BottomNav } from "@/components/nav";
 import { Card, EmptyState, ErrorBanner, GlassInput, PrimaryButton, Screen, Title, useTheme } from "@/components/ui";
 import { useAuth } from "@/state/AuthProvider";
 import type { PaymentRequest } from "@/types";
@@ -211,7 +210,6 @@ export default function PaymentRequestsScreen() {
           )}
         />
       </View>
-      <BottomNav active="history" />
     </Screen>
   );
 }

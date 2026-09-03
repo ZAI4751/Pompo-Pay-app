@@ -2,7 +2,6 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Text, View } from "react-native";
 
-import { BottomNav } from "@/components/nav";
 import { Card, ErrorBanner, GlassInput, PrimaryButton, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
 import { useAuth } from "@/state/AuthProvider";
 
@@ -129,7 +128,6 @@ export default function SecurityScreen() {
           }}
         />
       </View>
-      <BottomNav active="profile" />
     </Screen>
   );
 }

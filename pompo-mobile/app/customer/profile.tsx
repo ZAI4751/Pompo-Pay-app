@@ -4,7 +4,7 @@ import { ScrollView, Text, View } from "react-native";
 
 import { MenuRow } from "@/components/activity";
 import { FadeIn, InitialsAvatar } from "@/components/glass";
-import { BottomNav, ModeSwitch } from "@/components/nav";
+import { ModeSwitch } from "@/components/nav";
 import { Card, Screen, useTheme } from "@/components/ui";
 import { roleLabel } from "@/format";
 import { useAuth } from "@/state/AuthProvider";
@@ -196,7 +196,6 @@ export default function CustomerProfile() {
           </View>
         </ScrollView>
       </View>
-      <BottomNav active="profile" />
     </Screen>
   );
 }

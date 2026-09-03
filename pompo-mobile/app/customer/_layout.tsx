@@ -1,5 +1,7 @@
 import { Redirect, Stack } from "expo-router";
+import { StyleSheet } from "react-native";
 
+import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/state/AuthProvider";
 
 export default function CustomerLayout() {
@@ -7,5 +9,19 @@ export default function CustomerLayout() {
   if (hydrated && !user) {
     return <Redirect href="/login" />;
   }
-  return <Stack screenOptions={{ headerShown: false, animation: "slide_from_right" }} />;
+  return (
+    <AppShell>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: "slide_from_right",
+          contentStyle: styles.stackContent,
+        }}
+      />
+    </AppShell>
+  );
 }
+
+const styles = StyleSheet.create({
+  stackContent: { flex: 1, backgroundColor: "transparent" },
+});

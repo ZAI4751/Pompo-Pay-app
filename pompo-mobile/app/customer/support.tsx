@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
-import { BottomNav } from "@/components/nav";
 import { Card, ErrorBanner, GlassInput, PrimaryButton, Screen, Title, useTheme } from "@/components/ui";
 import { useAuth } from "@/state/AuthProvider";
 
@@ -95,7 +94,6 @@ export default function SupportScreen() {
           />
         </Card>
       </View>
-      <BottomNav active="profile" />
     </Screen>
   );
 }
