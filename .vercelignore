@@ -1,0 +1,21 @@
+# Monorepo: Vercel Root Directory is pompo-frontend.
+# Exclude local artifacts and sibling apps so CLI production deploys stay small.
+pompo-backend
+pompo-mobile
+.venv
+.venv-1
+.git
+.github
+.cursor
+docs
+**/.next
+**/node_modules
+**/.expo
+**/.turbo
+**/.pytest_cache
+**/__pycache__
+**/coverage
+**/.env*
+**/.vercel
+*.md
+Claude Skills & Instructions
