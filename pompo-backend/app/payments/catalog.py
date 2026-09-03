@@ -227,7 +227,11 @@ CATALOG_BY_CODE = {definition.code: definition for definition in PROVIDER_CATALO
 async def seed_provider_catalog(
     session: AsyncSession, registry: ProviderRegistry | None = None
 ) -> int:
-    """Insert missing catalog rows. Existing rows are not overwritten.
+    """Insert missing catalog rows.
+
+    Existing rows keep operator-controlled flags (``is_active``, health).
+    Additive catalog fields (payment methods, new capability keys) are merged
+    so sandbox rails pick up later instrument/card support without a recreate.
 
     Returns the number of rows created.
     """
@@ -238,6 +242,22 @@ async def seed_provider_catalog(
             select(PaymentProvider).where(PaymentProvider.code == definition.code)
         )
         if existing is not None:
+            methods = list(existing.supported_payment_methods or [])
+            method_changed = False
+            for method in definition.supported_payment_methods:
+                if method not in methods:
+                    methods.append(method)
+                    method_changed = True
+            if method_changed:
+                existing.supported_payment_methods = methods
+            capabilities = dict(existing.capabilities or {})
+            capability_changed = False
+            for key, value in definition.capabilities.items():
+                if key not in capabilities:
+                    capabilities[key] = value
+                    capability_changed = True
+            if capability_changed:
+                existing.capabilities = capabilities
             continue
         adapter = registry.get_optional(definition.code.value)
         adapter_ready = adapter is not None and adapter.live_contract_ready

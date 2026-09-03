@@ -400,3 +400,19 @@ async def test_admin_list_is_masked(session: AsyncSession) -> None:
         assert "token_reference" not in row
         assert "••" in row["masked_identifier"]
         assert row["customer_email"] == customer.email
+
+
+def test_openapi_includes_payment_method_paths() -> None:
+    application = FastAPI()
+    application.include_router(instruments_router, prefix="/api/v1")
+    application.include_router(payments_router, prefix="/api/v1")
+    paths = application.openapi()["paths"]
+    assert "/api/v1/payment-methods" in paths
+    assert "/api/v1/payment-methods/catalog" in paths
+    assert "/api/v1/payment-methods/admin" in paths
+    assert "/api/v1/payment-methods/{public_id}" in paths
+    assert "/api/v1/payment-methods/{public_id}/default" in paths
+    assert "/api/v1/payment-methods/{public_id}/verify" in paths
+    post_from_qr = paths["/api/v1/payments/from-qr"]["post"]
+    schema_ref = post_from_qr["requestBody"]["content"]["application/json"]["schema"]
+    assert schema_ref

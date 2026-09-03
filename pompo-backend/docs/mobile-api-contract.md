@@ -40,7 +40,7 @@ the original payment. A different fingerprint with the same key is `409`.
 |---|---|---|---|---|---|
 | Extract public id | client parse only | — | — | `POMPO:1:static\|dynamic:<public_id>:...` | Public id only. Do not trust amount/expiry/signature locally. |
 | Inspect | GET | `/qr/{public_identifier}` | **public** | — | Safe merchant/amount/status. `404` unknown, `422` expired/revoked/malformed state, `409` already used |
-| Pay from QR | POST | `/payments/from-qr` | `transactions:create` | `{payload, idempotency_key, amount?}` | `201` payment. `amount` required for **static** only. Dynamic amount is server-authoritative; a client amount that differs is `422`. |
+| Pay from QR | POST | `/payments/from-qr` | `transactions:create` | `{payload?, public_identifier?, idempotency_key, amount?, payment_instrument_id?}` | `201` payment. Provide **payload or public_identifier**. Manual public-id entry still validates the stored signed payload. `amount` required for **static** only. When `payment_instrument_id` is set, the server derives provider and payment method; a mismatched `provider_code` is `422`. |
 | Process | POST | `/payments/{reference}/process` | `transactions:update` | — | Runs PaymentService + simulated/live provider |
 | Status | GET | `/payments/{reference}` | `transactions:read` | — | Payer (`cashier_id`) or same-merchant staff |
 | History | GET | `/payments/mine` | `transactions:read` | `q`, `status`, `reference`, `merchant_id`, `amount_min`, `amount_max`, `created_from`, `created_to`, `limit`, `offset` | Payments initiated by the current user |
@@ -72,8 +72,23 @@ incompatible mobile-only financial states.
 ## Gaps not invented in mobile
 
 - SMS phone verification is `not_configured`. See `docs/m015-customer-product.md`.
-- Push notifications, wallets, and stored cards are out of scope.
+- Push notifications and wallets are out of scope.
+- Live Airtel/TNM/bank saved-account enrollment is unavailable until those contracts document a reusable token. Sandbox methods use the simulated provider. See `docs/payment-instruments.md`.
 - Settlement and webhook administration stay in Master Admin.
+
+## Payment methods
+
+| Flow | Method | Path | Auth | Notes |
+|---|---|---|---|---|
+| Catalog | GET | `/payment-methods/catalog` | access | Includes unavailable rails (`Coming soon` / Airtel not tokenizable) |
+| List | GET | `/payment-methods` | access | Current user, omits revoked. Never returns `token_reference` |
+| Add | POST | `/payment-methods` | access | Sandbox simulated only. Rejects pin/cvv/pan |
+| Detail | GET | `/payment-methods/{id}` | access | Cross-user `404` |
+| Default | POST | `/payment-methods/{id}/default` | access | One active default |
+| Verify | POST | `/payment-methods/{id}/verify` | access | Simulated completes immediately |
+| Revoke | DELETE | `/payment-methods/{id}` | access | Cannot be charged afterwards |
+
+The app sends instrument public ids only. No PIN, CVV, PAN, or provider secret is stored in SecureStore.
 
 ## M015 customer convenience
 

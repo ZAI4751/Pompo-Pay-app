@@ -1,19 +1,14 @@
 # POMPO Engineering State
 
 ## CURRENT MILESTONE
-M015 Customer Product & Everyday Utility: customer self-registration,
-recent merchants, Pay Again, payment requests / bill splits as merchant-payment
-instructions, receipts, favorites, in-app notifications, search, support,
-and lightweight insights. POMPO is not a wallet and does not hold stored
-customer currency.
+M016 Payment instruments and unified checkout: customer-saved payment
+methods as safe provider references, not a wallet. QR checkout can select
+a method; the server derives the provider. Simulated sandbox enroll only.
+Airtel/TNM/bank token enrollment is not invented.
 
-Do not start TNM, bank integrations, POS expansion, or a major mobile visual
-redesign.
+Do not start TNM, bank integrations, or another major product feature.
 
-The operational chain remains Merchant → Branch → Till → Provider → Payment
-→ Transaction → Payment Attempt.
-
-See `docs/m015-customer-product.md`.
+See `docs/payment-instruments.md`.
 
 ## COMPLETED MILESTONES
 M001 backend foundation; M002 domain model and database; M003 authentication;
@@ -28,7 +23,8 @@ M008 outbound HTTP client, credential-reference resolution, sandbox/production
 gating, and admin contract-readiness visibility.
 M009 QR payments; M010 inbound webhooks; M011 settlement/reconciliation;
 M012 unified mobile app; M013 POS / developer platform;
-M014 Airtel Money Malawi; M015 customer product / everyday utility.
+M014 Airtel Money Malawi; M015 customer product / everyday utility;
+M016 payment instruments / unified checkout.
 
 ## CURRENT ARCHITECTURE
 FastAPI routes use dependencies, services, repositories, and async SQLAlchemy.
@@ -45,8 +41,10 @@ PaymentService → select_provider → ProviderRegistry → ProviderAdapter
 ```
 
 ## DATABASE STATE
-PostgreSQL migration graph head is `0016_m015_customer_product` (parent
-`0015_m014_airtel_malawi`).
+PostgreSQL migration graph head is `0017_payment_instruments` (parent
+`0016_m015_customer_product`).
+M016 adds `payment_instruments` and `transactions.payment_instrument_id`.
+Token references are HMAC digests; PINs/CVVs/PANs are not stored.
 M015 adds customer preferences, merchant favorites, payment requests, bill
 splits, in-app notifications, support requests, and a partial unique index
 on active user phones.

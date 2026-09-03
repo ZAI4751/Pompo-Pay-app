@@ -8,6 +8,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import inspect as sa_inspect
 
 from app.api.deps import CurrentUserDep, DbSessionDep, require_permission
 from app.payments.customer_status import customer_status_detail, customer_status_label
@@ -47,9 +48,19 @@ from app.services.providers import (
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
 
+def _loaded_rel(instance: object, name: str):
+    """Return a relationship only if it is already loaded — never lazy-load."""
+    inspector = sa_inspect(instance, raiseerr=False)
+    if inspector is None:
+        return None
+    if name in inspector.unloaded:
+        return None
+    return getattr(instance, name, None)
+
+
 def _payment_response(transaction: Transaction) -> PaymentResponse:
     attempts = []
-    for attempt in transaction.attempts or []:
+    for attempt in _loaded_rel(transaction, "attempts") or []:
         attempts.append(
             PaymentAttemptResponse(
                 id=attempt.id,
@@ -63,9 +74,14 @@ def _payment_response(transaction: Transaction) -> PaymentResponse:
                 failure_reason=attempt.failure_reason,
             )
         )
-    merchant = getattr(transaction, "merchant", None)
-    branch = getattr(transaction, "branch", None)
-    till = getattr(transaction, "till", None)
+    merchant = _loaded_rel(transaction, "merchant")
+    branch = _loaded_rel(transaction, "branch")
+    till = _loaded_rel(transaction, "till")
+    instrument = _loaded_rel(transaction, "payment_instrument")
+    authorization_state = None
+    if instrument is not None:
+        state = getattr(instrument, "authorization_state", None)
+        authorization_state = state.value if hasattr(state, "value") else state
     return PaymentResponse(
         id=transaction.id,
         reference=transaction.reference,
@@ -90,6 +106,8 @@ def _payment_response(transaction: Transaction) -> PaymentResponse:
         status_detail=customer_status_detail(
             transaction.status.value if hasattr(transaction.status, "value") else str(transaction.status)
         ),
+        payment_instrument_id=getattr(instrument, "public_identifier", None),
+        authorization_state=authorization_state,
     )
 
 
@@ -171,7 +189,7 @@ async def create_payment(
     service: PaymentServiceDep,
 ) -> PaymentResponse:
     try:
-        return await service.create_payment(current_user, payload.model_dump())
+        return _payment_response(await service.create_payment(current_user, payload.model_dump(exclude_none=True)))
     except PaymentError as exc:
         raise _error(exc) from exc
 
@@ -193,7 +211,7 @@ async def create_payment_from_qr(
         )
     except QRServiceError as exc:
         raise _qr_payment_error(exc) from exc
-    return transaction
+    return _payment_response(transaction)
 
 
 @router.get(
@@ -289,7 +307,7 @@ async def cancel_payment(
     service: PaymentServiceDep,
 ) -> PaymentResponse:
     try:
-        return await service.cancel_payment(current_user, reference)
+        return _payment_response(await service.cancel_payment(current_user, reference))
     except PaymentError as exc:
         raise _error(exc) from exc
 
@@ -305,7 +323,7 @@ async def process_payment(
     service: PaymentServiceDep,
 ) -> PaymentResponse:
     try:
-        return await service.process_payment(current_user, reference)
+        return _payment_response(await service.process_payment(current_user, reference))
     except PaymentError as exc:
         raise _error(exc) from exc
 

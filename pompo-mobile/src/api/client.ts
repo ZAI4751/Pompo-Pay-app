@@ -15,6 +15,8 @@ import type {
   Payment,
   PaymentReceipt,
   PaymentRequest,
+  PaymentMethod,
+  PaymentMethodCatalogItem,
   QrInspect,
   QrRecord,
   SupportTicket,
@@ -151,16 +153,22 @@ export class PompoApi {
   }
 
   payFromQr(input: {
-    payload: string;
+    payload?: string;
+    publicIdentifier?: string;
     idempotencyKey: string;
     amount?: string;
+    paymentInstrumentId?: string;
   }): Promise<ApiResult<Payment>> {
     return this.request<Payment>("/payments/from-qr", {
       method: "POST",
       body: {
-        payload: input.payload,
+        ...(input.payload ? { payload: input.payload } : {}),
+        ...(input.publicIdentifier && !input.payload
+          ? { public_identifier: input.publicIdentifier }
+          : {}),
         idempotency_key: input.idempotencyKey,
-        ...(input.amount ? { amount: input.amount, payment_method: "mobile_money", provider_code: "simulated" } : {}),
+        ...(input.amount ? { amount: input.amount } : {}),
+        ...(input.paymentInstrumentId ? { payment_instrument_id: input.paymentInstrumentId } : {}),
       },
     });
   }
@@ -173,6 +181,40 @@ export class PompoApi {
 
   getPayment(reference: string): Promise<ApiResult<Payment>> {
     return this.request<Payment>(`/payments/${encodeURIComponent(reference)}`);
+  }
+
+  listPaymentMethods(): Promise<ApiResult<PaymentMethod[]>> {
+    return this.request<PaymentMethod[]>("/payment-methods");
+  }
+
+  paymentMethodCatalog(): Promise<ApiResult<PaymentMethodCatalogItem[]>> {
+    return this.request<PaymentMethodCatalogItem[]>("/payment-methods/catalog");
+  }
+
+  addPaymentMethod(body: {
+    provider_code: string;
+    instrument_type: string;
+    msisdn?: string;
+    card_last4?: string;
+    make_default?: boolean;
+  }): Promise<ApiResult<PaymentMethod>> {
+    return this.request<PaymentMethod>("/payment-methods", { method: "POST", body });
+  }
+
+  getPaymentMethod(id: string): Promise<ApiResult<PaymentMethod>> {
+    return this.request<PaymentMethod>(`/payment-methods/${encodeURIComponent(id)}`);
+  }
+
+  setDefaultPaymentMethod(id: string): Promise<ApiResult<PaymentMethod>> {
+    return this.request<PaymentMethod>(`/payment-methods/${encodeURIComponent(id)}/default`, {
+      method: "POST",
+    });
+  }
+
+  revokePaymentMethod(id: string): Promise<ApiResult<PaymentMethod>> {
+    return this.request<PaymentMethod>(`/payment-methods/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
   }
 
   listMyPayments(params?: {

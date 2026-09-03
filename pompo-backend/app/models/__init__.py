@@ -14,6 +14,7 @@ from app.models.user import Permission, Role, RolePermission, User
 from app.models.auth import RefreshSession
 from app.models.payment import (
     PaymentAttempt,
+    PaymentInstrument,
     PaymentProvider,
     QRCode,
     Receipt,
@@ -53,6 +54,7 @@ __all__ = [
     "User",
     "RefreshSession",
     "PaymentProvider",
+    "PaymentInstrument",
     "Transaction",
     "PaymentAttempt",
     "WebhookEvent",

@@ -113,6 +113,16 @@ class PaymentService:
                 await self._validate_scope(actor, merchant_id, values["branch_id"], values["till_id"])
             else:
                 await self._validate_destination(merchant_id, values["branch_id"], values["till_id"])
+        instrument = await self._resolve_instrument(actor, api_client, values)
+        if instrument is not None:
+            from app.services.instrument import payment_method_for
+
+            client_provider = values.get("provider_code")
+            derived = instrument.provider.code.value
+            if client_provider and client_provider != derived:
+                raise PaymentInvalidError("Payment method does not belong to that provider")
+            values["provider_code"] = derived
+            values["payment_method"] = payment_method_for(instrument)
         fingerprint = self._fingerprint(values)
         existing = await self._transactions.get_by_idempotency(
             merchant_id, values["idempotency_key"]
@@ -157,6 +167,7 @@ class PaymentService:
             customer_phone=values.get("customer_phone"),
             description=values.get("description"),
             status=TransactionStatus.CREATED,
+            payment_instrument_id=instrument.id if instrument is not None else None,
         )
         self._session.add(transaction)
         try:
@@ -482,6 +493,7 @@ class PaymentService:
             raise PaymentInvalidError("Payment provider is unavailable")
         if not adapter.capabilities.supports_push_payment:
             raise PaymentInvalidError("Provider does not support payment initiation")
+        await self._assert_instrument_chargeable(transaction)
         if not transaction.attempts:
             raise PaymentInvalidError("Transaction has no payment attempt")
         attempt = await self._attempt_for_processing(transaction)
@@ -498,6 +510,13 @@ class PaymentService:
             metadata={
                 "attempt_number": str(attempt.attempt_number),
                 "attempt_id": str(attempt.id),
+                **(
+                    {
+                        "payment_instrument_id": transaction.payment_instrument.public_identifier
+                    }
+                    if getattr(transaction, "payment_instrument", None) is not None
+                    else {}
+                ),
             },
         )
         request_data = asdict(request)
@@ -845,6 +864,17 @@ class PaymentService:
             from app.services.payment_request import PaymentRequestService
 
             await PaymentRequestService(self._session).fulfill_if_matching(transaction)
+            if transaction.payment_instrument_id is not None:
+                from app.models.payment import PaymentInstrument as PaymentInstrumentModel
+                from app.services.instrument import PaymentInstrumentService
+
+                instrument = getattr(transaction, "payment_instrument", None)
+                if instrument is None:
+                    instrument = await self._session.get(
+                        PaymentInstrumentModel, transaction.payment_instrument_id
+                    )
+                if instrument is not None:
+                    await PaymentInstrumentService(self._session, self._registry).mark_used(instrument)
         if target in {
             TransactionStatus.SUCCESS,
             TransactionStatus.FAILED,
@@ -948,6 +978,90 @@ class PaymentService:
     async def _require(self, actor: User, permission: str) -> None:
         if not await self._authorization.has_permission(actor, permission):
             raise PaymentForbiddenError("Insufficient authority")
+
+    async def _resolve_instrument(
+        self,
+        actor: User | None,
+        api_client: IntegrationClient | None,
+        values: dict[str, Any],
+    ):
+        public_id = values.get("payment_instrument_id")
+        if not public_id:
+            return None
+        if api_client is not None:
+            raise PaymentInvalidError("Machine clients cannot charge a saved payment method")
+        if actor is None:
+            raise PaymentForbiddenError("Insufficient authority")
+        from app.services.instrument import InstrumentError, PaymentInstrumentService
+
+        try:
+            return await PaymentInstrumentService(self._session, self._registry).require_chargeable(
+                actor, str(public_id)
+            )
+        except InstrumentError as exc:
+            raise PaymentInvalidError(str(exc)) from exc
+
+    async def bind_instrument(self, actor: User, transaction: Transaction, public_id: str) -> Transaction:
+        from app.models.enums import PaymentAttemptStatus as AttemptStatus
+        from app.services.instrument import InstrumentError, PaymentInstrumentService, payment_method_for
+
+        try:
+            instrument = await PaymentInstrumentService(
+                self._session, self._registry
+            ).require_chargeable(actor, public_id)
+        except InstrumentError as exc:
+            raise PaymentInvalidError(str(exc)) from exc
+        existing = getattr(transaction, "payment_instrument", None)
+        if existing is not None and existing.public_identifier != public_id:
+            raise PaymentConflictError("Idempotency key was used with a different request")
+        if (
+            transaction.payment_instrument_id is not None
+            and transaction.payment_instrument_id != instrument.id
+        ):
+            raise PaymentConflictError("Idempotency key was used with a different request")
+        if transaction.provider_id is not None and transaction.provider_id != instrument.provider_id:
+            transaction.provider_id = instrument.provider_id
+            if transaction.attempts:
+                latest = transaction.attempts[-1]
+                if latest.status is AttemptStatus.INITIATED:
+                    latest.provider_id = instrument.provider_id
+        transaction.payment_instrument_id = instrument.id
+        transaction.payment_instrument = instrument
+        transaction.payment_method = payment_method_for(instrument)
+        logger.info(
+            "payment_instrument_bound",
+            reference=transaction.reference,
+            payment_instrument_id=instrument.public_identifier,
+            provider_code=instrument.provider.code.value,
+        )
+        return transaction
+
+    async def _assert_instrument_chargeable(self, transaction: Transaction) -> None:
+        if transaction.payment_instrument_id is None:
+            return
+        from app.models.enums import PaymentInstrumentStatus
+        from app.models.payment import PaymentInstrument as PaymentInstrumentModel
+        from app.payments.providers import UnsupportedProviderOperation, require_capability
+
+        instrument = getattr(transaction, "payment_instrument", None)
+        if instrument is None:
+            instrument = await self._session.get(PaymentInstrumentModel, transaction.payment_instrument_id)
+        if instrument is None:
+            raise PaymentInvalidError("Payment method not found")
+        if instrument.status is PaymentInstrumentStatus.REVOKED:
+            raise PaymentInvalidError("That payment method has been revoked")
+        if instrument.status is not PaymentInstrumentStatus.ACTIVE:
+            raise PaymentInvalidError("That payment method is not active")
+        if instrument.provider_id != transaction.provider_id:
+            raise PaymentInvalidError("Payment method does not belong to that provider")
+        provider = await self._session.get(PaymentProvider, instrument.provider_id)
+        if provider is None:
+            raise PaymentInvalidError("Payment provider is unavailable")
+        adapter = self._registry.get(provider.code.value)
+        try:
+            require_capability(adapter, "instrument_charge")
+        except UnsupportedProviderOperation as exc:
+            raise PaymentInvalidError(str(exc)) from exc
 
     @staticmethod
     def _fingerprint(values: dict[str, Any]) -> str:

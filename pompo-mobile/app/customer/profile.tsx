@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { Text, View } from "react-native";
 
 import { MenuRow } from "@/components/activity";
@@ -33,6 +33,13 @@ export default function CustomerProfile() {
           </View>
         </FadeIn>
         <Card style={{ padding: 0, gap: 0, overflow: "hidden" }}>
+          <MenuRow
+            icon="card-outline"
+            label="Payment methods"
+            color={theme.primary}
+            background={theme.scheme === "dark" ? "#1e3a8a" : "#eff6ff"}
+            onPress={() => router.push("/customer/methods" as Href)}
+          />
           <MenuRow
             icon="storefront-outline"
             label="Merchants"

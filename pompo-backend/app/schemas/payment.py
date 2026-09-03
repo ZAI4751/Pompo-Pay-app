@@ -19,6 +19,7 @@ class PaymentCreate(BaseModel):
     customer_phone: str | None = Field(default=None, max_length=32)
     description: str | None = Field(default=None, max_length=500)
     provider_code: str | None = Field(default="simulated", max_length=32)
+    payment_instrument_id: str | None = Field(default=None, max_length=40)
     idempotency_key: str = Field(min_length=1, max_length=128)
 
     @field_validator("currency")
@@ -74,6 +75,8 @@ class PaymentResponse(BaseModel):
     completed_at: datetime | None = None
     customer_status: str | None = None
     status_detail: str | None = None
+    payment_instrument_id: str | None = None
+    authorization_state: str | None = None
 
 
 class PaymentTransition(BaseModel):
@@ -122,6 +125,11 @@ class ProviderCapabilityResponse(BaseModel):
     supports_refund: bool
     supports_webhooks: bool
     supports_qr: bool
+    supports_payment_instruments: bool = False
+    supports_instrument_enroll: bool = False
+    supports_instrument_charge: bool = False
+    supports_instrument_verify: bool = False
+    supports_instrument_remove: bool = False
 
 
 class ProviderHealthResponse(BaseModel):

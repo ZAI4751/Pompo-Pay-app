@@ -462,7 +462,10 @@ class QRService:
             )
         )
         await self._session.commit()
-        await self._session.refresh(transaction, attribute_names=["attempts", "payment_instrument"])
+        await self._session.refresh(
+            transaction,
+            attribute_names=["attempts", "payment_instrument", "merchant", "branch", "till"],
+        )
         logger.info(
             "payment_from_static_qr",
             public_identifier=public_identifier,
@@ -526,7 +529,10 @@ class QRService:
             raise QRConflictError("QR payment is already in progress")
 
         if values.get("payment_instrument_id"):
-            await self._session.refresh(transaction, attribute_names=["attempts", "payment_instrument"])
+            await self._session.refresh(
+            transaction,
+            attribute_names=["attempts", "payment_instrument", "merchant", "branch", "till"],
+        )
             try:
                 await self._payments.bind_instrument(
                     actor, transaction, str(values["payment_instrument_id"])
@@ -548,7 +554,10 @@ class QRService:
             },
         )
         await self._session.commit()
-        await self._session.refresh(transaction, attribute_names=["attempts", "payment_instrument"])
+        await self._session.refresh(
+            transaction,
+            attribute_names=["attempts", "payment_instrument", "merchant", "branch", "till"],
+        )
         logger.info(
             "payment_from_dynamic_qr",
             public_identifier=qr.public_identifier,

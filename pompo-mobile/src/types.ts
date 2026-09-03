@@ -73,6 +73,34 @@ export interface Payment {
   completed_at: string | null;
   customer_status?: string | null;
   status_detail?: string | null;
+  payment_instrument_id?: string | null;
+  authorization_state?: string | null;
+}
+
+export interface PaymentMethod {
+  id: string;
+  provider_code: string;
+  provider_display_name: string;
+  instrument_type: string;
+  display_name: string;
+  masked_identifier: string;
+  status: string;
+  authorization_state: string;
+  is_default: boolean;
+  is_sandbox: boolean;
+  last_used_at: string | null;
+  created_at: string;
+  unavailable_reason?: string | null;
+}
+
+export interface PaymentMethodCatalogItem {
+  provider_code: string;
+  instrument_type: string;
+  label: string;
+  available: boolean;
+  is_sandbox: boolean;
+  reason: string | null;
+  authorization_state: string;
 }
 
 export interface PaymentReceipt {

@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.enums import ProviderCode, TransactionStatus
 from app.models.organization import Merchant
-from app.models.payment import PaymentAttempt, PaymentProvider, Transaction
+from app.models.payment import PaymentAttempt, PaymentInstrument, PaymentProvider, Transaction
 from app.repositories.base import BaseRepository
 
 
@@ -27,6 +27,7 @@ class TransactionRepository(BaseRepository[Transaction]):
             selectinload(Transaction.till),
             selectinload(Transaction.qr_code),
             selectinload(Transaction.receipt),
+            selectinload(Transaction.payment_instrument).selectinload(PaymentInstrument.provider),
         )
 
     async def get_active_by_reference(self, reference: str) -> Transaction | None:
@@ -42,12 +43,10 @@ class TransactionRepository(BaseRepository[Transaction]):
         self, merchant_id: uuid.UUID, idempotency_key: str
     ) -> Transaction | None:
         result = await self._session.execute(
-            select(Transaction)
-            .where(
+            self._detail_query().where(
                 Transaction.merchant_id == merchant_id,
                 Transaction.idempotency_key == idempotency_key,
             )
-            .options(selectinload(Transaction.attempts))
         )
         return result.scalar_one_or_none()
 

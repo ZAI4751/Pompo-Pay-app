@@ -291,3 +291,34 @@ class SupportCategory(str, enum.Enum):
     REPORT_TRANSACTION = "report_transaction"
     REFERENCE_LOOKUP = "reference_lookup"
     OTHER = "other"
+
+
+class PaymentInstrumentType(str, enum.Enum):
+    """Customer-facing instrument family. Banks are providers, not types."""
+
+    MOBILE_MONEY = "mobile_money"
+    VISA = "visa"
+    MASTERCARD = "mastercard"
+
+
+class PaymentInstrumentStatus(str, enum.Enum):
+    """Lifecycle of a saved payment method. Revoked methods cannot be charged."""
+
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    REVOKED = "revoked"
+    EXPIRED = "expired"
+
+
+class ProviderAuthorizationState(str, enum.Enum):
+    """Provider-neutral authorization UX. The concrete flow is adapter-specific."""
+
+    NOT_REQUIRED = "not_required"
+    REQUIRED = "required"
+    WAITING_PROVIDER = "waiting_provider"
+    OPEN_PROVIDER_FLOW = "open_provider_flow"
+    CREDENTIAL_REQUIRED = "credential_required"
+    OTP_REQUIRED = "otp_required"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    UNSUPPORTED = "unsupported"
