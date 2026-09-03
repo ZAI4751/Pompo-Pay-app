@@ -3,6 +3,8 @@
 These adapters implement the provider contract so the payment core stays
 provider-neutral. They do not invent Airtel, TNM, or bank HTTP APIs. Calls
 fail as unavailable until a real contract is implemented in a later milestone.
+TNM Mpamba uses `TnmMpambaMalawiAdapter` in `tnm_mpamba.py` instead of this
+generic stub.
 """
 
 from __future__ import annotations

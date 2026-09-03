@@ -1,7 +1,8 @@
 """Database-backed provider catalog.
 
 Identifiers here must match ``ProviderCode`` and the in-process registry.
-TNM/bank adapters remain structured stubs. Airtel Money Malawi is a live
+TNM Mpamba Malawi is a named adapter with no live HTTP contract yet.
+Bank adapters remain structured stubs. Airtel Money Malawi is a live
 contract (inactive until credentials are configured and an admin enables it).
 """
 
@@ -17,6 +18,7 @@ from app.models.enums import ProviderCode, ProviderHealthState, ProviderType
 from app.models.payment import PaymentProvider
 from app.payments.providers import ProviderCapabilities
 from app.payments.registry import ProviderRegistry
+from app.payments.tnm_mpamba import TNM_CAPABILITIES
 
 
 class ProductionCatalogSeedError(RuntimeError):
@@ -165,16 +167,16 @@ PROVIDER_CATALOG: tuple[ProviderCatalogDefinition, ...] = (
     ),
     ProviderCatalogDefinition(
         code=ProviderCode.TNM_MPAMBA,
-        display_name="TNM Mpamba (live contract not implemented)",
+        display_name="TNM Mpamba Malawi",
         provider_type=ProviderType.MOBILE_MONEY,
         is_active=False,
-        is_simulated=True,
+        is_simulated=False,
         environment="sandbox",
-        health_state=ProviderHealthState.UNAVAILABLE,
+        health_state=ProviderHealthState.DISABLED,
         priority=20,
         supported_currencies=("MWK",),
         supported_payment_methods=("mobile_money",),
-        capabilities=PLANNED_CAPABILITIES,
+        capabilities=asdict(TNM_CAPABILITIES),
         config_refs=_refs("tnm_mpamba"),
     ),
     ProviderCatalogDefinition(

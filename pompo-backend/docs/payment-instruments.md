@@ -53,7 +53,8 @@ New flags, default **false**:
 
 Simulated sandbox adapters set these true. Airtel Money Malawi does **not**.
 Collection APIs 2.0 swagger does not document a reusable account token, so
-Airtel enroll is catalogued as unavailable. TNM and banks are "Coming soon".
+Airtel enroll is catalogued as unavailable. TNM Mpamba live HTTP is not in
+the repository, so saved Mpamba is unavailable. Banks remain "Coming soon".
 
 ## Lifecycle
 
@@ -111,5 +112,6 @@ PaymentInstrument → Provider → Payment
 ## Remaining external dependencies
 
 - Airtel reusable account association: not documented; enroll blocked.
-- TNM Mpamba, National Bank, Standard Bank, NBS, First Capital: not started.
+- TNM Mpamba: live HTTP not in-repo; saved Mpamba unavailable
+- National Bank, Standard Bank, NBS, First Capital: not started.
 - Card PAN tokenization: requires a real acquirer/vault contract.

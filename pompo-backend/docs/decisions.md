@@ -366,9 +366,11 @@ provider idempotency key would create a second payment after a timeout.
 
 ### Do not invent provider APIs
 
-**Decision:** `AUTHORITATIVE_CONTRACTS` is empty. Airtel Money, TNM Mpamba, and
-bank adapters remain non-routable stubs until approved documentation is added
-to the repository.
+**Decision:** `AUTHORITATIVE_CONTRACTS` is empty for TNM Mpamba and banks.
+Airtel Money Malawi is registered from `docs/providers/airtel-money-malawi.md`.
+TNM remains a named adapter (`TnmMpambaMalawiAdapter`) that is not
+`live_contract_ready` until TNM-owned HTTP is documented in
+`docs/providers/tnm-mpamba-malawi.md`.
 
 **Why:** Fabricated URLs, payloads, or signatures would be treated as real
 money movement. The HTTP client, mapper protocol, and credential resolver exist

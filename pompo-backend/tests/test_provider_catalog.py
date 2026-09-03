@@ -85,10 +85,16 @@ async def test_provider_seed_is_idempotent_and_matches_registry_codes(
     airtel = next(row for row in catalog if row.code is ProviderCode.AIRTEL_MONEY)
     assert airtel.is_active is False
     assert airtel.is_simulated is False
+    tnm = next(row for row in catalog if row.code is ProviderCode.TNM_MPAMBA)
+    assert tnm.is_active is False
+    assert tnm.is_simulated is False
+    assert tnm.display_name == "TNM Mpamba Malawi"
     assert {row.code.value for row in catalog} >= {"simulated"}
     assert "simulated" in service.adapter_codes()
     assert "airtel_money" in service.adapter_codes()
+    assert "tnm_mpamba" in service.adapter_codes()
     assert service.adapter_for("airtel_money").live_contract_ready is False
+    assert service.adapter_for("tnm_mpamba").live_contract_ready is False
 
 
 @pytest.mark.asyncio
@@ -99,6 +105,26 @@ async def test_cannot_enable_provider_without_live_contract(session: AsyncSessio
     service = ProviderCatalogService(session)
     with pytest.raises(ProviderCatalogConflictError):
         await service.update_catalog_entry(admin, "airtel_money", {"is_active": True})
+    with pytest.raises(ProviderCatalogConflictError):
+        await service.update_catalog_entry(admin, "tnm_mpamba", {"is_active": True})
+
+
+@pytest.mark.asyncio
+async def test_cannot_enable_tnm_even_when_env_credentials_are_set(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PROVIDER_TNM_MPAMBA_BASE_URL", "https://example.invalid")
+    monkeypatch.setenv("PROVIDER_TNM_MPAMBA_ENVIRONMENT", "sandbox")
+    monkeypatch.setenv("PROVIDER_TNM_MPAMBA_CLIENT_ID", "client-id")
+    monkeypatch.setenv("PROVIDER_TNM_MPAMBA_CREDENTIAL_REF", "TNM_MPAMBA_CLIENT_SECRET")
+    monkeypatch.setenv("TNM_MPAMBA_CLIENT_SECRET", "must-never-enable-live-http")
+    await seed_provider_catalog(session)
+    await session.commit()
+    admin = await _actor(session, "platform_admin", ("providers:read", "providers:update"))
+    service = ProviderCatalogService(session)
+    with pytest.raises(ProviderCatalogConflictError, match="live contract is not implemented"):
+        await service.update_catalog_entry(admin, "tnm_mpamba", {"is_active": True})
+    assert service.adapter_for("tnm_mpamba").live_contract_ready is False
 
 
 @pytest.mark.asyncio

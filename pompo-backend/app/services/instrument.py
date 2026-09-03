@@ -91,7 +91,10 @@ CATALOG: tuple[dict[str, Any], ...] = (
         "label": "TNM Mpamba",
         "available": False,
         "is_sandbox": False,
-        "reason": "Not available yet",
+        "reason": (
+            "TNM Mpamba live HTTP contract is not in POMPO. "
+            "Saved Mpamba is not available."
+        ),
         "authorization_state": ProviderAuthorizationState.UNSUPPORTED.value,
     },
     {

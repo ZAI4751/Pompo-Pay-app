@@ -39,6 +39,7 @@ from app.payments.providers import (
 )
 from app.payments.registry import ProviderRegistry
 from app.payments.stubs import UnconfiguredRailAdapter
+from app.payments.tnm_mpamba import TnmMpambaMalawiAdapter
 
 
 class PompoTestHttpMapper:
@@ -148,7 +149,8 @@ def test_live_catalog_codes_remain_unconfigured_without_credentials() -> None:
     assert registry.get("airtel_money").live_contract_ready is False
     assert registry.get("tnm_mpamba").live_contract_ready is False
     assert registry.get("national_bank").live_contract_ready is False
-    assert isinstance(registry.get("tnm_mpamba"), UnconfiguredRailAdapter)
+    assert isinstance(registry.get("tnm_mpamba"), TnmMpambaMalawiAdapter)
+    assert isinstance(registry.get("national_bank"), UnconfiguredRailAdapter)
 
 
 def test_rail_environment_normalization() -> None:

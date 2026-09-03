@@ -40,7 +40,7 @@ from app.payments.providers import (
     ProviderUnavailable,
 )
 from app.payments.registry import ProviderRegistry
-from app.payments.stubs import UnconfiguredRailAdapter
+from app.payments.tnm_mpamba import TnmMpambaMalawiAdapter
 from app.payments.webhooks import constant_time_compare
 
 SANDBOX = "https://openapiuat.airtel.mw"
@@ -145,7 +145,7 @@ def test_registry_exposes_airtel_without_making_it_the_default() -> None:
     assert codes[0] == "simulated"
     assert "airtel_money" in codes
     assert registry.get("tnm_mpamba").live_contract_ready is False
-    assert isinstance(registry.get("tnm_mpamba"), UnconfiguredRailAdapter)
+    assert isinstance(registry.get("tnm_mpamba"), TnmMpambaMalawiAdapter)
 
 
 def test_airtel_is_not_ready_without_credentials() -> None:

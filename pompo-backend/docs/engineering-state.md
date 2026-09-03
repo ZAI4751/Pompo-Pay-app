@@ -1,14 +1,15 @@
 # POMPO Engineering State
 
 ## CURRENT MILESTONE
-M016 Payment instruments and unified checkout: customer-saved payment
-methods as safe provider references, not a wallet. QR checkout can select
-a method; the server derives the provider. Simulated sandbox enroll only.
-Airtel/TNM/bank token enrollment is not invented.
+M017 TNM Mpamba Malawi: named `TnmMpambaMalawiAdapter` behind ProviderRegistry.
+No TNM-owned HTTP contract is in the repository. Live initiation, status,
+webhooks, and saved-Mpamba enrollment are documented as TNM CONTRACT
+DEPENDENCY and remain disabled. Simulated sandbox stays the default rail.
+Airtel is unchanged.
 
-Do not start TNM, bank integrations, or another major product feature.
+Do not start bank integrations or M018.
 
-See `docs/payment-instruments.md`.
+See `docs/providers/tnm-mpamba-malawi.md`.
 
 ## COMPLETED MILESTONES
 M001 backend foundation; M002 domain model and database; M003 authentication;
@@ -24,7 +25,8 @@ gating, and admin contract-readiness visibility.
 M009 QR payments; M010 inbound webhooks; M011 settlement/reconciliation;
 M012 unified mobile app; M013 POS / developer platform;
 M014 Airtel Money Malawi; M015 customer product / everyday utility;
-M016 payment instruments / unified checkout.
+M016 payment instruments / unified checkout; M017 TNM Mpamba Malawi
+(adapter + contract capture; live HTTP blocked).
 
 ## CURRENT ARCHITECTURE
 FastAPI routes use dependencies, services, repositories, and async SQLAlchemy.
@@ -65,12 +67,15 @@ Default registry:
 - simulated (success) — live-contract-ready
 - simulated_pending / simulated_failure / simulated_timeout — live-contract-ready, inactive by default
 - airtel_money — Airtel Money Malawi Collection contract; inactive until credentials are configured and a platform admin enables it
-- tnm_mpamba, national_bank, fdh_bank, standard_bank — structured stubs, not live HTTP
+- tnm_mpamba — TnmMpambaMalawiAdapter; not live-contract-ready; HTTP is a TNM CONTRACT DEPENDENCY
+- national_bank, fdh_bank, standard_bank — structured stubs, not live HTTP
 
 `AUTHORITATIVE_CONTRACTS` registers `(airtel_money, sandbox|production)` from
-`docs/providers/airtel-money-malawi.md`. Other live rails stay stubs.
+`docs/providers/airtel-money-malawi.md`. TNM is captured in
+`docs/providers/tnm-mpamba-malawi.md` but is **not** registered until TNM HTTP
+is verified.
 
-Airtel is never the unconditional default. Routing still prefers the lowest
+Airtel and TNM are never the unconditional default. Routing still prefers the lowest
 priority active, matching, live-contract-ready provider. Simulated remains
 priority 1.
 
@@ -210,8 +215,7 @@ live rails. Sandbox provider seeding must never run in production.
 Financial idempotency is PostgreSQL, not Redis.
 
 ## NEXT MILESTONE
-Do not start TNM, bank integrations, POS expansion, or a major mobile visual
-redesign from M015.
+Do not start bank integrations or M018 from M017.
 
 Also outstanding:
 - `transactions:refund` permission exists with no refund route or service method.

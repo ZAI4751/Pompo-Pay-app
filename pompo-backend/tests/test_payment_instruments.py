@@ -150,6 +150,10 @@ async def test_enroll_list_default_revoke_and_no_secret_leak(session: AsyncSessi
         assert catalog.status_code == 200
         airtel_live = next(item for item in catalog.json() if item["provider_code"] == "airtel_money")
         assert airtel_live["available"] is False
+        tnm_catalog = next(item for item in catalog.json() if item["provider_code"] == "tnm_mpamba")
+        assert tnm_catalog["available"] is False
+        assert tnm_catalog["authorization_state"] == "unsupported"
+        assert "live HTTP contract is not in POMPO" in tnm_catalog["reason"]
 
         forbidden = await client.post(
             "/api/v1/payment-methods",
@@ -162,6 +166,13 @@ async def test_enroll_list_default_revoke_and_no_secret_leak(session: AsyncSessi
             json={"provider_code": "airtel_money", "instrument_type": "mobile_money", "msisdn": "0881234321"},
         )
         assert unavailable.status_code == 422
+
+        tnm_enroll = await client.post(
+            "/api/v1/payment-methods",
+            json={"provider_code": "tnm_mpamba", "instrument_type": "mobile_money", "msisdn": "0881234321"},
+        )
+        assert tnm_enroll.status_code == 422
+        assert "Saved Mpamba" in tnm_enroll.json()["detail"] or "not available" in tnm_enroll.json()["detail"].lower()
 
         method = await _enroll_airtel(client)
         assert method["is_sandbox"] is True

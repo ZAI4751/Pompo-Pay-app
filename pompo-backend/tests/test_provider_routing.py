@@ -134,6 +134,33 @@ def test_routing_skips_stub_rails_even_if_active() -> None:
     assert selected.code is ProviderCode.SIMULATED
 
 
+def test_routing_skips_tnm_even_if_marked_active() -> None:
+    registry = ProviderRegistry()
+    tnm = _provider(
+        code=ProviderCode.TNM_MPAMBA,
+        is_active=True,
+        health_state=ProviderHealthState.ACTIVE,
+        priority=1,
+    )
+    simulated = _provider(priority=50)
+    selected = select_provider(
+        [tnm, simulated],
+        RoutingRequest(payment_method="mobile_money", currency="MWK"),
+        registry,
+    )
+    assert selected.code is ProviderCode.SIMULATED
+    with pytest.raises(ProviderRoutingError, match="cannot process payments"):
+        select_provider(
+            [tnm, simulated],
+            RoutingRequest(
+                payment_method="mobile_money",
+                currency="MWK",
+                provider_code="tnm_mpamba",
+            ),
+            registry,
+        )
+
+
 def test_routing_rejects_production_rail_outside_production() -> None:
     registry = ProviderRegistry()
     provider = _provider(
