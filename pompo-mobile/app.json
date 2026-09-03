@@ -33,7 +33,13 @@
       "softwareKeyboardLayoutMode": "resize",
       "allowBackup": false,
       "usesCleartextTraffic": false,
-      "permissions": ["CAMERA", "INTERNET", "ACCESS_NETWORK_STATE"]
+      "permissions": ["CAMERA", "INTERNET", "ACCESS_NETWORK_STATE"],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",

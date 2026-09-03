@@ -41,5 +41,9 @@ yarn-error.*
 /android
 /dist-android
 
-# local release APKs (produced by assembleRelease; do not commit binaries)
-/release/*.apk
+# local release APKs and checksums (do not commit binaries)
+/release/
+
+# local Android upload keystore — never commit
+/credentials/
+*.keystore
