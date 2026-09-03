@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Check, Copy, ExternalLink, QrCode } from "lucide-react";
+import { Check, Copy, ExternalLink, Printer, QrCode } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { PageShell } from "@/components/layout/PageShell";
 import { MockDataBadge } from "@/components/ui/MockDataBadge";
 import { Table, TableHead, Th, TableBody, Tr, Td, MonoId } from "@/components/ui/Table";
@@ -47,6 +48,7 @@ export default function QRCodesPage() {
   const [lookupId, setLookupId] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [stickerTarget, setStickerTarget] = useState<QRCodeRecord | null>(null);
 
   function getPaymentUrl(qr: QRCodeRecord): string {
     if (qr.payment_url) return qr.payment_url;
@@ -369,14 +371,27 @@ export default function QRCodesPage() {
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
+                    <button
+                      type="button"
+                      title="View & Print Till Sticker"
+                      onClick={() => setStickerTarget(qr)}
+                      className="p-1 rounded hover:bg-white/10 text-text-muted hover:text-text transition-colors"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </Td>
                 <Td>
-                  {canRevoke && qr.status === "active" ? (
-                    <Button variant="ghost" size="sm" onClick={() => setRevokeTarget(qr)}>
-                      Revoke
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => setStickerTarget(qr)}>
+                      Sticker
                     </Button>
-                  ) : null}
+                    {canRevoke && qr.status === "active" ? (
+                      <Button variant="ghost" size="sm" onClick={() => setRevokeTarget(qr)}>
+                        Revoke
+                      </Button>
+                    ) : null}
+                  </div>
                 </Td>
               </Tr>
             ))}
@@ -414,6 +429,91 @@ export default function QRCodesPage() {
         onConfirm={() => void onRevoke()}
         onCancel={() => setRevokeTarget(null)}
       />
+
+      <Modal
+        open={stickerTarget !== null}
+        onClose={() => setStickerTarget(null)}
+        title="Printable Till Sticker"
+      >
+        {stickerTarget && (
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div
+              id="printable-till-sticker"
+              className="bg-white text-slate-900 p-6 rounded-2xl border-2 border-slate-300 shadow-xl w-full max-w-[340px] flex flex-col items-center"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <span className="font-black text-2xl tracking-wider text-blue-600">POMPO</span>
+                <span className="text-[11px] uppercase font-bold tracking-widest bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full">
+                  Pay
+                </span>
+              </div>
+              <h3 className="font-extrabold text-lg text-slate-900 leading-snug">
+                {stickerTarget.merchant_name}
+              </h3>
+              <p className="text-xs text-slate-500 mb-4 font-semibold">
+                {stickerTarget.branch_name} · {stickerTarget.till_name}
+              </p>
+
+              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center">
+                <QRCodeSVG
+                  value={getPaymentUrl(stickerTarget)}
+                  size={200}
+                  level="M"
+                  bgColor="#ffffff"
+                  fgColor="#0f172a"
+                />
+              </div>
+
+              <div className="mt-4 flex flex-col items-center w-full">
+                <div className="bg-slate-100 px-3 py-1 rounded-md text-[11px] uppercase font-mono font-bold tracking-wider text-slate-700 w-full">
+                  Till Code: {stickerTarget.till_name}
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono mt-1">
+                  ID: {stickerTarget.public_identifier}
+                </span>
+                {stickerTarget.qr_type === "dynamic" && stickerTarget.amount ? (
+                  <span className="text-sm font-bold text-blue-600 mt-1">
+                    {stickerTarget.currency} {stickerTarget.amount}
+                  </span>
+                ) : null}
+                <p className="text-[11px] text-slate-600 mt-2 font-medium">
+                  Scan with Camera, Google Lens, or POMPO App
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 justify-center w-full mt-2">
+              <Button
+                variant="primary"
+                onClick={() => {
+                  window.print();
+                }}
+                className="flex items-center gap-2"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print Sticker</span>
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => void onCopyUrl(stickerTarget)}
+                className="flex items-center gap-2"
+              >
+                <Copy className="w-4 h-4" />
+                <span>Copy URL</span>
+              </Button>
+              <a
+                href={`/p/${stickerTarget.public_identifier}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-2 rounded-md text-sm border border-[var(--border)] hover:bg-white/5 flex items-center gap-1.5 text-text transition-colors"
+              >
+                <ExternalLink className="w-4 h-4" />
+                <span>Test Web Checkout</span>
+              </a>
+            </div>
+          </div>
+        )}
+      </Modal>
     </PageShell>
   );
 }

@@ -46,7 +46,10 @@ class OrganizationService:
         ordinary customer or not affiliated with an active merchant.
         """
         is_admin = await self._is_platform_admin(actor)
-        if not is_admin and actor.merchant_id is None:
+        user_perms = await self._authorization.get_user_permissions(actor)
+
+        # Platform admin does not automatically imply merchant access: an explicit merchant affiliation is required
+        if actor.merchant_id is None:
             return {
                 "allowed": False,
                 "reason": "Account is not associated with any merchant organization",
@@ -57,18 +60,12 @@ class OrganizationService:
                 "tills": [],
                 "operating_branch_id": None,
                 "operating_till_id": None,
-                "permissions": [],
+                "permissions": sorted(user_perms) if is_admin else [],
             }
 
-        user_perms = await self._authorization.get_user_permissions(actor)
         can_generate_qr = "qr:create" in user_perms or is_admin
-
-        if is_admin:
-            merchants = await self._merchants.list_active(None)
-            target_merchant = merchants[0] if merchants else None
-        else:
-            target_merchant = await self._merchants.get_active(actor.merchant_id)
-            merchants = [target_merchant] if target_merchant is not None else []
+        target_merchant = await self._merchants.get_active(actor.merchant_id)
+        merchants = [target_merchant] if target_merchant is not None else []
 
         if target_merchant is None or not target_merchant.is_active:
             return {

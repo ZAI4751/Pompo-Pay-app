@@ -107,10 +107,10 @@ PROVIDER_CATALOG: tuple[ProviderCatalogDefinition, ...] = (
         code=ProviderCode.SIMULATED_PENDING,
         display_name="Simulated pending",
         provider_type=ProviderType.SIMULATED,
-        is_active=False,
+        is_active=True,
         is_simulated=True,
         environment="sandbox",
-        health_state=ProviderHealthState.DISABLED,
+        health_state=ProviderHealthState.ACTIVE,
         priority=2,
         supported_currencies=("MWK",),
         supported_payment_methods=("mobile_money",),
@@ -121,10 +121,10 @@ PROVIDER_CATALOG: tuple[ProviderCatalogDefinition, ...] = (
         code=ProviderCode.SIMULATED_FAILURE,
         display_name="Simulated failure",
         provider_type=ProviderType.SIMULATED,
-        is_active=False,
+        is_active=True,
         is_simulated=True,
         environment="sandbox",
-        health_state=ProviderHealthState.DISABLED,
+        health_state=ProviderHealthState.ACTIVE,
         priority=3,
         supported_currencies=("MWK",),
         supported_payment_methods=("mobile_money",),
@@ -135,10 +135,10 @@ PROVIDER_CATALOG: tuple[ProviderCatalogDefinition, ...] = (
         code=ProviderCode.SIMULATED_TIMEOUT,
         display_name="Simulated timeout",
         provider_type=ProviderType.SIMULATED,
-        is_active=False,
+        is_active=True,
         is_simulated=True,
         environment="sandbox",
-        health_state=ProviderHealthState.DISABLED,
+        health_state=ProviderHealthState.ACTIVE,
         priority=4,
         supported_currencies=("MWK",),
         supported_payment_methods=("mobile_money",),
@@ -247,6 +247,9 @@ async def seed_provider_catalog(
             select(PaymentProvider).where(PaymentProvider.code == definition.code)
         )
         if existing is not None:
+            if existing.is_simulated and (existing.is_active != definition.is_active or existing.health_state != definition.health_state):
+                existing.is_active = definition.is_active
+                existing.health_state = definition.health_state
             methods = list(existing.supported_payment_methods or [])
             method_changed = False
             for method in definition.supported_payment_methods:

@@ -205,3 +205,23 @@
     scroll-behavior: auto !important;
   }
 }
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  #printable-till-sticker,
+  #printable-till-sticker * {
+    visibility: visible !important;
+  }
+  #printable-till-sticker {
+    position: fixed !important;
+    left: 50% !important;
+    top: 15% !important;
+    transform: translateX(-50%) !important;
+    box-shadow: none !important;
+    border: 2px solid #000000 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+}

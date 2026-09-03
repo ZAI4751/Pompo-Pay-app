@@ -8,7 +8,7 @@ export default function MerchantLayout() {
   if (hydrated && !user) {
     return <Redirect href="/login" />;
   }
-  if (user && !canUseMerchantMode(user.role_code)) {
+  if (user && !canUseMerchantMode(user.role_code, user.merchant_id)) {
     return <Redirect href="/customer" />;
   }
   return <Stack screenOptions={{ headerShown: false, animation: "slide_from_right" }} />;

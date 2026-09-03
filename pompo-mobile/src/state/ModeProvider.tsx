@@ -17,7 +17,7 @@ export function ModeProvider({ children }: { children: ReactNode }) {
   const roleCode = user?.role_code ?? "customer";
   const [override, setOverride] = useState<AppMode | null>(null);
   const mode = override ?? defaultMode(roleCode);
-  const canSwitch = canUseMerchantMode(roleCode);
+  const canSwitch = canUseMerchantMode(roleCode, user?.merchant_id);
 
   const value = useMemo<ModeState>(
     () => ({

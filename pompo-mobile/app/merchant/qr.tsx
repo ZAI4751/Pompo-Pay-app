@@ -21,7 +21,7 @@ export default function MerchantQrScreen() {
   const [error, setError] = useState<{ message: string; requestId?: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
-  const canCreate = user ? canCreateQr(user.role_code) : false;
+  const canCreate = user ? canCreateQr(user.role_code, user.merchant_id) : false;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -160,7 +160,7 @@ export default function MerchantQrScreen() {
                     });
                   }}
                 />
-                {canRevokeQr(user?.role_code ?? "") && active.status === "active" ? (
+                {canRevokeQr(user?.role_code ?? "", user?.merchant_id) && active.status === "active" ? (
                   <SecondaryButton
                     label="Revoke"
                     onPress={async () => {
