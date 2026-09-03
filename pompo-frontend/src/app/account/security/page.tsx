@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { authService } from "@/lib/api/services/auth";
 import { useCustomerSession } from "@/lib/customer/CustomerSessionProvider";
 import { writeCustomerNotice } from "@/lib/customer/sessionStore";
@@ -13,6 +14,7 @@ import {
 import { humanizeCustomerError } from "@/lib/checkout/publicCheckout";
 
 export default function AccountSecurityPage() {
+  const router = useRouter();
   const { user, logoutAllSessions, refreshProfile, clearSession } = useCustomerSession();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -161,9 +163,10 @@ export default function AccountSecurityPage() {
                   return;
                 }
                 writeCustomerNotice(
-                  "Your account is deactivated. Payments and receipts remain on file. Contact POMPO customer care if you need help returning.",
+                  "Your POMPO account is deactivated. Payment history remains on file. Use reactivation to restore access.",
                 );
                 clearSession();
+                router.push("/reactivate");
               });
             }}
           >

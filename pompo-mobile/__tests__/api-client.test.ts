@@ -192,6 +192,54 @@ describe("PompoApi", () => {
     expect(await store.getAccessToken()).toBeNull();
   });
 
+  it("does not wipe a new login when a stale refresh fails", async () => {
+    const store = memoryStore({ access: "expired", refresh: "old-refresh" });
+    let finishRefresh: ((value: Response) => void) | undefined;
+    const fetchImpl = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/auth/me")) {
+        return jsonResponse({ detail: "expired" }, 401);
+      }
+      if (url.endsWith("/auth/refresh")) {
+        return await new Promise<Response>((settle) => {
+          finishRefresh = settle;
+        });
+      }
+      if (url.endsWith("/auth/login")) {
+        return jsonResponse({
+          access_token: "access-new",
+          refresh_token: "refresh-new",
+          token_type: "bearer",
+          expires_in: 900,
+        });
+      }
+      if (url.endsWith("/auth/logout")) {
+        return new Response(null, { status: 204 });
+      }
+      return jsonResponse({ detail: "no" }, 404);
+    }) as typeof fetch;
+
+    const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
+    const staleMe = api.me();
+    await new Promise<void>((resolve) => {
+      const timer = setInterval(() => {
+        if (finishRefresh) {
+          clearInterval(timer);
+          resolve();
+        }
+      }, 5);
+    });
+    await api.logout();
+    const login = await api.login("customer@example.com", "secret");
+    expect(login.ok).toBe(true);
+    expect(await store.getAccessToken()).toBe("access-new");
+
+    finishRefresh?.(jsonResponse({ detail: "Invalid or expired refresh token" }, 401));
+    await staleMe;
+    expect(await store.getAccessToken()).toBe("access-new");
+    expect(await store.getRefreshToken()).toBe("refresh-new");
+  });
+
   it("sends an idempotency key with from-qr", async () => {
     const store = memoryStore({ access: "access-1" });
     const fetchImpl = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

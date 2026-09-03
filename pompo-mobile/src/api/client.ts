@@ -497,7 +497,6 @@ export class PompoApi {
     }
     const refreshed = await this.refreshTokens();
     if (!refreshed) {
-      await this.deps.store.clear();
       return {
         ok: false,
         error: { kind: "unauthorized", message: FALLBACK.unauthorized },
@@ -529,6 +528,12 @@ export class PompoApi {
       auth: false,
       skipRefresh: true,
     });
+    const currentRefresh = await this.deps.store.getRefreshToken();
+    if (currentRefresh !== refresh) {
+      // Logout/login replaced the session while this refresh was in flight.
+      // Fail this caller without retrying as the new user or wiping new tokens.
+      return false;
+    }
     if (!result.ok) {
       await this.deps.store.clear();
       return false;

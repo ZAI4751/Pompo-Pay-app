@@ -82,7 +82,7 @@ export default function LoginScreen() {
               setError(result.message);
               return;
             }
-            router.replace("/customer");
+            router.replace("/");
           }}
         />
             <SecondaryButton label="Forgot password?" onPress={() => router.push("/forgot-password" as Href)} />
