@@ -69,7 +69,13 @@ export default function SecurityScreen() {
                   setError(null);
                   const res = await api.requestEmailVerification(user?.email);
                   if (res.ok) {
-                    setVerifyStatus("Verification email requested. Check your inbox.");
+                    if (res.data.email_delivery === "not_configured") {
+                      setVerifyStatus(
+                        "Mailbox delivery is not configured yet. Your account remains unverified until email sending is enabled.",
+                      );
+                    } else {
+                      setVerifyStatus("Verification email requested. Check your inbox.");
+                    }
                   } else {
                     setError(res.error.message);
                   }

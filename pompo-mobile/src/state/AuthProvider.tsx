@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 
 import { createApiClient, type PompoApi } from "@/api/client";
 import { secureTokenStore } from "@/auth/secureStorage";
+import { validateCustomerRegistrationInput } from "@/domain/registration";
 import type { AuthenticatedUser } from "@/types";
 
 interface AuthState {
@@ -58,6 +59,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { ok: true };
       },
       async register(input) {
+        const localReason = validateCustomerRegistrationInput(input);
+        if (localReason) {
+          return { ok: false, message: localReason };
+        }
         const tokens = await api.register(input);
         if (!tokens.ok) {
           return { ok: false, message: tokens.error.message };

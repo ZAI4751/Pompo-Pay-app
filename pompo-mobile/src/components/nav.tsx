@@ -58,7 +58,7 @@ export function BottomNav({ active }: { active?: BottomNavActive }) {
   const fabLabel = isMerchant ? "QR" : "Scan";
 
   return (
-    <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+    <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 8), backgroundColor: theme.background }]}>
       <View
         style={[
           styles.nav,

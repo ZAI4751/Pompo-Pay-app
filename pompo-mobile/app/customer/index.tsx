@@ -46,6 +46,14 @@ export default function CustomerHome() {
           <ModeSwitch />
         </View>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          {!user?.is_email_verified ? (
+            <View style={[styles.list, { backgroundColor: theme.warningBg, borderColor: theme.border, padding: 14, gap: 4 }]}>
+              <Text style={{ color: theme.warning, fontSize: 12, fontWeight: "800" }}>AWAITING VERIFICATION</Text>
+              <Text style={{ color: theme.text, fontSize: 13, fontWeight: "600" }}>
+                This account is unverified. Mailbox delivery is not configured yet, so no verification email has been sent.
+              </Text>
+            </View>
+          ) : null}
           <FadeIn>
             <PressScale
               accessibilityRole="button"

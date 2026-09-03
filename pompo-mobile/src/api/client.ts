@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "@/config";
 import type { TokenStore } from "@/auth/secureStorage";
+import { messageFromApiPayload } from "@/api/errors";
 import type {
   ApiErrorKind,
   ApiResult,
@@ -60,23 +61,6 @@ const FALLBACK: Record<ApiErrorKind, string> = {
 
 function kindForStatus(status: number): ApiErrorKind {
   return KIND_BY_STATUS[status] ?? (status >= 500 ? "server" : "unknown");
-}
-
-function readDetail(payload: unknown): string | undefined {
-  if (typeof payload !== "object" || payload === null || !("detail" in payload)) {
-    return undefined;
-  }
-  const detail = (payload as { detail: unknown }).detail;
-  if (typeof detail === "string" && detail.trim()) {
-    return detail;
-  }
-  if (Array.isArray(detail) && detail[0] && typeof detail[0] === "object") {
-    const first = detail[0] as { msg?: unknown };
-    if (typeof first.msg === "string") {
-      return first.msg;
-    }
-  }
-  return undefined;
 }
 
 function newRequestId(randomId?: () => string): string {
@@ -592,7 +576,7 @@ export class PompoApi {
 
     if (!response.ok) {
       const kind = kindForStatus(response.status);
-      const message = readDetail(payload) ?? FALLBACK[kind];
+      const message = messageFromApiPayload(payload, FALLBACK[kind]);
       return {
         ok: false,
         error: { kind, message, status: response.status, requestId: responseId, detail: payload },

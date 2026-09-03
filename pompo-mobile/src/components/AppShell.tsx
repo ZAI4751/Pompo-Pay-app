@@ -1,18 +1,25 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { Keyboard, Platform, StyleSheet, View } from "react-native";
 import { usePathname } from "expo-router";
+import * as SystemUI from "expo-system-ui";
 
 import { BottomNav } from "@/components/nav";
 import { shouldShowBottomNav } from "@/domain/appShell";
+import { useTheme } from "@/theme";
 
 /**
  * Persistent application shell: screen stacks animate inside the content
  * region while the bottom navigation stays mounted and visually anchored.
  */
 export function AppShell({ children }: { children: ReactNode }) {
+  const theme = useTheme();
   const pathname = usePathname();
   const showNav = shouldShowBottomNav(pathname);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    void SystemUI.setBackgroundColorAsync(theme.background);
+  }, [theme.background]);
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -30,8 +37,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <View style={styles.shell} testID="pompo-app-shell">
-      <View style={styles.content} testID="pompo-app-shell-content">
+    <View style={[styles.shell, { backgroundColor: theme.background }]} testID="pompo-app-shell">
+      <View style={[styles.content, { backgroundColor: theme.background }]} testID="pompo-app-shell-content">
         {children}
       </View>
       <View
@@ -39,6 +46,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         pointerEvents={showNav ? "auto" : "none"}
         style={[
           styles.navSlot,
+          { backgroundColor: theme.background },
           !showNav && styles.navHidden,
           showNav && Platform.OS === "android" && keyboardHeight > 0
             ? { marginBottom: -keyboardHeight }

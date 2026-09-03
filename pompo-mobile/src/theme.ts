@@ -65,6 +65,7 @@ export function getTheme(scheme: ThemeName) {
       error: "#fca5a5",
       errorBg: "#3f1010",
       warning: "#fbbf24",
+      warningBg: "#3b2a05",
       glowA: "rgba(59, 130, 246, 0.22)",
       glowB: "rgba(99, 102, 241, 0.12)",
       glowC: "rgba(15, 23, 42, 0.9)",

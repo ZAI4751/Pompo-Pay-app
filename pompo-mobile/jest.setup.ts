@@ -1,3 +1,7 @@
+jest.mock("expo-system-ui", () => ({
+  setBackgroundColorAsync: jest.fn(async () => undefined),
+}));
+
 jest.mock("expo-secure-store", () => ({
   getItemAsync: jest.fn(async () => null),
   setItemAsync: jest.fn(async () => undefined),

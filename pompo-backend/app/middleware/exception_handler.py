@@ -20,6 +20,69 @@ logger = get_logger(__name__)
 # both versions.
 HTTP_422_UNPROCESSABLE = 422
 
+GENERIC_VALIDATION_DETAIL = "Request validation failed"
+
+_FIELD_LABELS = {
+    "email": "Email address",
+    "password": "Password",
+    "full_name": "Full name",
+    "phone": "Phone number",
+    "new_password": "Password",
+    "current_password": "Current password",
+}
+
+
+def _field_name(loc: list[Any] | tuple[Any, ...] | None) -> str:
+    if not loc:
+        return ""
+    parts = [str(part) for part in loc if str(part) not in {"body", "query", "path", "header"}]
+    return parts[-1] if parts else ""
+
+
+def user_facing_validation_message(error: dict[str, Any]) -> str:
+    """Map a single safe Pydantic error to a user-correctable reason.
+
+    Does not include submitted values. Unknown fields stay generic so this
+    cannot leak internal model structure.
+    """
+    field = _field_name(error.get("loc"))
+    err_type = str(error.get("type") or "")
+    msg = str(error.get("msg") or "").lower()
+    label = _FIELD_LABELS.get(field, "")
+
+    if err_type == "missing":
+        if label:
+            return f"{label} is required"
+        return "Required field missing"
+    if field == "email" or "email" in err_type or "email address" in msg:
+        return "Email address is invalid"
+    if field in {"password", "new_password"}:
+        return "Password does not meet requirements"
+    if field == "phone":
+        return "Phone number is invalid"
+    if field == "full_name" or "full_name is required" in msg:
+        return "Full name is required"
+    if label:
+        return f"{label} is invalid"
+    return GENERIC_VALIDATION_DETAIL
+
+
+def user_facing_validation_detail(errors: list[dict[str, Any]]) -> str:
+    """Join unique field-level reasons for the top-level ``detail`` string.
+
+    Clients render ``detail`` directly. The structured ``errors`` array remains
+    the machine-readable contract; this only makes the summary human-usable.
+    """
+    messages: list[str] = []
+    seen: set[str] = set()
+    for error in errors:
+        message = user_facing_validation_message(error)
+        if message in seen:
+            continue
+        seen.add(message)
+        messages.append(message)
+    return ". ".join(messages) if messages else GENERIC_VALIDATION_DETAIL
+
 
 def _request_id(request: Request) -> str:
     """Return the current request ID, or a placeholder if none was assigned yet."""
@@ -119,7 +182,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             errors=errors,
         )
         content: dict[str, Any] = {
-            "detail": "Request validation failed",
+            "detail": user_facing_validation_detail(errors),
             "request_id": request_id,
             "errors": errors,
         }

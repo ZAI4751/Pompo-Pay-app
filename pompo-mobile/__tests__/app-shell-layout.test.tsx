@@ -53,5 +53,10 @@ describe("AppShell", () => {
     expect(screen.getByText("Page body")).toBeTruthy();
     expect(screen.getByText("Home")).toBeTruthy();
     expect(screen.getByText("Profile")).toBeTruthy();
+    const shell = screen.getByTestId("pompo-app-shell");
+    const nav = screen.getByTestId("pompo-persistent-bottom-nav");
+    expect(JSON.stringify(shell.props.style)).toContain('"backgroundColor":"#f8fafc"');
+    expect(JSON.stringify(nav.props.style)).toContain('"backgroundColor":"#f8fafc"');
+    expect(JSON.stringify(shell.props.style)).not.toContain('"backgroundColor":"#ffffff"');
   });
 });

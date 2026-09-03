@@ -21,6 +21,7 @@ jest.mock("@/state/AuthProvider", () => ({
       role_id: "r1",
       role_code: "customer",
       is_active: true,
+      is_email_verified: false,
     },
     api: {
       listMyPayments: async () => ({
@@ -73,6 +74,7 @@ describe("Customer home", () => {
       </SafeAreaProvider>,
     );
     expect(await screen.findByText("Hello Ada")).toBeTruthy();
+    expect(screen.getByText("AWAITING VERIFICATION")).toBeTruthy();
     expect(screen.getByText("Scan & pay")).toBeTruthy();
     expect(screen.getByText("PAY WITH POMPO")).toBeTruthy();
     expect(screen.getByText("SCAN → MERCHANT → PAY")).toBeTruthy();

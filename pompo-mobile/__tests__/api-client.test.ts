@@ -112,6 +112,31 @@ describe("PompoApi", () => {
     expect(headers["X-Request-ID"]).toBe("rid");
   });
 
+  it("maps registration 422 field errors instead of the generic detail", async () => {
+    const store = memoryStore();
+    const fetchImpl = jest.fn(async () => {
+      return jsonResponse(
+        {
+          detail: "Request validation failed",
+          request_id: "req-test",
+          errors: [{ loc: ["body", "email"], msg: "value is not a valid email address", type: "value_error" }],
+        },
+        422,
+      );
+    }) as typeof fetch;
+    const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
+    const result = await api.register({
+      email: "not-an-email",
+      password: "Password123",
+      full_name: "Chikondi Banda",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("validation");
+      expect(result.error.message).toBe("Email address is invalid");
+    }
+  });
+
   it("refreshes once on 401 and retries the original request", async () => {
     const store = memoryStore({ access: "expired", refresh: "refresh-1" });
     let meCalls = 0;

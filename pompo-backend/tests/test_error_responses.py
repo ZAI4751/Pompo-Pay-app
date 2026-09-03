@@ -8,6 +8,8 @@ so a client can distinguish failure modes by status code and render the
 import pytest
 from httpx import AsyncClient
 
+from app.middleware.exception_handler import user_facing_validation_detail
+
 # Not a real credential: a recognisable literal asserted to be ABSENT from
 # responses and therefore from logs.
 SENTINEL_PASSWORD = "sentinel-value-must-not-be-echoed"
@@ -27,11 +29,39 @@ async def test_validation_error_uses_the_standard_shape(client: AsyncClient) -> 
 
     assert response.status_code == 422
     body = response.json()
-    assert body["detail"] == "Request validation failed"
+    assert body["detail"] == "Email address is invalid"
     assert body["request_id"] != "unknown"
     assert isinstance(body["errors"], list)
     assert body["errors"], "a validation failure must report which field failed"
     assert body["errors"][0]["loc"] == ["body", "email"]
+    assert SENTINEL_PASSWORD not in body["detail"]
+
+
+def test_user_facing_validation_detail_maps_common_fields() -> None:
+    assert (
+        user_facing_validation_detail(
+            [{"loc": ["body", "email"], "msg": "value is not a valid email address", "type": "value_error"}]
+        )
+        == "Email address is invalid"
+    )
+    assert (
+        user_facing_validation_detail(
+            [{"loc": ["body", "password"], "msg": "String should have at least 8 characters", "type": "string_too_short"}]
+        )
+        == "Password does not meet requirements"
+    )
+    assert (
+        user_facing_validation_detail(
+            [{"loc": ["body", "full_name"], "msg": "Field required", "type": "missing"}]
+        )
+        == "Full name is required"
+    )
+    assert (
+        user_facing_validation_detail(
+            [{"loc": ["body", "phone"], "msg": "String should have at most 32 characters", "type": "string_too_long"}]
+        )
+        == "Phone number is invalid"
+    )
 
 
 @pytest.mark.asyncio
