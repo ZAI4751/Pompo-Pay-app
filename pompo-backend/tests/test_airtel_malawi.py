@@ -41,6 +41,7 @@ from app.payments.providers import (
 )
 from app.payments.registry import ProviderRegistry
 from app.payments.tnm_mpamba import TnmMpambaMalawiAdapter
+from app.payments.standard_bank import StandardBankMalawiAdapter
 from app.payments.webhooks import constant_time_compare
 
 SANDBOX = "https://openapiuat.airtel.mw"
@@ -131,6 +132,7 @@ def _adapter(monkeypatch: pytest.MonkeyPatch, handler) -> AirtelMoneyMalawiAdapt
 def test_authoritative_airtel_contract_is_registered() -> None:
     assert has_authoritative_contract("airtel_money") is True
     assert has_authoritative_contract("tnm_mpamba") is False
+    assert has_authoritative_contract("standard_bank") is False
     mapper = get_authoritative_mapper("airtel_money", "sandbox")
     assert isinstance(mapper, AirtelMoneyMalawiMapper)
     assert get_authoritative_mapper("airtel_money", "production") is not None
@@ -146,6 +148,7 @@ def test_registry_exposes_airtel_without_making_it_the_default() -> None:
     assert "airtel_money" in codes
     assert registry.get("tnm_mpamba").live_contract_ready is False
     assert isinstance(registry.get("tnm_mpamba"), TnmMpambaMalawiAdapter)
+    assert isinstance(registry.get("standard_bank"), StandardBankMalawiAdapter)
 
 
 def test_airtel_is_not_ready_without_credentials() -> None:

@@ -40,6 +40,7 @@ from app.payments.providers import (
 from app.payments.registry import ProviderRegistry
 from app.payments.stubs import UnconfiguredRailAdapter
 from app.payments.tnm_mpamba import TnmMpambaMalawiAdapter
+from app.payments.standard_bank import StandardBankMalawiAdapter
 
 
 class PompoTestHttpMapper:
@@ -140,6 +141,8 @@ def test_authoritative_contract_registry_registers_airtel_only() -> None:
     assert has_authoritative_contract("airtel_money") is True
     assert get_authoritative_mapper("tnm_mpamba", "sandbox") is None
     assert has_authoritative_contract("tnm_mpamba") is False
+    assert get_authoritative_mapper("standard_bank", "sandbox") is None
+    assert has_authoritative_contract("standard_bank") is False
 
 
 def test_live_catalog_codes_remain_unconfigured_without_credentials() -> None:
@@ -149,7 +152,9 @@ def test_live_catalog_codes_remain_unconfigured_without_credentials() -> None:
     assert registry.get("airtel_money").live_contract_ready is False
     assert registry.get("tnm_mpamba").live_contract_ready is False
     assert registry.get("national_bank").live_contract_ready is False
+    assert registry.get("standard_bank").live_contract_ready is False
     assert isinstance(registry.get("tnm_mpamba"), TnmMpambaMalawiAdapter)
+    assert isinstance(registry.get("standard_bank"), StandardBankMalawiAdapter)
     assert isinstance(registry.get("national_bank"), UnconfiguredRailAdapter)
 
 

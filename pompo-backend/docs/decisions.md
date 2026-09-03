@@ -366,11 +366,16 @@ provider idempotency key would create a second payment after a timeout.
 
 ### Do not invent provider APIs
 
-**Decision:** `AUTHORITATIVE_CONTRACTS` is empty for TNM Mpamba and banks.
-Airtel Money Malawi is registered from `docs/providers/airtel-money-malawi.md`.
+**Decision:** `AUTHORITATIVE_CONTRACTS` is empty for TNM Mpamba, Standard Bank
+Malawi, and remaining banks. Airtel Money Malawi is registered from
+`docs/providers/airtel-money-malawi.md`.
 TNM remains a named adapter (`TnmMpambaMalawiAdapter`) that is not
 `live_contract_ready` until TNM-owned HTTP is documented in
 `docs/providers/tnm-mpamba-malawi.md`.
+Standard Bank Malawi remains a named adapter (`StandardBankMalawiAdapter`)
+that is not `live_contract_ready` until Standard Bank Malawi HTTP is documented
+in `docs/providers/standard-bank-malawi.md`. Public merchant FAQs are not an
+API contract; N-Genius hosts must not be invented.
 
 **Why:** Fabricated URLs, payloads, or signatures would be treated as real
 money movement. The HTTP client, mapper protocol, and credential resolver exist

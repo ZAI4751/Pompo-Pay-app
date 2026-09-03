@@ -161,6 +161,34 @@ def test_routing_skips_tnm_even_if_marked_active() -> None:
         )
 
 
+def test_routing_skips_standard_bank_even_if_marked_active() -> None:
+    registry = ProviderRegistry()
+    bank = _provider(
+        code=ProviderCode.STANDARD_BANK,
+        is_active=True,
+        health_state=ProviderHealthState.ACTIVE,
+        priority=1,
+        supported_payment_methods=["card"],
+    )
+    simulated = _provider(priority=50, supported_payment_methods=["card"])
+    selected = select_provider(
+        [bank, simulated],
+        RoutingRequest(payment_method="card", currency="MWK"),
+        registry,
+    )
+    assert selected.code is ProviderCode.SIMULATED
+    with pytest.raises(ProviderRoutingError, match="cannot process payments"):
+        select_provider(
+            [bank, simulated],
+            RoutingRequest(
+                payment_method="card",
+                currency="MWK",
+                provider_code="standard_bank",
+            ),
+            registry,
+        )
+
+
 def test_routing_rejects_production_rail_outside_production() -> None:
     registry = ProviderRegistry()
     provider = _provider(

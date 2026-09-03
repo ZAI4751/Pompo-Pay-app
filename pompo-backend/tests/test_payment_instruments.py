@@ -154,6 +154,20 @@ async def test_enroll_list_default_revoke_and_no_secret_leak(session: AsyncSessi
         assert tnm_catalog["available"] is False
         assert tnm_catalog["authorization_state"] == "unsupported"
         assert "live HTTP contract is not in POMPO" in tnm_catalog["reason"]
+        sb_visa = next(
+            item
+            for item in catalog.json()
+            if item["provider_code"] == "standard_bank" and item["instrument_type"] == "visa"
+        )
+        sb_mc = next(
+            item
+            for item in catalog.json()
+            if item["provider_code"] == "standard_bank" and item["instrument_type"] == "mastercard"
+        )
+        assert sb_visa["available"] is False
+        assert sb_mc["available"] is False
+        assert sb_mc["authorization_state"] == "unsupported"
+        assert "Saved cards are not available" in sb_mc["reason"]
 
         forbidden = await client.post(
             "/api/v1/payment-methods",
@@ -173,6 +187,25 @@ async def test_enroll_list_default_revoke_and_no_secret_leak(session: AsyncSessi
         )
         assert tnm_enroll.status_code == 422
         assert "Saved Mpamba" in tnm_enroll.json()["detail"] or "not available" in tnm_enroll.json()["detail"].lower()
+
+        sb_pan = await client.post(
+            "/api/v1/payment-methods",
+            json={
+                "provider_code": "standard_bank",
+                "instrument_type": "mastercard",
+                "card_last4": "5454",
+                "pan": "5454545454545454",
+                "cvv": "123",
+            },
+        )
+        assert sb_pan.status_code == 422
+
+        sb_enroll = await client.post(
+            "/api/v1/payment-methods",
+            json={"provider_code": "standard_bank", "instrument_type": "mastercard", "card_last4": "5454"},
+        )
+        assert sb_enroll.status_code == 422
+        assert "Saved cards" in sb_enroll.json()["detail"]
 
         method = await _enroll_airtel(client)
         assert method["is_sandbox"] is True

@@ -7,6 +7,7 @@ from decimal import Decimal
 from app.payments.airtel_malawi import AirtelMoneyMalawiAdapter, AirtelMoneyMalawiMapper
 from app.payments.contracts import get_authoritative_mapper
 from app.payments.tnm_mpamba import TnmMpambaMalawiAdapter
+from app.payments.standard_bank import StandardBankMalawiAdapter
 from app.payments.credentials import (
     ProviderEnvironmentError,
     normalize_rail_environment,
@@ -140,11 +141,15 @@ def build_live_rail_adapter(
     catalog_environment: str = "sandbox",
     client: ProviderHttpClient | None = None,
     capabilities: ProviderCapabilities | None = None,
-) -> UnconfiguredRailAdapter | ContractBoundHttpAdapter | AirtelMoneyMalawiAdapter | TnmMpambaMalawiAdapter:
+) -> UnconfiguredRailAdapter | ContractBoundHttpAdapter | AirtelMoneyMalawiAdapter | TnmMpambaMalawiAdapter | StandardBankMalawiAdapter:
     if code == "tnm_mpamba":
         mapper = get_authoritative_mapper(code, normalize_rail_environment(catalog_environment))
         if mapper is None:
             return TnmMpambaMalawiAdapter(catalog_environment=catalog_environment)
+    if code == "standard_bank":
+        mapper = get_authoritative_mapper(code, normalize_rail_environment(catalog_environment))
+        if mapper is None:
+            return StandardBankMalawiAdapter(catalog_environment=catalog_environment)
     mapper = get_authoritative_mapper(code, normalize_rail_environment(catalog_environment))
     if mapper is None:
         return UnconfiguredRailAdapter(code, capabilities or PLANNED_CAPABILITIES)

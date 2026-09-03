@@ -1,15 +1,17 @@
 # POMPO Engineering State
 
 ## CURRENT MILESTONE
-M017 TNM Mpamba Malawi: named `TnmMpambaMalawiAdapter` behind ProviderRegistry.
-No TNM-owned HTTP contract is in the repository. Live initiation, status,
-webhooks, and saved-Mpamba enrollment are documented as TNM CONTRACT
-DEPENDENCY and remain disabled. Simulated sandbox stays the default rail.
-Airtel is unchanged.
+M018 Standard Bank Malawi: named `StandardBankMalawiAdapter` behind
+ProviderRegistry. Public merchant/e-commerce material confirms Visa/Mastercard
+acquiring and a hosted-page / Direct API / Pay-by-Link product on N-Genius, but
+no Standard Bank Malawi HTTP contract is in the repository. Live initiation,
+3DS/hosted-page return, webhooks, tokenization, refunds, and settlement-file
+mapping are STANDARD BANK CONTRACT DEPENDENCY and remain disabled. Simulated
+sandbox stays the default rail. Airtel and TNM are unchanged.
 
-Do not start bank integrations or M018.
+Do not start another bank or M019.
 
-See `docs/providers/tnm-mpamba-malawi.md`.
+See `docs/providers/standard-bank-malawi.md`.
 
 ## COMPLETED MILESTONES
 M001 backend foundation; M002 domain model and database; M003 authentication;
@@ -26,6 +28,7 @@ M009 QR payments; M010 inbound webhooks; M011 settlement/reconciliation;
 M012 unified mobile app; M013 POS / developer platform;
 M014 Airtel Money Malawi; M015 customer product / everyday utility;
 M016 payment instruments / unified checkout; M017 TNM Mpamba Malawi
+(adapter + contract capture; live HTTP blocked); M018 Standard Bank Malawi
 (adapter + contract capture; live HTTP blocked).
 
 ## CURRENT ARCHITECTURE
@@ -43,8 +46,11 @@ PaymentService → select_provider → ProviderRegistry → ProviderAdapter
 ```
 
 ## DATABASE STATE
-PostgreSQL migration graph head is `0017_payment_instruments` (parent
-`0016_m015_customer_product`).
+PostgreSQL migration graph head is `0019_m018_standard_bank` (parent
+`0018_m017_tnm_mpamba`).
+M018 updates the `standard_bank` catalog row (display name, capabilities,
+card payment method). No new tables.
+M017 updated the `tnm_mpamba` catalog row.
 M016 adds `payment_instruments` and `transactions.payment_instrument_id`.
 Token references are HMAC digests; PINs/CVVs/PANs are not stored.
 M015 adds customer preferences, merchant favorites, payment requests, bill
@@ -68,14 +74,16 @@ Default registry:
 - simulated_pending / simulated_failure / simulated_timeout — live-contract-ready, inactive by default
 - airtel_money — Airtel Money Malawi Collection contract; inactive until credentials are configured and a platform admin enables it
 - tnm_mpamba — TnmMpambaMalawiAdapter; not live-contract-ready; HTTP is a TNM CONTRACT DEPENDENCY
-- national_bank, fdh_bank, standard_bank — structured stubs, not live HTTP
+- standard_bank — StandardBankMalawiAdapter; not live-contract-ready; HTTP is a STANDARD BANK CONTRACT DEPENDENCY
+- national_bank, fdh_bank — structured stubs, not live HTTP
 
 `AUTHORITATIVE_CONTRACTS` registers `(airtel_money, sandbox|production)` from
 `docs/providers/airtel-money-malawi.md`. TNM is captured in
 `docs/providers/tnm-mpamba-malawi.md` but is **not** registered until TNM HTTP
-is verified.
+is verified. Standard Bank is captured in `docs/providers/standard-bank-malawi.md`
+but is **not** registered until Standard Bank Malawi HTTP is verified.
 
-Airtel and TNM are never the unconditional default. Routing still prefers the lowest
+Airtel, TNM, and Standard Bank are never the unconditional default. Routing still prefers the lowest
 priority active, matching, live-contract-ready provider. Simulated remains
 priority 1.
 
@@ -215,7 +223,7 @@ live rails. Sandbox provider seeding must never run in production.
 Financial idempotency is PostgreSQL, not Redis.
 
 ## NEXT MILESTONE
-Do not start bank integrations or M018 from M017.
+Do not start another bank or M019 from M018.
 
 Also outstanding:
 - `transactions:refund` permission exists with no refund route or service method.

@@ -349,18 +349,19 @@ supported operations, and normalized provider errors expose retryability without
 leaking provider-specific exceptions into the payment core. Mock adapters cover
 success, pending, rejection, and timeout outcomes. Provider request/response
 metadata and normalized status are retained on payment attempts. Airtel Money
-Malawi has an HTTP adapter gated on credentials. TNM Mpamba has a named adapter
-with no registered HTTP contract. Bank HTTP contracts remain unimplemented
-stubs.
+Malawi has an HTTP adapter gated on credentials. TNM Mpamba and Standard Bank
+Malawi have named adapters with no registered HTTP contract. Remaining bank
+HTTP contracts stay unimplemented stubs.
 M008 added outbound HTTP, credential-reference resolution, and
 sandbox/production gating so a real contract can be inserted later without
 rewriting payment core.
 
 ## M008 — Live provider integration readiness
 
-No authoritative TNM Mpamba or bank API contract exists in this
+No authoritative TNM Mpamba or remaining-bank API contract exists in this
 repository. TNM uses `TnmMpambaMalawiAdapter` (not live-contract-ready).
-Bank rails stay on `UnconfiguredRailAdapter` and are not routable. The
+Standard Bank Malawi uses `StandardBankMalawiAdapter` (not live-contract-ready).
+Other bank rails stay on `UnconfiguredRailAdapter` and are not routable. The
 insertion point is `AUTHORITATIVE_CONTRACTS` in `app/payments/contracts.py`:
 a mapper is registered only after approved endpoint, authentication, payload,
 and signature documentation is present.

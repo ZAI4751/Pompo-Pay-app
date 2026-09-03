@@ -3,8 +3,10 @@
 Insert a contract here only when POMPO has approved provider documentation
 in the repository (endpoints, auth, payloads, signatures). TNM Mpamba Malawi
 is documented as a contract dependency in docs/providers/tnm-mpamba-malawi.md
-and is not registered. Bank rails remain unregistered. Airtel Money Malawi is
-registered from docs/providers/airtel-money-malawi.md.
+and is not registered. Standard Bank Malawi is documented as a contract
+dependency in docs/providers/standard-bank-malawi.md and is not registered.
+Other bank rails remain unregistered. Airtel Money Malawi is registered from
+docs/providers/airtel-money-malawi.md.
 """
 
 from __future__ import annotations

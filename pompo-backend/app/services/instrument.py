@@ -108,11 +108,26 @@ CATALOG: tuple[dict[str, Any], ...] = (
     },
     {
         "provider_code": "standard_bank",
+        "instrument_type": "visa",
+        "label": "Standard Bank Visa",
+        "available": False,
+        "is_sandbox": False,
+        "reason": (
+            "Standard Bank Malawi live HTTP contract is not in POMPO. "
+            "Saved cards are not available. POMPO does not store PAN or CVV."
+        ),
+        "authorization_state": ProviderAuthorizationState.UNSUPPORTED.value,
+    },
+    {
+        "provider_code": "standard_bank",
         "instrument_type": "mastercard",
         "label": "Standard Bank Mastercard",
         "available": False,
         "is_sandbox": False,
-        "reason": "Coming soon",
+        "reason": (
+            "Standard Bank Malawi live HTTP contract is not in POMPO. "
+            "Saved cards are not available. POMPO does not store PAN or CVV."
+        ),
         "authorization_state": ProviderAuthorizationState.UNSUPPORTED.value,
     },
     {

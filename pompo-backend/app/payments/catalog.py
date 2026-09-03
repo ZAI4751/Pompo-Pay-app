@@ -2,8 +2,10 @@
 
 Identifiers here must match ``ProviderCode`` and the in-process registry.
 TNM Mpamba Malawi is a named adapter with no live HTTP contract yet.
-Bank adapters remain structured stubs. Airtel Money Malawi is a live
-contract (inactive until credentials are configured and an admin enables it).
+Standard Bank Malawi is a named card/acquiring adapter with no live HTTP
+contract yet. Other bank adapters remain structured stubs. Airtel Money
+Malawi is a live contract (inactive until credentials are configured and
+an admin enables it).
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ from app.models.payment import PaymentProvider
 from app.payments.providers import ProviderCapabilities
 from app.payments.registry import ProviderRegistry
 from app.payments.tnm_mpamba import TNM_CAPABILITIES
+from app.payments.standard_bank import STANDARD_BANK_CAPABILITIES
 
 
 class ProductionCatalogSeedError(RuntimeError):
@@ -209,16 +212,16 @@ PROVIDER_CATALOG: tuple[ProviderCatalogDefinition, ...] = (
     ),
     ProviderCatalogDefinition(
         code=ProviderCode.STANDARD_BANK,
-        display_name="Standard Bank (live contract not implemented)",
+        display_name="Standard Bank Malawi",
         provider_type=ProviderType.BANK,
         is_active=False,
-        is_simulated=True,
+        is_simulated=False,
         environment="sandbox",
-        health_state=ProviderHealthState.UNAVAILABLE,
+        health_state=ProviderHealthState.DISABLED,
         priority=50,
         supported_currencies=("MWK",),
-        supported_payment_methods=("bank",),
-        capabilities=PLANNED_CAPABILITIES,
+        supported_payment_methods=("card",),
+        capabilities=asdict(STANDARD_BANK_CAPABILITIES),
         config_refs=_refs("standard_bank"),
     ),
 )
