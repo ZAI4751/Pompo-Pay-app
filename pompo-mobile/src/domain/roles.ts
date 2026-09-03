@@ -11,8 +11,8 @@ export function canUseMerchantMode(roleCode: string): boolean {
   return MERCHANT_ROLES.has(roleCode);
 }
 
-export function defaultMode(roleCode: string): AppMode {
-  return canUseMerchantMode(roleCode) ? "merchant" : "customer";
+export function defaultMode(_roleCode?: string): AppMode {
+  return "customer";
 }
 
 export function canCreateQr(roleCode: string): boolean {

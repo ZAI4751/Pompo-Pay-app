@@ -5,42 +5,87 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { ActionTile, PaymentRow, SectionHeader } from "@/components/activity";
 import { FadeIn, HeroCard, PressScale } from "@/components/glass";
 import { BottomNav, ModeSwitch } from "@/components/nav";
-import { Card, ErrorBanner, Greeting, Screen, useTheme } from "@/components/ui";
+import { Card, EmptyState, ErrorBanner, Greeting, PrimaryButton, Screen, useTheme } from "@/components/ui";
 import { useAuth } from "@/state/AuthProvider";
-import type { Merchant, MerchantSummary, Payment } from "@/types";
+import { useAppMode } from "@/state/ModeProvider";
+import type { Merchant, MerchantAccessResponse, MerchantSummary, Payment } from "@/types";
 
 export default function MerchantHome() {
   const theme = useTheme();
   const { user, api } = useAuth();
+  const { setMode } = useAppMode();
   const router = useRouter();
+  const [access, setAccess] = useState<MerchantAccessResponse | null>(null);
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [recent, setRecent] = useState<Payment[]>([]);
   const [summary, setSummary] = useState<MerchantSummary | null>(null);
   const [error, setError] = useState<{ message: string; requestId?: string } | null>(null);
+  const [checking, setChecking] = useState(true);
   const firstName = user?.full_name.split(" ")[0] ?? "there";
 
   useEffect(() => {
-    if (!user?.merchant_id) {
-      return;
-    }
-    void api.getMerchant(user.merchant_id).then((result) => {
-      if (result.ok) {
-        setMerchant(result.data);
-      } else if (result.error.kind !== "forbidden") {
-        setError({ message: result.error.message, requestId: result.error.requestId });
+    let cancelled = false;
+    setChecking(true);
+    void api.getMerchantAccess().then((res) => {
+      if (cancelled) return;
+      setChecking(false);
+      if (res.ok) {
+        setAccess(res.data);
+        if (!res.data.allowed) {
+          return;
+        }
+      }
+      if (user?.merchant_id) {
+        void api.getMerchant(user.merchant_id).then((result) => {
+          if (!cancelled && result.ok) {
+            setMerchant(result.data);
+          } else if (!cancelled && !result.ok && result.error.kind !== "forbidden") {
+            setError({ message: result.error.message, requestId: result.error.requestId });
+          }
+        });
+        void api.listMerchantPayments().then((result) => {
+          if (!cancelled && result.ok) {
+            setRecent(result.data.slice(0, 5));
+          }
+        });
+        void api.merchantSummary().then((result) => {
+          if (!cancelled && result.ok) {
+            setSummary(result.data);
+          }
+        });
       }
     });
-    void api.listMerchantPayments().then((result) => {
-      if (result.ok) {
-        setRecent(result.data.slice(0, 5));
-      }
-    });
-    void api.merchantSummary().then((result) => {
-      if (result.ok) {
-        setSummary(result.data);
-      }
-    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [api, user?.merchant_id]);
+
+  if (!checking && access && !access.allowed) {
+    return (
+      <Screen padded={false}>
+        <View style={{ flex: 1, padding: 20, justifyContent: "center" }}>
+          <EmptyState
+            title="Merchant Access Restricted"
+            body={
+              access.reason ||
+              "This account is not authorized to access merchant tools or operate tills. Contact your organization administrator."
+            }
+          />
+          <View style={{ marginTop: 20 }}>
+            <PrimaryButton
+              label="Return to Customer Home"
+              onPress={() => {
+                setMode("customer");
+                router.replace("/customer");
+              }}
+            />
+          </View>
+        </View>
+        <BottomNav active="home" />
+      </Screen>
+    );
+  }
 
   return (
     <Screen padded={false}>
@@ -70,7 +115,7 @@ export default function MerchantHome() {
             <Card>
               <Text style={{ color: theme.subtle, fontSize: 11, fontWeight: "800", letterSpacing: 0.8 }}>BUSINESS</Text>
               <Text style={{ color: theme.text, fontSize: 22, fontWeight: "800" }}>
-                {merchant?.name ?? "Your merchant"}
+                {merchant?.name ?? access?.merchant?.name ?? "Your merchant"}
               </Text>
               <Text style={{ color: theme.muted }}>{user?.full_name}</Text>
               {summary ? (

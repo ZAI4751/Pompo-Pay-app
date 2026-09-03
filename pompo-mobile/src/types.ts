@@ -5,6 +5,7 @@ export interface TokenResponse {
   refresh_token: string;
   token_type: string;
   expires_in: number;
+  is_email_verified?: boolean;
 }
 
 export interface AuthenticatedUser {
@@ -16,6 +17,8 @@ export interface AuthenticatedUser {
   role_id: string;
   role_code: string;
   is_active: boolean;
+  is_email_verified?: boolean;
+  phone?: string | null;
 }
 
 export interface QrInspect {
@@ -30,6 +33,7 @@ export interface QrInspect {
   currency: string;
   payment_reference: string | null;
   expires_at: string | null;
+  payment_url?: string | null;
 }
 
 export interface QrRecord extends QrInspect {
@@ -217,6 +221,55 @@ export interface CustomerRegisterResponse extends TokenResponse {
   phone: string | null;
   role_code: string;
   phone_verification: string;
+  is_email_verified?: boolean;
+  email_verification?: string;
+}
+
+export interface AccessibleMerchant {
+  id: string;
+  name: string;
+  legal_name?: string | null;
+  is_active: boolean;
+}
+
+export interface AccessibleBranch {
+  id: string;
+  merchant_id: string;
+  name: string;
+  address?: string | null;
+  is_active: boolean;
+}
+
+export interface AccessibleTill {
+  id: string;
+  branch_id: string;
+  merchant_id: string;
+  code: string;
+  name: string;
+  is_active: boolean;
+}
+
+export interface MerchantAccessResponse {
+  allowed: boolean;
+  reason: string | null;
+  can_generate_qr: boolean;
+  merchant: AccessibleMerchant | null;
+  merchants: AccessibleMerchant[];
+  branches: AccessibleBranch[];
+  tills: AccessibleTill[];
+  operating_branch_id: string | null;
+  operating_till_id: string | null;
+  permissions: string[];
+}
+
+export interface GenericSecurityResponse {
+  detail: string;
+  email_delivery: string;
+}
+
+export interface VerifyEmailResponse {
+  detail: string;
+  is_email_verified: boolean;
 }
 
 export interface Merchant {

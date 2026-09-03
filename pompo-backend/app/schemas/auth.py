@@ -46,6 +46,7 @@ class TokenResponse(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     expires_in: int = Field(description="Access token lifetime in seconds")
+    is_email_verified: bool = False
 
 
 class AuthenticatedUserResponse(BaseModel):
@@ -65,3 +66,44 @@ class AuthenticatedUserResponse(BaseModel):
     role_id: uuid.UUID
     role_code: str = ""
     is_active: bool
+    is_email_verified: bool = False
+    phone: str | None = None
+
+
+class RequestEmailVerificationRequest(BaseModel):
+    """POST /auth/verify-email/request request body."""
+
+    email: EmailStr | None = None
+
+
+class VerifyEmailRequest(BaseModel):
+    """POST /auth/verify-email request body."""
+
+    token: str = Field(min_length=1, max_length=256)
+
+
+class ForgotPasswordRequest(BaseModel):
+    """POST /auth/forgot-password request body."""
+
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    """POST /auth/reset-password request body."""
+
+    token: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=8, max_length=72)
+
+
+class GenericSecurityResponse(BaseModel):
+    """Generic response for security operations to avoid enumeration."""
+
+    detail: str
+    email_delivery: str = "not_configured"
+
+
+class VerifyEmailResponse(BaseModel):
+    """Response after verifying an email token."""
+
+    detail: str
+    is_email_verified: bool

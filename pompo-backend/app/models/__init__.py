@@ -11,7 +11,7 @@ from metadata.
 from app.models.base import Base
 from app.models.organization import Branch, Merchant, Till
 from app.models.user import Permission, Role, RolePermission, User
-from app.models.auth import RefreshSession
+from app.models.auth import AccountSecurityToken, RefreshSession
 from app.models.payment import (
     PaymentAttempt,
     PaymentInstrument,
@@ -53,6 +53,7 @@ __all__ = [
     "RolePermission",
     "User",
     "RefreshSession",
+    "AccountSecurityToken",
     "PaymentProvider",
     "PaymentInstrument",
     "Transaction",

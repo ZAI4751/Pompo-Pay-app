@@ -66,7 +66,7 @@ def _response(row: PaymentInstrument, *, include_customer: bool = False) -> Paym
 
 @router.get("/catalog", response_model=list[PaymentMethodCatalogItem])
 async def payment_method_catalog(
-    current_user: CurrentUserDep, service: InstrumentServiceDep
+    service: InstrumentServiceDep,
 ) -> list[PaymentMethodCatalogItem]:
     return [PaymentMethodCatalogItem(**item) for item in service.catalog()]
 

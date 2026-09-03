@@ -69,6 +69,7 @@ class QRInspectResponse(BaseModel):
     currency: str
     payment_reference: str | None = None
     expires_at: datetime | None = None
+    payment_url: str | None = None
 
 
 class QRResponse(BaseModel):
@@ -79,6 +80,7 @@ class QRResponse(BaseModel):
     version: int
     status: str
     encoded_payload: str
+    payment_url: str | None = None
     merchant_id: uuid.UUID
     branch_id: uuid.UUID
     till_id: uuid.UUID

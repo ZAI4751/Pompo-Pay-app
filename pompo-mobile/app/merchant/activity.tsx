@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, RefreshControl, Text, View } from "react-native";
 
 import { PaymentRow } from "@/components/activity";
-import { GlassInput } from "@/components/glass";
+import { GlassInput, PressScale } from "@/components/glass";
 import { BottomNav } from "@/components/nav";
 import { EmptyState, ErrorBanner, Screen, Title, useTheme } from "@/components/ui";
 import { mapPaymentStatus } from "@/domain/paymentStatus";
@@ -60,20 +60,49 @@ export default function MerchantActivity() {
           onSubmitEditing={() => void load()}
           style={{ marginBottom: 8 }}
         />
-        <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
-          {["", "success", "failed", "processing"].map((value) => (
-            <Text
-              key={value || "all"}
-              onPress={() => setStatus(value)}
-              style={{
-                color: status === value ? theme.primary : theme.muted,
-                fontWeight: "700",
-                fontSize: 12,
-              }}
-            >
-              {value === "" ? "All" : value}
-            </Text>
-          ))}
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+          {[
+            { value: "", label: "All" },
+            { value: "success", label: "Success" },
+            { value: "failed", label: "Failed" },
+            { value: "processing", label: "Processing" },
+          ].map((item) => {
+            const active = status === item.value;
+            return (
+              <PressScale
+                key={item.label}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                onPress={() => setStatus(item.value)}
+                hitSlop={6}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 14,
+                  borderRadius: 20,
+                  backgroundColor: active
+                    ? theme.scheme === "dark"
+                      ? "#1e3a8a"
+                      : "#eff6ff"
+                    : theme.surface,
+                  borderWidth: 1,
+                  borderColor: active ? theme.primary : theme.border,
+                  minHeight: 36,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    color: active ? theme.primary : theme.text,
+                    fontWeight: active ? "700" : "500",
+                    fontSize: 13,
+                  }}
+                >
+                  {item.label}
+                </Text>
+              </PressScale>
+            );
+          })}
         </View>
         {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
         <FlatList

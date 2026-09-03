@@ -37,6 +37,7 @@ class BaseAppSettings(BaseSettings):
     port: int = 8000
     allowed_hosts: str = "localhost,127.0.0.1"
     cors_origins: str = "http://localhost:3000"
+    public_checkout_base_url: str = "https://pay.pompo.mw"
 
     database_url: PostgresDsn
     database_pool_size: int = Field(default=10, ge=1, le=100)

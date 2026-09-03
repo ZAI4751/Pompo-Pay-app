@@ -43,6 +43,8 @@ class CustomerRegisterResponse(BaseModel):
     phone: str | None
     role_code: str
     phone_verification: str = "not_configured"
+    is_email_verified: bool = False
+    email_verification: str = "not_configured"
 
 
 class CustomerProfileUpdate(BaseModel):

@@ -4,19 +4,29 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request, status
 
-from app.api.deps import AuthServiceDep, CurrentUserDep
+from app.api.deps import AuthServiceDep, CurrentUserDep, OptionalCurrentUserDep
 from app.core.security.exceptions import (
     AuthError,
     InactiveUserError,
     InvalidCredentialsError,
+    InvalidTokenError,
+    RateLimitAuthError,
+    TokenExpiredError,
+    TokenReplayError,
 )
 from app.schemas.auth import (
     AuthenticatedUserResponse,
     ChangePasswordRequest,
+    ForgotPasswordRequest,
+    GenericSecurityResponse,
     LoginRequest,
     LogoutRequest,
     RefreshRequest,
+    RequestEmailVerificationRequest,
+    ResetPasswordRequest,
     TokenResponse,
+    VerifyEmailRequest,
+    VerifyEmailResponse,
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -56,6 +66,7 @@ async def login(payload: LoginRequest, request: Request, auth_service: AuthServi
         access_token=tokens.access_token,
         refresh_token=tokens.refresh_token,
         expires_in=tokens.expires_in,
+        is_email_verified=tokens.is_email_verified,
     )
 
 
@@ -78,6 +89,7 @@ async def refresh(
         access_token=tokens.access_token,
         refresh_token=tokens.refresh_token,
         expires_in=tokens.expires_in,
+        is_email_verified=tokens.is_email_verified,
     )
 
 
@@ -104,6 +116,8 @@ async def get_me(current_user: CurrentUserDep) -> AuthenticatedUserResponse:
         role_id=current_user.role_id,
         role_code=role.code if role is not None else "",
         is_active=current_user.is_active,
+        is_email_verified=current_user.is_email_verified,
+        phone=current_user.phone,
     )
 
 
@@ -126,3 +140,107 @@ async def change_password(
 @router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
 async def logout_all(current_user: CurrentUserDep, auth_service: AuthServiceDep) -> None:
     await auth_service.logout_all(current_user)
+
+
+@router.post("/verify-email/request", response_model=GenericSecurityResponse)
+async def request_email_verification(
+    payload: RequestEmailVerificationRequest,
+    request: Request,
+    auth_service: AuthServiceDep,
+    current_user: OptionalCurrentUserDep = None,
+) -> GenericSecurityResponse:
+    """Request a fresh email verification link. Does not reveal account existence."""
+    user_agent, ip_address = _client_context(request)
+    target_user = current_user
+    if target_user is None and payload.email:
+        target_user = await auth_service._users.get_by_email(payload.email.strip().lower())
+
+    if target_user is not None and target_user.is_active and not target_user.is_email_verified:
+        try:
+            await auth_service.request_email_verification(
+                target_user, user_agent=user_agent, ip_address=ip_address
+            )
+        except RateLimitAuthError:
+            pass
+
+    return GenericSecurityResponse(
+        detail="If an unverified account matches, verification instructions have been dispatched.",
+        email_delivery="not_configured",
+    )
+
+
+@router.post("/verify-email", response_model=VerifyEmailResponse)
+async def verify_email(
+    payload: VerifyEmailRequest,
+    auth_service: AuthServiceDep,
+) -> VerifyEmailResponse:
+    """Verify an account email with a single-use token."""
+    try:
+        user = await auth_service.verify_email(payload.token)
+    except TokenReplayError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Verification token has already been used",
+        ) from exc
+    except TokenExpiredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Verification token has expired",
+        ) from exc
+    except (InvalidTokenError, AuthError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid verification token",
+        ) from exc
+
+    return VerifyEmailResponse(
+        detail="Email successfully verified",
+        is_email_verified=user.is_email_verified,
+    )
+
+
+@router.post("/forgot-password", response_model=GenericSecurityResponse)
+async def forgot_password(
+    payload: ForgotPasswordRequest,
+    request: Request,
+    auth_service: AuthServiceDep,
+) -> GenericSecurityResponse:
+    """Request a password reset link. Generic response prevents email enumeration."""
+    user_agent, ip_address = _client_context(request)
+    await auth_service.request_password_reset(
+        payload.email, user_agent=user_agent, ip_address=ip_address
+    )
+    return GenericSecurityResponse(
+        detail="If an account matches that email, password reset instructions have been sent.",
+        email_delivery="not_configured",
+    )
+
+
+@router.post("/reset-password", response_model=GenericSecurityResponse)
+async def reset_password(
+    payload: ResetPasswordRequest,
+    auth_service: AuthServiceDep,
+) -> GenericSecurityResponse:
+    """Reset a password with a single-use token. Revokes existing refresh sessions."""
+    try:
+        await auth_service.reset_password(payload.token, payload.new_password)
+    except TokenReplayError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password reset token has already been used",
+        ) from exc
+    except TokenExpiredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password reset token has expired",
+        ) from exc
+    except (InvalidTokenError, AuthError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired password reset token",
+        ) from exc
+
+    return GenericSecurityResponse(
+        detail="Password has been successfully reset. Please log in with your new password.",
+        email_delivery="not_configured",
+    )

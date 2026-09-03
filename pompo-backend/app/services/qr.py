@@ -17,7 +17,7 @@ from app.integrations.scopes import CREATE_QR_SCOPES, has_scope
 from app.models import AuditLog, Branch, IntegrationClient, Merchant, QRCode, Till, Transaction, User
 from app.models.enums import QRStatus, QRType, TERMINAL_TRANSACTION_STATUSES, TransactionStatus
 from app.payments.state_machine import validate_transition
-from app.qr.payload import QRPayloadError, QRPayloadService
+from app.qr.payload import QRPayloadError, QRPayloadService, extract_public_identifier
 from app.repositories.qr import QRCodeRepository
 from app.repositories.payment import TransactionRepository
 from app.repositories.rbac import AuthorizationRepository
@@ -277,7 +277,8 @@ class QRService:
 
     async def get_qr(self, actor: User, public_identifier: str) -> QRCode:
         await self._require(actor, "qr:read")
-        qr = await self._qr_codes.get_by_public_identifier(public_identifier)
+        normalized_id = extract_public_identifier(public_identifier) or public_identifier.strip()
+        qr = await self._qr_codes.get_by_public_identifier(normalized_id)
         if qr is None:
             raise QRNotFoundError("QR code not found")
         await self._validate_scope(actor, qr.merchant_id, qr.branch_id)
@@ -300,25 +301,28 @@ class QRService:
             qr_type=qr_type,
         )
 
-    async def inspect_qr(self, public_identifier: str) -> QRCode:
-        """Public-safe QR lookup for mobile scan preview."""
-        qr = await self._qr_codes.get_by_public_identifier(public_identifier)
+    async def inspect_qr(self, public_identifier: str, *, allow_inactive: bool = False) -> QRCode:
+        """Public-safe QR lookup for mobile/web scan preview."""
+        normalized_id = extract_public_identifier(public_identifier) or public_identifier.strip()
+        qr = await self._qr_codes.get_by_public_identifier(normalized_id)
         if qr is None:
             raise QRNotFoundError("QR code not found")
         await self._refresh_expiry_if_needed(qr)
-        if qr.status is QRStatus.EXPIRED:
-            raise QRInvalidError("QR code has expired")
-        if qr.status is QRStatus.REVOKED:
-            raise QRInvalidError("QR code has been revoked")
-        if qr.status is QRStatus.CONSUMED:
-            raise QRConflictError("QR code has already been used")
-        if qr.status is not QRStatus.ACTIVE:
-            raise QRInvalidError("QR code is not available")
+        if not allow_inactive:
+            if qr.status is QRStatus.EXPIRED:
+                raise QRInvalidError("QR code has expired")
+            if qr.status is QRStatus.REVOKED:
+                raise QRInvalidError("QR code has been revoked")
+            if qr.status is QRStatus.CONSUMED:
+                raise QRConflictError("QR code has already been used")
+            if qr.status is not QRStatus.ACTIVE:
+                raise QRInvalidError("QR code is not available")
         return qr
 
     async def revoke_qr(self, actor: User, public_identifier: str) -> QRCode:
         await self._require(actor, "qr:revoke")
-        qr = await self.get_qr(actor, public_identifier)
+        normalized_id = extract_public_identifier(public_identifier) or public_identifier.strip()
+        qr = await self.get_qr(actor, normalized_id)
         if qr.status is QRStatus.REVOKED:
             return qr
         if qr.status is QRStatus.CONSUMED:
@@ -331,11 +335,11 @@ class QRService:
             "qr_revoked",
             qr.id,
             {"status": before},
-            {"status": QRStatus.REVOKED.value, "public_identifier": public_identifier},
+            {"status": QRStatus.REVOKED.value, "public_identifier": normalized_id},
         )
         await self._session.commit()
         await self._session.refresh(qr, attribute_names=["merchant", "branch", "till"])
-        logger.info("qr_revoked", public_identifier=public_identifier)
+        logger.info("qr_revoked", public_identifier=normalized_id)
         return qr
 
     async def initiate_payment_from_qr(self, actor: User, values: dict[str, Any]) -> Transaction:
@@ -343,6 +347,19 @@ class QRService:
         raw_payload = values.get("payload")
         public_identifier = values.get("public_identifier")
         idempotency_key = values["idempotency_key"]
+
+        # Universal HTTPS URL or URL-like payload handling
+        if raw_payload and (raw_payload.startswith("http://") or raw_payload.startswith("https://") or "/p/" in raw_payload):
+            extracted = extract_public_identifier(raw_payload)
+            if not extracted:
+                raise QRInvalidError("Malformed POMPO QR URL")
+            public_identifier = extracted
+            raw_payload = None
+
+        if public_identifier:
+            normalized_pub_id = extract_public_identifier(str(public_identifier))
+            if normalized_pub_id:
+                public_identifier = normalized_pub_id
 
         if not raw_payload:
             if not public_identifier:

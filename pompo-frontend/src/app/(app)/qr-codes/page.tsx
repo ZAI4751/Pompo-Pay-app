@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { QrCode } from "lucide-react";
+import { Check, Copy, ExternalLink, QrCode } from "lucide-react";
 import { PageShell } from "@/components/layout/PageShell";
 import { MockDataBadge } from "@/components/ui/MockDataBadge";
 import { Table, TableHead, Th, TableBody, Tr, Td, MonoId } from "@/components/ui/Table";
@@ -46,6 +46,27 @@ export default function QRCodesPage() {
   const [revoking, setRevoking] = useState(false);
   const [lookupId, setLookupId] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  function getPaymentUrl(qr: QRCodeRecord): string {
+    if (qr.payment_url) return qr.payment_url;
+    if (typeof window !== "undefined") {
+      return `${window.location.origin}/p/${qr.public_identifier}`;
+    }
+    return `https://pay.pompo.mw/p/${qr.public_identifier}`;
+  }
+
+  async function onCopyUrl(qr: QRCodeRecord) {
+    const url = getPaymentUrl(qr);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedId(qr.public_identifier);
+      push("Universal payment URL copied to clipboard", "success");
+      setTimeout(() => setCopiedId(null), 2500);
+    } catch {
+      push(url, "info");
+    }
+  }
 
   const canCreate = hasPermission("qr:create");
   const canRevoke = hasPermission("qr:revoke");
@@ -270,11 +291,13 @@ export default function QRCodesPage() {
           <TableHead>
             <tr>
               <Th>Public ID</Th>
-              <Th>Type</Th>
-              <Th>Status</Th>
               <Th>Merchant / Till</Th>
+              <Th>Type</Th>
               <Th>Amount</Th>
-              <Th>Payload</Th>
+              <Th>Status</Th>
+              <Th>Expiry</Th>
+              <Th>Created</Th>
+              <Th>Universal Payment URL</Th>
               <Th>Actions</Th>
             </tr>
           </TableHead>
@@ -284,21 +307,55 @@ export default function QRCodesPage() {
                 <Td>
                   <MonoId>{qr.public_identifier}</MonoId>
                 </Td>
+                <Td>
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-text">{qr.merchant_name}</span>
+                    <span className="text-xs text-text-muted">{qr.branch_name} · {qr.till_name}</span>
+                  </div>
+                </Td>
                 <Td className="capitalize">{qr.qr_type}</Td>
+                <Td>
+                  {qr.amount ? `${qr.amount} ${qr.currency}` : "—"}
+                </Td>
                 <Td>
                   <span className="inline-flex items-center gap-2">
                     <ActiveBadge isActive={qrStatusTone(qr.status) === "active"} />
                     <span className="text-xs text-[var(--muted)]">{qr.status}</span>
                   </span>
                 </Td>
-                <Td>
-                  {qr.merchant_name} · {qr.till_name}
+                <Td className="text-xs text-text-muted">
+                  {qr.expires_at ? new Date(qr.expires_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Permanent"}
+                </Td>
+                <Td className="text-xs text-text-muted">
+                  {new Date(qr.created_at).toLocaleDateString()}
                 </Td>
                 <Td>
-                  {qr.amount ? `${qr.amount} ${qr.currency}` : "—"}
-                </Td>
-                <Td>
-                  <code className="block max-w-xs truncate text-xs">{qr.encoded_payload}</code>
+                  <div className="flex items-center gap-2">
+                    <code className="text-xs text-blue-400 max-w-[130px] truncate block" title={getPaymentUrl(qr)}>
+                      {getPaymentUrl(qr)}
+                    </code>
+                    <button
+                      type="button"
+                      title="Copy universal URL"
+                      onClick={() => void onCopyUrl(qr)}
+                      className="p-1 rounded hover:bg-white/10 text-text-muted hover:text-text transition-colors"
+                    >
+                      {copiedId === qr.public_identifier ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                    <a
+                      href={`/p/${qr.public_identifier}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Test Web Checkout"
+                      className="p-1 rounded hover:bg-white/10 text-text-muted hover:text-text transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
                 </Td>
                 <Td>
                   {canRevoke && qr.status === "active" ? (

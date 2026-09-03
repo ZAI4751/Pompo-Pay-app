@@ -20,6 +20,29 @@ describe("extractPublicIdentifier", () => {
     });
   });
 
+  it("extracts public identifier from canonical HTTPS universal QR URL", () => {
+    expect(extractPublicIdentifier("https://pay.pompo.mw/p/QRABC123456789")).toEqual({
+      ok: true,
+      publicIdentifier: "QRABC123456789",
+    });
+    expect(extractPublicIdentifier("https://pay.pompo.mw/p/QRABC123456789/")).toEqual({
+      ok: true,
+      publicIdentifier: "QRABC123456789",
+    });
+    expect(extractPublicIdentifier("https://pay.pompo.mw/p/QRABC123456789?ref=scan")).toEqual({
+      ok: true,
+      publicIdentifier: "QRABC123456789",
+    });
+    expect(extractPublicIdentifier("http://localhost:3000/p/QRABC123456789")).toEqual({
+      ok: true,
+      publicIdentifier: "QRABC123456789",
+    });
+    expect(extractPublicIdentifier("/p/QRABC123456789")).toEqual({
+      ok: true,
+      publicIdentifier: "QRABC123456789",
+    });
+  });
+
   it("rejects malformed codes", () => {
     expect(extractPublicIdentifier("not-a-pompo-payload").ok).toBe(false);
   });

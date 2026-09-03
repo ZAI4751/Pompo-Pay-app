@@ -31,7 +31,31 @@ export default function MerchantQrScreen() {
     } else if (listed.error.kind !== "forbidden") {
       setError({ message: listed.error.message, requestId: listed.error.requestId });
     }
-    if (user?.merchant_id) {
+
+    const accessResult = await api.getMerchantAccess();
+    if (accessResult.ok && accessResult.data.allowed) {
+      const access = accessResult.data;
+      const opBranchId = access.operating_branch_id ?? (access.branches[0] ? access.branches[0].id : null);
+      if (opBranchId) {
+        const foundTill = access.tills.find(
+          (t) => t.id === access.operating_till_id && t.branch_id === opBranchId
+        ) ?? access.tills.find((t) => t.branch_id === opBranchId) ?? access.tills[0];
+
+        if (foundTill) {
+          setTillContext({
+            branchId: opBranchId,
+            till: {
+              id: foundTill.id,
+              branch_id: foundTill.branch_id,
+              merchant_id: foundTill.merchant_id,
+              code: foundTill.code,
+              name: foundTill.name,
+              is_active: foundTill.is_active,
+            },
+          });
+        }
+      }
+    } else if (user?.merchant_id) {
       const branchId = user.branch_id;
       if (branchId) {
         const tillResult = await api.listTills(branchId);
@@ -110,7 +134,12 @@ export default function MerchantQrScreen() {
             <FadeIn>
               <View style={[styles.frame, { backgroundColor: theme.glassFill, borderColor: theme.glassBorder }]}>
                 <View style={styles.plate}>
-                  <QRCode value={active.encoded_payload} size={200} backgroundColor="#ffffff" color="#0f172a" />
+                  <QRCode
+                    value={active.payment_url || `https://pay.pompo.mw/p/${active.public_identifier}`}
+                    size={200}
+                    backgroundColor="#ffffff"
+                    color="#0f172a"
+                  />
                 </View>
                 <Text style={{ color: theme.text, fontWeight: "800", fontSize: 18 }}>{active.merchant_name}</Text>
                 {active.qr_type === "dynamic" ? (
@@ -124,11 +153,12 @@ export default function MerchantQrScreen() {
                 </Text>
                 <SecondaryButton
                   label="Share"
-                  onPress={() =>
+                  onPress={() => {
+                    const shareUrl = active.payment_url || `https://pay.pompo.mw/p/${active.public_identifier}`;
                     void Share.share({
-                      message: `Pay ${active.merchant_name} with POMPO\n${active.encoded_payload}`,
-                    })
-                  }
+                      message: `Pay ${active.merchant_name} with POMPO:\n${shareUrl}`,
+                    });
+                  }}
                 />
                 {canRevokeQr(user?.role_code ?? "") && active.status === "active" ? (
                   <SecondaryButton

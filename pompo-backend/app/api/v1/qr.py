@@ -9,6 +9,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import CurrentUserDep, DbSessionDep, require_permission
+from app.core.config.base import get_settings
 from app.models.payment import QRCode
 from app.schemas.qr import (
     DynamicQRCreate,
@@ -45,6 +46,11 @@ def _error(exc: QRError) -> HTTPException:
     return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
 
 
+def _payment_url(public_identifier: str) -> str:
+    settings = get_settings()
+    return f"{settings.public_checkout_base_url.rstrip('/')}/p/{public_identifier}"
+
+
 def _qr_response(qr: QRCode) -> QRResponse:
     return QRResponse(
         public_identifier=qr.public_identifier,
@@ -52,6 +58,7 @@ def _qr_response(qr: QRCode) -> QRResponse:
         version=qr.version,
         status=qr.status.value,
         encoded_payload=qr.payload,
+        payment_url=_payment_url(qr.public_identifier),
         merchant_id=qr.merchant_id,
         branch_id=qr.branch_id,
         till_id=qr.till_id,
@@ -80,6 +87,7 @@ def _inspect_response(qr: QRCode) -> QRInspectResponse:
         currency=qr.currency,
         payment_reference=qr.payment_reference,
         expires_at=qr.expires_at,
+        payment_url=_payment_url(qr.public_identifier),
     )
 
 
@@ -137,10 +145,14 @@ async def list_qrs(
 
 
 @router.get("/{public_identifier}", response_model=QRInspectResponse)
-async def inspect_qr(public_identifier: str, service: QRServiceDep) -> QRInspectResponse:
+async def inspect_qr(
+    public_identifier: str,
+    service: QRServiceDep,
+    allow_inactive: bool = Query(default=False),
+) -> QRInspectResponse:
     """Public scan preview — safe merchant context only."""
     try:
-        qr = await service.inspect_qr(public_identifier)
+        qr = await service.inspect_qr(public_identifier, allow_inactive=allow_inactive)
     except QRError as exc:
         raise _error(exc) from exc
     return _inspect_response(qr)

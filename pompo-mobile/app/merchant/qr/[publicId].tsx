@@ -32,13 +32,24 @@ export default function MerchantQrDetail() {
       {qr ? (
         <View style={[styles.frame, { backgroundColor: theme.glassFill, borderColor: theme.glassBorder }]}>
           <View style={styles.plate}>
-            <QRCode value={qr.encoded_payload} size={180} backgroundColor="#ffffff" color="#0f172a" />
+            <QRCode
+              value={qr.payment_url || `https://pay.pompo.mw/p/${qr.public_identifier}`}
+              size={180}
+              backgroundColor="#ffffff"
+              color="#0f172a"
+            />
           </View>
           <Text style={{ color: theme.text, fontWeight: "800" }}>{qr.public_identifier}</Text>
           <Text style={{ color: theme.muted }}>
             {qr.qr_type} · {qr.status}
           </Text>
-          <SecondaryButton label="Share" onPress={() => void Share.share({ message: qr.encoded_payload })} />
+          <SecondaryButton
+            label="Share"
+            onPress={() => {
+              const shareUrl = qr.payment_url || `https://pay.pompo.mw/p/${qr.public_identifier}`;
+              void Share.share({ message: `Pay with POMPO:\n${shareUrl}` });
+            }}
+          />
         </View>
       ) : null}
       <SecondaryButton label="Back" onPress={() => router.back()} />

@@ -39,6 +39,93 @@ class OrganizationService:
         self._tills = TillRepository(session)
         self._authorization = AuthorizationService(AuthorizationRepository(session))
 
+    async def get_merchant_access(self, actor: User) -> dict[str, Any]:
+        """Authoritatively evaluate whether the actor can operate in Merchant Mode.
+
+        Returns allowed=False with empty resource lists if the user is an
+        ordinary customer or not affiliated with an active merchant.
+        """
+        is_admin = await self._is_platform_admin(actor)
+        if not is_admin and actor.merchant_id is None:
+            return {
+                "allowed": False,
+                "reason": "Account is not associated with any merchant organization",
+                "can_generate_qr": False,
+                "merchant": None,
+                "merchants": [],
+                "branches": [],
+                "tills": [],
+                "operating_branch_id": None,
+                "operating_till_id": None,
+                "permissions": [],
+            }
+
+        user_perms = await self._authorization.get_user_permissions(actor)
+        can_generate_qr = "qr:create" in user_perms or is_admin
+
+        if is_admin:
+            merchants = await self._merchants.list_active(None)
+            target_merchant = merchants[0] if merchants else None
+        else:
+            target_merchant = await self._merchants.get_active(actor.merchant_id)
+            merchants = [target_merchant] if target_merchant is not None else []
+
+        if target_merchant is None or not target_merchant.is_active:
+            return {
+                "allowed": False,
+                "reason": "Merchant organization is inactive or not found",
+                "can_generate_qr": False,
+                "merchant": None,
+                "merchants": [],
+                "branches": [],
+                "tills": [],
+                "operating_branch_id": None,
+                "operating_till_id": None,
+                "permissions": sorted(user_perms),
+            }
+
+        branch_scope = actor.branch_id if not is_admin and actor.branch_id else None
+        branches = await self._branches.list_active(target_merchant.id, branch_scope)
+
+        tills: list[Till] = []
+        for branch in branches:
+            branch_tills = await self._tills.list_active(branch.id)
+            for t in branch_tills:
+                t.branch = branch
+                tills.append(t)
+
+        operating_branch_id = actor.branch_id or (branches[0].id if branches else None)
+        operating_till_id = None
+        for t in tills:
+            if t.branch_id == operating_branch_id and t.is_active:
+                operating_till_id = t.id
+                break
+        if operating_till_id is None and tills:
+            operating_till_id = tills[0].id
+
+        return {
+            "allowed": True,
+            "reason": None,
+            "can_generate_qr": can_generate_qr,
+            "merchant": target_merchant,
+            "merchants": merchants,
+            "branches": branches,
+            "tills": [
+                {
+                    "id": t.id,
+                    "branch_id": t.branch_id,
+                    "merchant_id": target_merchant.id,
+                    "code": t.code,
+                    "name": t.name,
+                    "is_active": t.is_active,
+                }
+                for t in tills
+            ],
+            "operating_branch_id": operating_branch_id,
+            "operating_till_id": operating_till_id,
+            "permissions": sorted(user_perms),
+        }
+
     async def list_merchants(self, actor: User) -> list[Merchant]:
         await self._require(actor, "merchants:read")
         scope = None if await self._is_platform_admin(actor) else actor.merchant_id

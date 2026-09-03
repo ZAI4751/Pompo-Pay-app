@@ -20,6 +20,26 @@ _SIGNATURE_LENGTH = 22
 _PAYLOAD_PATTERN = re.compile(
     r"^POMPO:(\d+):(static|dynamic):([A-Z0-9-]{8,32})(?::(.+))?:([A-Za-z0-9_-]{22})$"
 )
+_PUBLIC_ID_PATTERN = re.compile(r"^[A-Z0-9-]{8,32}$")
+_URL_PATTERN = re.compile(
+    r"^(?:https?://[^/]+)?/p/([A-Z0-9-]{8,32})(?:[/?#].*)?$", re.IGNORECASE
+)
+
+
+def extract_public_identifier(raw: str) -> str | None:
+    """Extract public identifier from a raw string, URL, or legacy payload."""
+    normalized = raw.strip()
+    if not normalized:
+        return None
+    if _PUBLIC_ID_PATTERN.match(normalized):
+        return normalized
+    url_match = _URL_PATTERN.match(normalized)
+    if url_match:
+        return url_match.group(1).upper()
+    payload_match = _PAYLOAD_PATTERN.match(normalized)
+    if payload_match:
+        return payload_match.group(3)
+    return None
 
 
 class QRPayloadError(ValueError):

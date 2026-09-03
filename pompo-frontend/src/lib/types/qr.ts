@@ -9,6 +9,7 @@ export interface QRCodeRecord {
   version: number;
   status: QRStatus;
   encoded_payload: string;
+  payment_url?: string | null;
   merchant_id: string;
   branch_id: string;
   till_id: string;
@@ -35,6 +36,7 @@ export interface QRInspect {
   currency: string;
   payment_reference: string | null;
   expires_at: string | null;
+  payment_url?: string | null;
 }
 
 export interface StaticQRCreatePayload {
@@ -58,11 +60,13 @@ export interface DynamicQRCreatePayload {
 }
 
 export interface PaymentFromQRPayload {
-  payload: string;
+  payload?: string;
+  public_identifier?: string;
   idempotency_key: string;
   amount?: string;
   payment_method?: string;
   provider_code?: string;
+  payment_instrument_id?: string;
   customer_phone?: string;
   description?: string;
 }

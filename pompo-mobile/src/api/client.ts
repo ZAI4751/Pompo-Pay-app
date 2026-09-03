@@ -10,7 +10,9 @@ import type {
   CustomerPreferences,
   CustomerRegisterResponse,
   FavoriteMerchant,
+  GenericSecurityResponse,
   Merchant,
+  MerchantAccessResponse,
   MerchantSummary,
   NotificationList,
   Payment,
@@ -23,6 +25,7 @@ import type {
   SupportTicket,
   Till,
   TokenResponse,
+  VerifyEmailResponse,
 } from "@/types";
 
 export interface ClientDeps {
@@ -422,6 +425,50 @@ export class PompoApi {
 
   listTills(branchId: string): Promise<ApiResult<Till[]>> {
     return this.request<Till[]>(`/organization/branches/${branchId}/tills`);
+  }
+
+  getMerchantAccess(): Promise<ApiResult<MerchantAccessResponse>> {
+    return this.request<MerchantAccessResponse>("/organization/my-access");
+  }
+
+  requestEmailVerification(email?: string): Promise<ApiResult<GenericSecurityResponse>> {
+    return this.request<GenericSecurityResponse>("/auth/verify-email/request", {
+      method: "POST",
+      body: { email: email ?? null },
+    });
+  }
+
+  verifyEmail(token: string): Promise<ApiResult<VerifyEmailResponse>> {
+    return this.request<VerifyEmailResponse>("/auth/verify-email", {
+      method: "POST",
+      body: { token },
+    });
+  }
+
+  forgotPassword(email: string): Promise<ApiResult<GenericSecurityResponse>> {
+    return this.request<GenericSecurityResponse>("/auth/forgot-password", {
+      method: "POST",
+      body: { email },
+    });
+  }
+
+  resetPassword(token: string, newPassword: string): Promise<ApiResult<GenericSecurityResponse>> {
+    return this.request<GenericSecurityResponse>("/auth/reset-password", {
+      method: "POST",
+      body: { token, new_password: newPassword },
+    });
+  }
+
+  getSettlementSummary(): Promise<
+    ApiResult<{
+      currency: string;
+      total_settled_amount: string;
+      total_fees: string;
+      batch_count: number;
+      record_count: number;
+    }>
+  > {
+    return this.request("/settlements/summary");
   }
 
   async restoreSession(): Promise<ApiResult<AuthenticatedUser>> {

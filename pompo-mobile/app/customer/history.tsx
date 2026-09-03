@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, RefreshControl, Text, View } from "react-native";
 
 import { PaymentRow } from "@/components/activity";
-import { GlassInput } from "@/components/glass";
+import { GlassInput, PressScale } from "@/components/glass";
 import { BottomNav } from "@/components/nav";
 import { EmptyState, ErrorBanner, Screen, Title, useTheme } from "@/components/ui";
 import { groupLabel } from "@/format";
@@ -35,19 +35,38 @@ function FilterChip({
 }) {
   const theme = useTheme();
   return (
-    <Text
+    <PressScale
       accessibilityRole="button"
+      accessibilityState={{ selected: active }}
       onPress={onPress}
+      hitSlop={6}
       style={{
-        color: active ? theme.primary : theme.muted,
-        fontWeight: "700",
-        fontSize: 12,
-        paddingVertical: 6,
-        paddingHorizontal: 4,
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        borderRadius: 20,
+        backgroundColor: active
+          ? theme.scheme === "dark"
+            ? "#1e3a8a"
+            : "#eff6ff"
+          : theme.surface,
+        borderWidth: 1,
+        borderColor: active ? theme.primary : theme.border,
+        minHeight: 36,
+        justifyContent: "center",
+        alignItems: "center",
       }}
     >
-      {label}
-    </Text>
+      <Text
+        style={{
+          color: active ? theme.primary : theme.text,
+          fontWeight: active ? "700" : "500",
+          fontSize: 13,
+          textTransform: "capitalize",
+        }}
+      >
+        {label}
+      </Text>
+    </PressScale>
   );
 }
 

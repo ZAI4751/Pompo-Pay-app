@@ -33,7 +33,7 @@ export const qrService = {
     return apiRequest<QRCodeRecord>("/qr/dynamic", { method: "POST", body: payload });
   },
 
-  async inspect(publicIdentifier: string): Promise<ApiResult<QRInspect>> {
+  async inspect(publicIdentifier: string, allowInactive = false): Promise<ApiResult<QRInspect>> {
     if (USE_MOCKS) {
       return {
         status: "error",
@@ -41,7 +41,8 @@ export const qrService = {
         message: "Demo mode cannot inspect QR codes. Sign in against the backend.",
       };
     }
-    return apiRequest<QRInspect>(`/qr/${encodeURIComponent(publicIdentifier)}`);
+    const query = allowInactive ? "?allow_inactive=true" : "";
+    return apiRequest<QRInspect>(`/qr/${encodeURIComponent(publicIdentifier)}${query}`);
   },
 
   async getAdmin(publicIdentifier: string): Promise<ApiResult<QRCodeRecord>> {

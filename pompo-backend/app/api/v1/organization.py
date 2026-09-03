@@ -13,6 +13,7 @@ from app.schemas.organization import (
     BranchCreate,
     BranchResponse,
     BranchUpdate,
+    MerchantAccessResponse,
     MerchantCreate,
     MerchantResponse,
     MerchantUpdate,
@@ -54,6 +55,22 @@ def _error(exc: OrganizationError) -> HTTPException:
     if isinstance(exc, OrganizationConflictError):
         return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+
+
+@router.get("/my-access", response_model=MerchantAccessResponse)
+async def get_my_merchant_access(
+    current_user: CurrentUserDep, service: OrganizationServiceDep
+) -> MerchantAccessResponse:
+    """Authoritative capability check for merchant mode.
+
+    Returns whether this account has merchant access and lists only
+    the merchants, branches, and tills the caller is authorized to operate.
+    """
+    try:
+        data = await service.get_merchant_access(current_user)
+        return MerchantAccessResponse.model_validate(data)
+    except OrganizationError as exc:
+        raise _error(exc) from exc
 
 
 @router.get("/merchants", response_model=list[MerchantResponse])

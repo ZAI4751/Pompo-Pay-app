@@ -76,3 +76,48 @@ class TillResponse(BaseModel):
     code: str
     name: str
     is_active: bool
+
+
+class AccessibleMerchant(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    legal_name: str | None = None
+    is_active: bool
+
+
+class AccessibleBranch(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    merchant_id: uuid.UUID
+    name: str
+    address: str | None = None
+    is_active: bool
+
+
+class AccessibleTill(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    branch_id: uuid.UUID
+    merchant_id: uuid.UUID
+    code: str
+    name: str
+    is_active: bool
+
+
+class MerchantAccessResponse(BaseModel):
+    """Authoritative backend evaluation of merchant capability for an account."""
+
+    allowed: bool
+    reason: str | None = None
+    can_generate_qr: bool = False
+    merchant: AccessibleMerchant | None = None
+    merchants: list[AccessibleMerchant] = []
+    branches: list[AccessibleBranch] = []
+    tills: list[AccessibleTill] = []
+    operating_branch_id: uuid.UUID | None = None
+    operating_till_id: uuid.UUID | None = None
+    permissions: list[str] = []

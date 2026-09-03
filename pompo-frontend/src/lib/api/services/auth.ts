@@ -13,6 +13,24 @@ export const authService = {
     return apiRequest<TokenResponse>("/auth/login", { method: "POST", body: payload });
   },
 
+  registerCustomer(payload: {
+    email: string;
+    password: string;
+    full_name: string;
+    phone: string;
+  }): Promise<
+    ApiResult<
+      TokenResponse & {
+        user_id: string;
+        email: string;
+        full_name: string;
+        phone: string;
+      }
+    >
+  > {
+    return apiRequest("/customers/register", { method: "POST", body: payload });
+  },
+
   refresh(refreshToken: string): Promise<ApiResult<TokenResponse>> {
     return apiRequest<TokenResponse>("/auth/refresh", {
       method: "POST",

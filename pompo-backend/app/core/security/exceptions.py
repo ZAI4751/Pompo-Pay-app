@@ -37,3 +37,12 @@ class TokenExpiredError(AuthError):
 
 class TokenReplayError(AuthError):
     """A previously-rotated (already-revoked) refresh token was presented again."""
+
+
+class UnverifiedAccountError(AuthError):
+    """The account email has not been verified."""
+
+
+class RateLimitAuthError(AuthError):
+    """Too many authentication or token requests."""
+

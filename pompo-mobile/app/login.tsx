@@ -1,4 +1,4 @@
-import { Redirect, useRouter } from "expo-router";
+import { Redirect, useRouter, type Href } from "expo-router";
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -77,9 +77,10 @@ export default function LoginScreen() {
               setError(result.message);
               return;
             }
-            router.replace("/");
+            router.replace("/customer");
           }}
         />
+            <SecondaryButton label="Forgot password?" onPress={() => router.push("/forgot-password" as Href)} />
         <SecondaryButton label="Create a customer account" onPress={() => router.push("/register")} />
       </ScrollView>
     </KeyboardAvoidingView>

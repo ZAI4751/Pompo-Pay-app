@@ -222,4 +222,47 @@ describe("PompoApi", () => {
     await api.payFromQr({ payload: "POMPO:1:dynamic:QRDYN123456789:x", idempotencyKey: randomUUID() });
     expect(fetchImpl).toHaveBeenCalled();
   });
+
+  it("fetches merchant access capabilities", async () => {
+    const store = memoryStore({ access: "access-1" });
+    const fetchImpl = jest.fn(async () => {
+      return jsonResponse({
+        allowed: true,
+        merchant: { id: "m1", name: "Shop", is_active: true },
+        operating_branch_id: "b1",
+        operating_till_id: "t1",
+        branches: [],
+        tills: [],
+        can_generate_qr: true,
+        permissions: ["qr:create"],
+        reason: null,
+      });
+    }) as typeof fetch;
+    const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
+    const res = await api.getMerchantAccess();
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.data.allowed).toBe(true);
+      expect(res.data.can_generate_qr).toBe(true);
+    }
+  });
+
+  it("calls email verification and forgot password endpoints", async () => {
+    const store = memoryStore();
+    const fetchImpl = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/auth/verify-email")) {
+        return jsonResponse({ message: "Email verified successfully" });
+      }
+      if (url.endsWith("/auth/forgot-password")) {
+        return jsonResponse({ message: "If the email is registered, instructions have been sent." });
+      }
+      return jsonResponse({});
+    }) as typeof fetch;
+    const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
+    const verifyRes = await api.verifyEmail("token-123");
+    expect(verifyRes.ok).toBe(true);
+    const forgotRes = await api.forgotPassword("user@example.com");
+    expect(forgotRes.ok).toBe(true);
+  });
 });

@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { CircleButton, GlassSurface, ScanFrame, ScanLine } from "@/components/glass";
 import { ErrorBanner, GlassInput, PrimaryButton, Screen, SecondaryButton, useTheme } from "@/components/ui";
@@ -18,6 +18,7 @@ export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [error, setError] = useState<{ message: string; requestId?: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [isManual, setIsManual] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const locked = useRef(false);
 
@@ -61,12 +62,12 @@ export default function ScanScreen() {
       <Screen>
         <Text style={{ color: theme.text, fontWeight: "800", fontSize: 22 }}>Camera access</Text>
         <Text style={{ color: theme.muted, marginVertical: 12 }}>
-          Allow the camera to scan, or enter the QR code manually. Both paths use the same POMPO validation.
+          Allow camera access or enter the code manually.
         </Text>
         <PrimaryButton label="Allow camera" onPress={() => void requestPermission()} />
         {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
         <GlassInput
-          placeholder="Enter QR code manually"
+          placeholder="Enter QR code"
           value={manualCode}
           autoCapitalize="characters"
           onChangeText={setManualCode}
@@ -79,67 +80,118 @@ export default function ScanScreen() {
 
   return (
     <Screen padded={false} atmosphere={false}>
-      <View style={[styles.screen, { backgroundColor: "#020617" }]}>
+      <KeyboardAvoidingView
+        style={styles.screen}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
+      >
         <View style={styles.header}>
-          <CircleButton accessibilityLabel="Cancel scan" onPress={() => router.back()}>
-            <Ionicons name="close" size={18} color={theme.text} />
+          <CircleButton
+            accessibilityLabel="Cancel scan"
+            onPress={() => {
+              if (isManual) {
+                setIsManual(false);
+              } else {
+                router.back();
+              }
+            }}
+          >
+            <Ionicons name={isManual ? "arrow-back" : "close"} size={18} color="#f8fafc" />
           </CircleButton>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Scan QR</Text>
-            <Text style={styles.headerHint}>Hold steady. We verify with POMPO.</Text>
+            <Text style={styles.headerTitle}>{isManual ? "Manual Entry" : "Scan QR"}</Text>
+            <Text style={styles.headerHint}>
+              {isManual ? "Enter code directly. Camera unmounted." : "Hold steady. We verify with POMPO."}
+            </Text>
           </View>
         </View>
-        <View style={[styles.cameraWrap, { borderColor: busy ? "#34d399" : "rgba(147,197,253,0.55)" }]}>
-          <CameraView
-            style={StyleSheet.absoluteFill}
-            barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-            onBarcodeScanned={busy ? undefined : (event) => void onScan(event.data)}
-          />
-          <View style={styles.dim} pointerEvents="none" />
-          <ScanFrame />
-          {!busy ? <ScanLine /> : null}
-          {busy ? (
-            <GlassSurface solid style={styles.detected}>
-              <Text style={{ color: theme.text, fontWeight: "800" }}>Code found</Text>
-            </GlassSurface>
-          ) : null}
-        </View>
-        {error ? (
-          <View style={styles.errorWrap}>
-            <ErrorBanner message={error.message} requestId={error.requestId} />
-            <SecondaryButton
-              label="Scan again"
-              onPress={() => {
-                setError(null);
-                locked.current = false;
-                setBusy(false);
-              }}
-            />
-          </View>
+
+        {isManual ? (
+          <ScrollView
+            contentContainerStyle={styles.manualScroll}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+          >
+            <View style={styles.manualCard}>
+              <Text style={{ color: "#f8fafc", fontSize: 18, fontWeight: "800" }}>Enter QR Code</Text>
+              <Text style={{ color: "#94a3b8", fontSize: 13, lineHeight: 18 }}>
+                Type or paste the public identifier (e.g. QR78B2A91F0C) or universal link.
+              </Text>
+              {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
+              <GlassInput
+                placeholder="QR Code identifier"
+                value={manualCode}
+                autoCapitalize="characters"
+                autoFocus
+                onChangeText={setManualCode}
+                accessibilityLabel="QR code"
+              />
+              <PrimaryButton
+                label="Continue to payment"
+                loading={busy}
+                disabled={!manualCode.trim()}
+                onPress={() => void onScan(manualCode)}
+              />
+              <SecondaryButton
+                label="Switch back to camera"
+                onPress={() => {
+                  setError(null);
+                  setIsManual(false);
+                }}
+              />
+            </View>
+          </ScrollView>
         ) : (
-          <View style={styles.manualWrap}>
-            <Text style={styles.footerHint}>Align the code inside the frame</Text>
-            <Text style={styles.manualHint}>Can’t scan? Enter the code instead. Same merchant check as the camera.</Text>
-            <GlassInput
-              placeholder="Enter QR code manually"
-              value={manualCode}
-              autoCapitalize="characters"
-              onChangeText={setManualCode}
-              accessibilityLabel="QR code"
-            />
-            <SecondaryButton
-              label="Enter QR code manually"
-              onPress={() => void onScan(manualCode)}
-            />
+          <View style={{ flex: 1 }}>
+            <View style={[styles.cameraWrap, { borderColor: busy ? "#34d399" : "rgba(147,197,253,0.55)" }]}>
+              <CameraView
+                style={StyleSheet.absoluteFill}
+                barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+                onBarcodeScanned={busy ? undefined : (event) => void onScan(event.data)}
+              />
+              <View style={styles.dim} pointerEvents="none" />
+              <ScanFrame />
+              {!busy ? <ScanLine /> : null}
+              {busy ? (
+                <GlassSurface solid style={styles.detected}>
+                  <Text style={{ color: theme.text, fontWeight: "800" }}>Code found</Text>
+                </GlassSurface>
+              ) : null}
+            </View>
+
+            {error ? (
+              <View style={styles.errorWrap}>
+                <ErrorBanner message={error.message} requestId={error.requestId} />
+                <SecondaryButton
+                  label="Scan again"
+                  onPress={() => {
+                    setError(null);
+                    locked.current = false;
+                    setBusy(false);
+                  }}
+                />
+              </View>
+            ) : (
+              <View style={styles.manualWrap}>
+                <Text style={styles.footerHint}>Align the code inside the frame</Text>
+                <SecondaryButton
+                  label="Enter code manually"
+                  onPress={() => {
+                    setError(null);
+                    setIsManual(true);
+                  }}
+                />
+              </View>
+            )}
           </View>
         )}
-      </View>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
+  screen: { flex: 1, backgroundColor: "#020617" },
   header: {
     paddingHorizontal: 20,
     paddingTop: 8,
@@ -171,16 +223,19 @@ const styles = StyleSheet.create({
   detected: { position: "absolute", bottom: 18, alignSelf: "center" },
   errorWrap: { paddingHorizontal: 20, paddingBottom: 20, gap: 10 },
   manualWrap: { paddingHorizontal: 20, paddingBottom: 20, gap: 10 },
+  manualScroll: { flexGrow: 1, padding: 20, justifyContent: "center" },
+  manualCard: {
+    backgroundColor: "rgba(15, 23, 42, 0.8)",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+    padding: 20,
+    gap: 16,
+  },
   footerHint: {
     textAlign: "center",
     color: "#94a3b8",
     fontSize: 13,
     fontWeight: "600",
-  },
-  manualHint: {
-    textAlign: "center",
-    color: "#64748b",
-    fontSize: 12,
-    lineHeight: 18,
   },
 });

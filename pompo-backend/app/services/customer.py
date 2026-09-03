@@ -101,6 +101,8 @@ class CustomerService:
             full_name=full_name,
             hashed_password=self._hasher.hash(password),
             is_active=True,
+            is_email_verified=False,
+            email_verified_at=None,
             last_login_at=datetime.now(UTC),
         )
         user.role = role
@@ -108,6 +110,9 @@ class CustomerService:
         await self._session.flush()
         prefs = CustomerPreference(user_id=user.id, preferred_mode="customer")
         self._session.add(prefs)
+        await self._auth.request_email_verification(
+            user, user_agent=user_agent, ip_address=ip_address
+        )
         self._session.add(
             AuditLog(
                 created_at=datetime.now(UTC),
@@ -117,7 +122,7 @@ class CustomerService:
                 entity_type="user",
                 entity_id=str(user.id),
                 before_state=None,
-                after_state={"email": email, "role_code": "customer"},
+                after_state={"email": email, "role_code": "customer", "is_email_verified": False},
             )
         )
         tokens = await self._auth.issue_session_tokens(

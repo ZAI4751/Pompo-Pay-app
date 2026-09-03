@@ -20,6 +20,20 @@ jest.mock("@/state/AuthProvider", () => ({
       is_active: true,
     },
     api: {
+      getMerchantAccess: async () => ({
+        ok: true,
+        data: {
+          allowed: true,
+          merchant: { id: "m1", name: "Chikondi Shop", is_active: true },
+          operating_branch_id: "b1",
+          operating_till_id: "t1",
+          branches: [{ id: "b1", merchant_id: "m1", code: "MAIN", name: "Main Branch", is_active: true }],
+          tills: [{ id: "t1", branch_id: "b1", merchant_id: "m1", code: "TILL1", name: "Till 1", is_active: true }],
+          can_generate_qr: true,
+          permissions: ["qr:create"],
+          reason: null,
+        },
+      }),
       getMerchant: async () => ({
         ok: true,
         data: {

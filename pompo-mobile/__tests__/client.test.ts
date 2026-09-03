@@ -102,9 +102,9 @@ describe("PompoApi", () => {
 });
 
 describe("mode switching", () => {
-  it("keeps customers in customer mode", () => {
+  it("keeps customers in customer mode and defaults all to customer mode", () => {
     expect(canUseMerchantMode("customer")).toBe(false);
     expect(defaultMode("customer")).toBe("customer");
-    expect(defaultMode("merchant_owner")).toBe("merchant");
+    expect(defaultMode("merchant_owner")).toBe("customer");
   });
 });

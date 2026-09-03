@@ -9,9 +9,11 @@ exceptions raised here into HTTP responses.
 from __future__ import annotations
 
 import hashlib
+import secrets
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,15 +21,17 @@ from app.core.security.exceptions import (
     InactiveUserError,
     InvalidCredentialsError,
     InvalidTokenError,
+    RateLimitAuthError,
     TokenExpiredError,
     TokenReplayError,
 )
 from app.core.security.jwt import JWTConfig
 from app.core.security.password import PasswordHasher, get_dummy_password_hash
-from app.models.auth import RefreshSession
+from app.models.auth import AccountSecurityToken, RefreshSession
 from app.models.user import User
-from app.repositories.auth import RefreshSessionRepository
+from app.repositories.auth import AccountSecurityTokenRepository, RefreshSessionRepository
 from app.repositories.user import UserRepository
+from app.services.email import EmailDispatcher
 
 
 def _utcnow() -> datetime:
@@ -65,19 +69,26 @@ class AuthTokens:
     access_token: str
     refresh_token: str
     expires_in: int
+    is_email_verified: bool = False
 
 
 class AuthService:
     """Authenticates users and manages the refresh-token session lifecycle."""
 
     def __init__(
-        self, session: AsyncSession, jwt_config: JWTConfig, password_hasher: PasswordHasher
+        self,
+        session: AsyncSession,
+        jwt_config: JWTConfig,
+        password_hasher: PasswordHasher,
+        email_dispatcher: EmailDispatcher | None = None,
     ) -> None:
         self._session = session
         self._jwt_config = jwt_config
         self._password_hasher = password_hasher
         self._users = UserRepository(session)
         self._refresh_sessions = RefreshSessionRepository(session)
+        self._security_tokens = AccountSecurityTokenRepository(session)
+        self._email_dispatcher = email_dispatcher or EmailDispatcher()
 
     @property
     def access_token_expire_seconds(self) -> int:
@@ -333,4 +344,159 @@ class AuthService:
             access_token=access_token,
             refresh_token=refresh_token,
             expires_in=self.access_token_expire_seconds,
+            is_email_verified=user.is_email_verified,
         )
+
+    # ------------------------------------------------------------------
+    # Email Verification
+    # ------------------------------------------------------------------
+
+    async def request_email_verification(
+        self,
+        user: User,
+        *,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Generate a verification token and dispatch email via dispatcher.
+
+        Enforces a 60-second cooldown between requests to prevent spam.
+        Returns the raw token (for testing/dispatch) and dispatch status.
+        """
+        latest = await self._security_tokens.get_latest_active_token(
+            user.id, "email_verification"
+        )
+        if latest is not None:
+            created_at = _as_utc(latest.created_at)
+            if _utcnow() - created_at < timedelta(seconds=60):
+                raise RateLimitAuthError("Please wait 60 seconds before requesting another verification email")
+
+        await self._security_tokens.invalidate_all_for_user(user.id, "email_verification")
+
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = _hash_token(raw_token)
+        now = _utcnow()
+        expires_at = now + timedelta(hours=24)
+
+        token_record = AccountSecurityToken(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            token_type="email_verification",
+            token_hash=token_hash,
+            created_at=now,
+            expires_at=expires_at,
+            user_agent=user_agent,
+            ip_address=ip_address,
+        )
+        await self._security_tokens.add(token_record)
+
+        dispatch_result = await self._email_dispatcher.send_verification_email(
+            recipient_email=user.email,
+            user_name=user.full_name,
+            verification_link=f"/verify-email?token={raw_token}",
+        )
+        await self._session.commit()
+        return raw_token, dispatch_result
+
+    async def verify_email(self, raw_token: str) -> User:
+        """Verify an account email with a single-use token."""
+        token_hash = _hash_token(raw_token.strip())
+        record = await self._security_tokens.get_by_hash_and_type(
+            token_hash, "email_verification"
+        )
+        if record is None:
+            raise InvalidTokenError("Invalid verification token")
+
+        if record.used_at is not None:
+            raise TokenReplayError("Verification token has already been used")
+
+        if _as_utc(record.expires_at) < _utcnow():
+            raise TokenExpiredError("Verification token has expired")
+
+        user = await self._users.get_active_by_id(record.user_id)
+        if user is None or not user.is_active:
+            raise InvalidTokenError("Account is inactive or not found")
+
+        record.used_at = _utcnow()
+        user.is_email_verified = True
+        user.email_verified_at = _utcnow()
+        await self._session.commit()
+        return user
+
+    # ------------------------------------------------------------------
+    # Password Reset
+    # ------------------------------------------------------------------
+
+    async def request_password_reset(
+        self,
+        email: str,
+        *,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
+    ) -> tuple[str | None, dict[str, Any]]:
+        """Generate a one-time password reset token and dispatch email.
+
+        Constant-time failure to prevent email enumeration.
+        """
+        normalized_email = email.strip().lower()
+        user = await self._users.get_by_email(normalized_email)
+        if user is None or not user.is_active:
+            self._password_hasher.verify("dummy_password", get_dummy_password_hash())
+            return None, {"status": "not_configured"}
+
+        latest = await self._security_tokens.get_latest_active_token(
+            user.id, "password_reset"
+        )
+        if latest is not None and _utcnow() - _as_utc(latest.created_at) < timedelta(seconds=60):
+            return None, {"status": "cooldown"}
+
+        await self._security_tokens.invalidate_all_for_user(user.id, "password_reset")
+
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = _hash_token(raw_token)
+        now = _utcnow()
+        expires_at = now + timedelta(hours=1)
+
+        token_record = AccountSecurityToken(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            token_type="password_reset",
+            token_hash=token_hash,
+            created_at=now,
+            expires_at=expires_at,
+            user_agent=user_agent,
+            ip_address=ip_address,
+        )
+        await self._security_tokens.add(token_record)
+
+        dispatch_result = await self._email_dispatcher.send_password_reset_email(
+            recipient_email=user.email,
+            user_name=user.full_name,
+            reset_link=f"/reset-password?token={raw_token}",
+        )
+        await self._session.commit()
+        return raw_token, dispatch_result
+
+    async def reset_password(self, raw_token: str, new_password: str) -> None:
+        """Reset user password, invalidating token and all active refresh sessions."""
+        token_hash = _hash_token(raw_token.strip())
+        record = await self._security_tokens.get_by_hash_and_type(
+            token_hash, "password_reset"
+        )
+        if record is None:
+            raise InvalidTokenError("Invalid or expired password reset token")
+
+        if record.used_at is not None:
+            raise TokenReplayError("Password reset token has already been used")
+
+        if _as_utc(record.expires_at) < _utcnow():
+            raise TokenExpiredError("Password reset token has expired")
+
+        user = await self._users.get_active_by_id(record.user_id)
+        if user is None or not user.is_active:
+            raise InvalidTokenError("Account is inactive or not found")
+
+        record.used_at = _utcnow()
+        user.hashed_password = self._password_hasher.hash(new_password)
+        await self._refresh_sessions.revoke_all_for_user(user.id)
+        await self._session.commit()

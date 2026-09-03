@@ -90,6 +90,8 @@ async def register_customer(
         phone=user.phone,
         role_code="customer",
         phone_verification=PHONE_VERIFICATION_STATUS,
+        is_email_verified=user.is_email_verified,
+        email_verification="not_configured",
     )
 
 
@@ -105,6 +107,8 @@ async def get_customer_me(current_user: CurrentUserDep) -> AuthenticatedUserResp
         role_id=current_user.role_id,
         role_code=role.code if role is not None else "",
         is_active=current_user.is_active,
+        is_email_verified=current_user.is_email_verified,
+        phone=current_user.phone,
     )
 
 

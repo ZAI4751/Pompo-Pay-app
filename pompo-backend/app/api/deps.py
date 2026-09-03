@@ -133,6 +133,22 @@ async def get_current_user(
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
 
 
+async def get_optional_current_user(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)],
+    auth_service: AuthServiceDep,
+) -> User | None:
+    """Resolve current user if Authorization header is present, else None."""
+    if credentials is None:
+        return None
+    try:
+        return await auth_service.get_current_user(credentials.credentials)
+    except AuthError:
+        return None
+
+
+OptionalCurrentUserDep = Annotated[User | None, Depends(get_optional_current_user)]
+
+
 async def require_platform_admin(
     current_user: CurrentUserDep,
     authorization_service: AuthorizationServiceDep,
