@@ -93,17 +93,17 @@ Master Admin origin. **Do not use `*` in production.**
 Set `CORS_ORIGINS` on the backend (see `pompo-backend/.env.example`):
 
 ```env
-# Example production — replace with your real Vercel URL(s)
-CORS_ORIGINS=https://admin.pompo.example,https://pompo-admin.vercel.app
+# Example production — replace extra preview hosts as needed
+CORS_ORIGINS=https://pay.pompo.mw,https://pompo-pay-app.vercel.app
 ```
 
 | Frontend origin | When to add |
 |-----------------|-------------|
-| `http://localhost:3000` | Local dev |
+| `http://localhost:3000` | Local dev only |
 | `http://127.0.0.1:3000` | Local dev (different browser origin) |
-| `https://<project>.vercel.app` | Vercel production default domain |
-| `https://admin.<your-domain>` | Custom production domain |
-| `https://<branch>-<team>.vercel.app` | Preview deployments (if previews call staging API) |
+| `https://pompo-pay-app.vercel.app` | Vercel production (canonical; also unioned in backend code) |
+| `https://pay.pompo.mw` | Public checkout host (canonical; also unioned in backend code) |
+| `https://<branch>-<team>.vercel.app` | Preview deployments (if previews call the production API) |
 
 After changing `CORS_ORIGINS`, redeploy or restart the backend. CORS is enforced
 server-side; frontend changes alone cannot fix a blocked origin.

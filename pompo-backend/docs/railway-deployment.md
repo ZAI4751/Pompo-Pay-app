@@ -171,7 +171,7 @@ Current production-critical Celery usage: **health verification only**
 | Worker | `false` | celery only |
 | One-off job | `migrate` CMD | migrate only, then exit |
 
-**Current head:** `0008_provider_management`
+**Current head:** `0021_account_lifecycle`
 
 Manual one-off (if needed):
 
@@ -198,15 +198,17 @@ See `.env.production.example` for the full checklist (names only).
 
 ## Step 8 — CORS and trusted hosts
 
-Set after you know the admin origin(s):
+Set after you know the admin origin(s). Production code **unions** these
+canonical origins even if `CORS_ORIGINS` omits them, and strips `*` / localhost:
 
 ```env
-# Example — replace with real values
-ALLOWED_HOSTS=api.yourdomain.com,pompo-api-production.up.railway.app
-CORS_ORIGINS=https://admin.yourdomain.com,https://your-project.vercel.app
+ALLOWED_HOSTS=pompo-api-production.up.railway.app
+CORS_ORIGINS=https://pay.pompo.mw,https://pompo-pay-app.vercel.app
 ```
 
-No wildcard `*` in production.
+Add extra legitimate origins (Vercel preview URLs, a future admin hostname)
+as a comma-separated extension of `CORS_ORIGINS`. Do not replace the list with
+`*`.
 
 ---
 

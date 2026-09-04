@@ -8,12 +8,29 @@ from pydantic import Field, PostgresDsn, RedisDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _is_local_browser_origin(origin: str) -> bool:
+    """True for loopback browser origins that must not ship in production CORS."""
+    lowered = origin.lower()
+    return any(
+        marker in lowered
+        for marker in ("localhost", "127.0.0.1", "0.0.0.0", "[::1]")
+    )
+
+
 class AppEnvironment(str, Enum):
     """Supported deployment environments."""
 
     DEVELOPMENT = "development"
     TESTING = "testing"
     PRODUCTION = "production"
+
+
+# Browser origins that must work in production even if Railway CORS_ORIGINS is
+# incomplete. Unioned with the operator allow-list; never used as a wildcard.
+CANONICAL_PRODUCTION_CORS_ORIGINS: tuple[str, ...] = (
+    "https://pay.pompo.mw",
+    "https://pompo-pay-app.vercel.app",
+)
 
 
 class BaseAppSettings(BaseSettings):
@@ -86,8 +103,30 @@ class BaseAppSettings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        """Parse comma-separated CORS origins."""
-        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        """Parse comma-separated CORS origins.
+
+        Production always unions the canonical public checkout and Vercel
+        admin hosts without dropping other explicit origins. Wildcards and
+        localhost origins are stripped in production.
+        """
+        origins: list[str] = []
+        seen: set[str] = set()
+        production = self.app_env == AppEnvironment.PRODUCTION
+        for raw in self.cors_origins.split(","):
+            origin = raw.strip().rstrip("/")
+            if not origin:
+                continue
+            if production and (origin == "*" or _is_local_browser_origin(origin)):
+                continue
+            if origin not in seen:
+                origins.append(origin)
+                seen.add(origin)
+        if production:
+            for extra in CANONICAL_PRODUCTION_CORS_ORIGINS:
+                if extra not in seen:
+                    origins.append(extra)
+                    seen.add(extra)
+        return origins
 
     @property
     def database_url_str(self) -> str:
@@ -121,8 +160,7 @@ class DevelopmentSettings(BaseAppSettings):
     # The admin frontend is reached as either host name during local work, and
     # they are distinct origins to the browser. Listing both here avoids the
     # failure where the app loads but every API call is blocked by CORS.
-    # Production inherits the restrictive base default and must set
-    # CORS_ORIGINS explicitly.
+    # Production unions canonical public hosts and strips localhost / wildcards.
     allowed_hosts: str = "localhost,127.0.0.1,[::1],backend"
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
@@ -156,6 +194,7 @@ class ProductionSettings(BaseAppSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     log_json: bool = True
     database_echo: bool = False
+    cors_origins: str = ",".join(CANONICAL_PRODUCTION_CORS_ORIGINS)
 
 
 def _resolve_settings_class() -> type[BaseAppSettings]:

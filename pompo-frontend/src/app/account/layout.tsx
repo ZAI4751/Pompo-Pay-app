@@ -5,6 +5,7 @@ import { AccountShell } from "@/components/account/AccountShell";
 export const metadata: Metadata = {
   title: "POMPO account",
   description: "Manage your POMPO customer account, activity, and security.",
+  robots: { index: false, follow: false },
 };
 
 export default function AccountLayout({ children }: { children: React.ReactNode }) {

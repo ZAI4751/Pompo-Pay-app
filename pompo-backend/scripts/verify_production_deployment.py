@@ -167,12 +167,61 @@ class ProductionVerifier:
     async def verify_openapi_hidden(self) -> bool:
         """Verify OpenAPI docs are hidden (DEBUG=false)."""
         print("\n[Debug Mode]")
-        return await self._test_endpoint(
-            "OpenAPI docs hidden",
+        docs_ok = await self._test_endpoint(
+            "Swagger UI hidden",
             "GET",
             "/docs",
-            expected_status=404,  # Should be 404 in production
+            expected_status=404,
         )
+        schema_ok = await self._test_endpoint(
+            "OpenAPI schema hidden",
+            "GET",
+            "/openapi.json",
+            expected_status=404,
+        )
+        return docs_ok and schema_ok
+
+    async def verify_cors_canonical_origins(self) -> bool:
+        """Public checkout and Vercel admin must be allowed; unknown origins must not."""
+        print("\n[CORS]")
+        if not self.client:
+            return False
+        login = f"{self.api_base_url}/api/v1/auth/login"
+        allowed = [
+            "https://pay.pompo.mw",
+            "https://pompo-pay-app.vercel.app",
+        ]
+        ok = True
+        for origin in allowed:
+            response = await self.client.options(
+                login,
+                headers={
+                    "Origin": origin,
+                    "Access-Control-Request-Method": "POST",
+                    "Access-Control-Request-Headers": "content-type,authorization",
+                },
+            )
+            granted = response.headers.get("access-control-allow-origin") == origin
+            self.results[f"CORS allow {origin}"] = {
+                "status": "✅ PASS" if granted else "❌ FAIL",
+                "actual": response.status_code,
+                "allow_origin": response.headers.get("access-control-allow-origin"),
+            }
+            ok = ok and granted
+        attacker = "https://evil.example"
+        blocked = await self.client.options(
+            login,
+            headers={
+                "Origin": attacker,
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        attacker_granted = blocked.headers.get("access-control-allow-origin") == attacker
+        self.results["CORS deny unknown origin"] = {
+            "status": "✅ PASS" if not attacker_granted else "❌ FAIL",
+            "allow_origin": blocked.headers.get("access-control-allow-origin"),
+        }
+        return ok and not attacker_granted
 
     async def verify_database_connectivity(self) -> bool:
         """Verify database is accessible."""
@@ -226,39 +275,8 @@ class ProductionVerifier:
         return no_auth_ok and invalid_token_ok
 
     async def verify_cors(self) -> bool:
-        """Verify CORS headers are present."""
-        print("\n[CORS Headers]")
-
-        if not self.client:
-            return False
-
-        try:
-            # Preflight request
-            response = await self.client.options(
-                f"{self.api_base_url}/api/v1/health/live",
-                headers={
-                    "Origin": "https://admin.yourdomain.com",
-                    "Access-Control-Request-Method": "GET",
-                },
-            )
-
-            has_cors = "access-control-allow-origin" in response.headers
-            self.results["CORS headers present"] = {
-                "status": "✅ PASS" if has_cors else "⚠️  WARNING",
-                "cors_origin": response.headers.get(
-                    "access-control-allow-origin", "NOT SET"
-                ),
-                "note": "CORS should be configured for your frontend domain",
-            }
-
-            return has_cors
-
-        except Exception as e:
-            self.results["CORS headers present"] = {
-                "status": "❌ FAIL",
-                "error": str(e)[:100],
-            }
-            return False
+        """Verify canonical production origins are allowed and unknown origins are not."""
+        return await self.verify_cors_canonical_origins()
 
     async def verify_rate_limiting(self) -> bool:
         """Verify rate limiting is functional."""

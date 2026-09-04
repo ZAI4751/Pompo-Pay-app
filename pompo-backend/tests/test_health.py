@@ -46,6 +46,15 @@ async def test_request_id_header_present(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_debug_schema_routes_are_available_in_testing(client: AsyncClient) -> None:
+    """Testing keeps OpenAPI so contract tests can call app.openapi()."""
+    docs = await client.get("/docs")
+    schema = await client.get("/openapi.json")
+    assert docs.status_code == 200
+    assert schema.status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_custom_request_id_preserved(client: AsyncClient) -> None:
     """Custom X-Request-ID should be preserved in the response."""
     custom_id = "test-request-id-12345"

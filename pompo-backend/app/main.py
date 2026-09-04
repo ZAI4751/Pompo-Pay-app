@@ -56,12 +56,14 @@ def create_app() -> FastAPI:
     create_session_factory()
     redis_service = RedisService(settings)
 
+    schema_enabled = settings.debug
     app = FastAPI(
         title=settings.app_name,
         version=settings.app_version,
         description="POMPO — Payment bridge for Malawi POS systems",
-        docs_url="/docs" if settings.debug else None,
-        redoc_url="/redoc" if settings.debug else None,
+        docs_url="/docs" if schema_enabled else None,
+        redoc_url="/redoc" if schema_enabled else None,
+        openapi_url="/openapi.json" if schema_enabled else None,
         lifespan=lifespan,
     )
 

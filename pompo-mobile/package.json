@@ -13,7 +13,8 @@
     "test": "jest",
     "export:android": "expo export --platform android",
     "android:prebuild": "expo prebuild --platform android --non-interactive",
-    "android:apk": "node ./scripts/assemble-android-apk.js"
+    "android:apk": "node ./scripts/assemble-android-apk.js",
+    "android:cert-fingerprint": "node ./scripts/print-android-cert-fingerprint.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

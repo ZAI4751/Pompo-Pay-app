@@ -16,6 +16,7 @@ export const metadata: Metadata = {
   },
   description: "Pompo payment platform -- master admin portal",
   applicationName: "POMPO",
+  robots: { index: false, follow: false },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "48x48" },
