@@ -32,7 +32,6 @@ from app.core.security.password import PasswordHasher
 from app.models import (
     Branch,
     Merchant,
-    PaymentProvider,
     Permission,
     Receipt,
     Role,
@@ -43,7 +42,7 @@ from app.models import (
 )
 from app.models.base import Base
 from app.models.customer import MerchantFavorite, PaymentRequest
-from app.models.enums import PaymentRequestStatus, ProviderCode, TransactionStatus
+from app.models.enums import PaymentRequestStatus, TransactionStatus
 from app.payments.catalog import seed_provider_catalog
 from app.services.customer import CustomerService
 from app.services.notification import NotificationService
@@ -114,9 +113,7 @@ async def _merchant_graph(session: AsyncSession) -> tuple[Merchant, Branch, Till
     )
     branch = Branch(merchant=merchant, name="Lilongwe")
     till = Till(branch=branch, code="TILL-1", name="Counter 1")
-    session.add_all(
-        [merchant, branch, till, PaymentProvider(code=ProviderCode.SIMULATED, display_name="Simulated")]
-    )
+    session.add_all([merchant, branch, till])
     await session.commit()
     return merchant, branch, till
 
@@ -210,6 +207,7 @@ async def _pay_success(
             "amount": Decimal("1500.00"),
             "currency": "MWK",
             "payment_method": "mobile_money",
+            "provider_code": "simulated",
             "idempotency_key": f"pay-{uuid.uuid4().hex}",
         },
         require_merchant_scope=False,

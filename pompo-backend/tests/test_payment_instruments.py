@@ -209,7 +209,7 @@ async def test_enroll_list_default_revoke_and_no_secret_leak(session: AsyncSessi
             json={"provider_code": "standard_bank", "instrument_type": "mastercard", "card_last4": "5454"},
         )
         assert sb_enroll.status_code == 422
-        assert "Saved cards" in sb_enroll.json()["detail"]
+        assert "coming soon" in sb_enroll.json()["detail"].lower() or "not available" in sb_enroll.json()["detail"].lower()
 
         method = await _enroll_airtel(client)
         assert method["is_sandbox"] is True

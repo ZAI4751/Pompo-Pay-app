@@ -234,9 +234,12 @@ async def seed_provider_catalog(
 ) -> int:
     """Insert missing catalog rows.
 
-    Existing rows keep operator-controlled flags (``is_active``, health).
-    Additive catalog fields (payment methods, new capability keys) are merged
-    so sandbox rails pick up later instrument/card support without a recreate.
+    Existing non-simulated rows keep operator-controlled flags (``is_active``,
+    health, priority). Simulated sandbox rows restore canonical catalog
+    ``is_active``, health, and priority so default routing stays deterministic
+    (``simulated`` at priority 1). Additive catalog fields (payment methods,
+    new capability keys) are merged so sandbox rails pick up later
+    instrument/card support without a recreate.
 
     Returns the number of rows created.
     """
@@ -247,9 +250,12 @@ async def seed_provider_catalog(
             select(PaymentProvider).where(PaymentProvider.code == definition.code)
         )
         if existing is not None:
-            if existing.is_simulated and (existing.is_active != definition.is_active or existing.health_state != definition.health_state):
-                existing.is_active = definition.is_active
-                existing.health_state = definition.health_state
+            if existing.is_simulated:
+                if existing.is_active != definition.is_active or existing.health_state != definition.health_state:
+                    existing.is_active = definition.is_active
+                    existing.health_state = definition.health_state
+                if existing.priority != definition.priority:
+                    existing.priority = definition.priority
             methods = list(existing.supported_payment_methods or [])
             method_changed = False
             for method in definition.supported_payment_methods:

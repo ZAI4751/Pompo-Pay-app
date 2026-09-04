@@ -114,7 +114,7 @@ export default function CustomerPaymentDetail() {
         <SecondaryButton
           label="Ask for a share"
           onPress={() =>
-            router.push({ pathname: "/customer/requests/index", params: { from: payment.reference } })
+            router.push({ pathname: "/customer/requests", params: { from: payment.reference } })
           }
         />
       ) : null}

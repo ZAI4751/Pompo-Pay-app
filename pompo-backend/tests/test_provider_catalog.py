@@ -7,6 +7,7 @@ from collections.abc import AsyncGenerator
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -102,6 +103,31 @@ async def test_provider_seed_is_idempotent_and_matches_registry_codes(
     assert service.adapter_for("airtel_money").live_contract_ready is False
     assert service.adapter_for("tnm_mpamba").live_contract_ready is False
     assert service.adapter_for("standard_bank").live_contract_ready is False
+
+
+@pytest.mark.asyncio
+async def test_seed_restores_simulated_priority_on_incomplete_stub(
+    session: AsyncSession,
+) -> None:
+    session.add(PaymentProvider(code=ProviderCode.SIMULATED, display_name="Stub"))
+    await session.flush()
+    stub = await session.scalar(
+        select(PaymentProvider).where(PaymentProvider.code == ProviderCode.SIMULATED)
+    )
+    assert stub is not None
+    assert stub.priority == 100
+    await seed_provider_catalog(session)
+    await session.commit()
+    simulated = await session.scalar(
+        select(PaymentProvider).where(PaymentProvider.code == ProviderCode.SIMULATED)
+    )
+    pending = await session.scalar(
+        select(PaymentProvider).where(PaymentProvider.code == ProviderCode.SIMULATED_PENDING)
+    )
+    assert simulated is not None
+    assert simulated.priority == 1
+    assert pending is not None
+    assert pending.priority == 2
 
 
 @pytest.mark.asyncio

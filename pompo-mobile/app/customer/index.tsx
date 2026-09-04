@@ -98,7 +98,7 @@ export default function CustomerHome() {
               <ActionTile
                 label="Requests"
                 icon="send-outline"
-                onPress={() => router.push("/customer/requests/index")}
+                onPress={() => router.push("/customer/requests")}
               />
               <ActionTile
                 label="Inbox"
