@@ -8,6 +8,7 @@ from app.api.deps import AuthServiceDep, CurrentUserDep, OptionalCurrentUserDep
 from app.core.security.exceptions import (
     AccountDeactivatedError,
     AccountStateError,
+    AdminAccessDeniedError,
     AuthError,
     InactiveUserError,
     InvalidConfirmationError,
@@ -41,6 +42,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 _GENERIC_LOGIN_ERROR = "Incorrect email or password"
 _GENERIC_TOKEN_ERROR = "Invalid or expired refresh token"
 _DEACTIVATED_LOGIN_DETAIL = "This POMPO account is deactivated."
+_ADMIN_LOGIN_DENIED_DETAIL = "This account cannot access Master Admin."
 _GENERIC_REACTIVATION_REQUEST = (
     "If a deactivated account matches that email, reactivation instructions have been sent."
 )
@@ -82,6 +84,43 @@ async def login(payload: LoginRequest, request: Request, auth_service: AuthServi
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=_DEACTIVATED_LOGIN_DETAIL,
+        ) from exc
+    except (InvalidCredentialsError, InactiveUserError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=_GENERIC_LOGIN_ERROR
+        ) from exc
+
+    return _token_pair(tokens)
+
+
+@router.post("/admin/login", response_model=TokenResponse)
+async def admin_login(
+    payload: LoginRequest, request: Request, auth_service: AuthServiceDep
+) -> TokenResponse:
+    """Master Admin authentication. Non-admin accounts are not issued tokens.
+
+    Unknown email and wrong password return the same generic 401 as
+    ``/auth/login``. A correct password on a customer or merchant account
+    returns 403 without a session. Deactivated platform admins return 403
+    with the deactivation detail so reactivation can start.
+    """
+    user_agent, ip_address = _client_context(request)
+    try:
+        tokens, _user = await auth_service.admin_login(
+            email=payload.email,
+            password=payload.password,
+            user_agent=user_agent,
+            ip_address=ip_address,
+        )
+    except AccountDeactivatedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=_DEACTIVATED_LOGIN_DETAIL,
+        ) from exc
+    except AdminAccessDeniedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=_ADMIN_LOGIN_DENIED_DETAIL,
         ) from exc
     except (InvalidCredentialsError, InactiveUserError) as exc:
         raise HTTPException(

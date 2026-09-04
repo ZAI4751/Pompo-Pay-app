@@ -83,8 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { ok: true };
       },
       async logout() {
-        await api.logout();
         setUser(null);
+        await api.logout();
       },
       async refreshUser() {
         const me = await api.me();

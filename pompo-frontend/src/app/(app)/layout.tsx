@@ -11,14 +11,22 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { AppShellProvider } from "@/components/layout/AppShellContext";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { isPlatformAdminRole } from "@/lib/auth/adminEligibility";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { status } = useAuth();
+  const { status, user, logout } = useAuth();
   const router = useRouter();
+  const adminSession = status === "authenticated" && isPlatformAdminRole(user?.role_code);
 
   useEffect(() => {
-    if (status === "unauthenticated") router.replace("/login");
-  }, [status, router]);
+    if (status === "unauthenticated") {
+      router.replace("/login");
+      return;
+    }
+    if (status === "authenticated" && !isPlatformAdminRole(user?.role_code)) {
+      void logout();
+    }
+  }, [status, user, logout, router]);
 
   if (status === "loading") {
     return (
@@ -32,7 +40,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (status === "unauthenticated") {
+  if (status === "unauthenticated" || !adminSession) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <p className="text-sm text-text-muted">Redirecting to sign in…</p>

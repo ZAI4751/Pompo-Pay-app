@@ -23,7 +23,8 @@ the original payment. A different fingerprint with the same key is `409`.
 
 | Flow | Method | Path | Auth | Notes |
 |---|---|---|---|---|
-| Login | POST | `/auth/login` | none | `{email, password}` → `{access_token, refresh_token, token_type, expires_in}`. Unknown/wrong/suspended → `401`. Correct password on a deactivated account → `403` (no tokens). |
+| Login | POST | `/auth/login` | none | `{email, password}` → `{access_token, refresh_token, token_type, expires_in}`. Unknown/wrong/suspended → `401`. Correct password on a deactivated account → `403` (no tokens). Mobile and public checkout use this endpoint. |
+| Master Admin login | POST | `/auth/admin/login` | none | Same credential shape. Non-`platform_admin` accounts are **not** issued tokens (`403`, generic denial). Unknown/wrong password → same generic `401` as `/auth/login`. Mobile must not call this. |
 | Refresh | POST | `/auth/refresh` | none | `{refresh_token}` → new token pair. Failed refresh is `401`. Deactivated accounts are rejected. |
 | Logout | POST | `/auth/logout` | none | `{refresh_token}` → `204` even if the token is already invalid |
 | Current user | GET | `/auth/me` | access | Includes `role_code` and `account_status`. Does **not** include permission catalogs. Rejected after deactivation. |

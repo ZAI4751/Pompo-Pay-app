@@ -21,6 +21,7 @@ from app.core.logging import get_logger
 from app.core.security.exceptions import (
     AccountDeactivatedError,
     AccountStateError,
+    AdminAccessDeniedError,
     InactiveUserError,
     InvalidConfirmationError,
     InvalidCredentialsError,
@@ -150,6 +151,48 @@ class AuthService:
 
         if not self._password_hasher.verify(password, user.hashed_password):
             raise InvalidCredentialsError("Incorrect password")
+
+        if user.lifecycle_status is AccountLifecycleStatus.DEACTIVATED:
+            raise AccountDeactivatedError("Account is deactivated")
+
+        if not user.can_authenticate:
+            raise InvalidCredentialsError("Account is inactive")
+
+        user.last_login_at = _utcnow()
+        tokens = await self._issue_new_session(
+            user, family_id=None, user_agent=user_agent, ip_address=ip_address
+        )
+        await self._session.commit()
+        return tokens, user
+
+    async def admin_login(
+        self,
+        email: str,
+        password: str,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
+    ) -> tuple[AuthTokens, User]:
+        """Authenticate a platform administrator for Master Admin.
+
+        Credential failures use the same generic path as ``login``. A
+        correct password on a non-``platform_admin`` account raises
+        ``AdminAccessDeniedError`` and does **not** issue tokens, so a
+        customer cannot establish a Master Admin session. Deactivated
+        platform admins still raise ``AccountDeactivatedError``.
+        """
+        email = email.strip().lower()
+        user = await self._users.get_by_email(email)
+
+        if user is None:
+            self._password_hasher.verify(password, get_dummy_password_hash())
+            raise InvalidCredentialsError("Unknown email")
+
+        if not self._password_hasher.verify(password, user.hashed_password):
+            raise InvalidCredentialsError("Incorrect password")
+
+        role = user.role
+        if role is None or role.code != "platform_admin":
+            raise AdminAccessDeniedError("Account cannot access Master Admin")
 
         if user.lifecycle_status is AccountLifecycleStatus.DEACTIVATED:
             raise AccountDeactivatedError("Account is deactivated")

@@ -157,20 +157,21 @@ Services never call `fetch` from page components. Pages consume
 `src/lib/api/services/*` which return `ApiResult<T>`. Bearer tokens are attached
 by `src/lib/api/session.ts`, written only by `AuthContext`.
 
-`usePermissions()` is UX only. If `GET /rbac/roles/{id}` is forbidden (for
-example a merchant owner without `roles:read`), `permissionCodes` is `null` and
-the UI does **not** invent grants — gated nav stays visible so we do not hide
-real capabilities, and the API still returns 403.
+`usePermissions()` is UX only. If `GET /rbac/roles/{id}` is forbidden,
+`permissionCodes` is `null` and `hasPermission` is fail-closed (`false`).
+Backend authorization remains authoritative.
 
 ## Authentication architecture
 
 `AuthContext` (`src/lib/auth/AuthContext.tsx`) owns the entire session
 lifecycle:
-- **Login** — calls real `/auth/login`, then real `/auth/me`, stores both
-  tokens.
-- **Session restore on reload** — tokens live in `sessionStorage`
+- **Login** — calls real `/auth/admin/login`, then real `/auth/me`. A
+  customer or merchant account is rejected by the backend and never stored
+  as a Master Admin session. Restore also refuses `role_code !== platform_admin`.
+- **Session restore on reload** — admin tokens live in `sessionStorage`
   (deliberately not `localStorage`: a shared/kiosk machine shouldn't keep a
-  session alive across browser restarts) under one key. On mount, tries
+  Master Admin session alive across browser restarts) under `pompo_admin_session`.
+  On mount, tries
   `/auth/me` with the stored access token; if that fails, tries
   `/auth/refresh` once before giving up and clearing the session.
 - **Logout** — calls real `/auth/logout` (revokes the refresh session

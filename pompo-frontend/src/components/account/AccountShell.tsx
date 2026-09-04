@@ -7,6 +7,7 @@ import { Lock } from "lucide-react";
 import { useCustomerSession } from "@/lib/customer/CustomerSessionProvider";
 import { ACCOUNT_NAV } from "@/lib/customer/customerAccount";
 import { PUBLIC_CHECKOUT_ORIGIN } from "@/lib/checkout/publicCheckout";
+import { resolveCheckoutReturnPath } from "@/lib/customer/sessionStore";
 import { CustomerAuthCard } from "@/components/account/CustomerAuthCard";
 
 export function AccountShell({ children }: { children: React.ReactNode }) {
@@ -14,7 +15,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
   const { user, status, signOut } = useCustomerSession();
   const from = searchParams.get("from");
-  const checkoutReturn = from?.startsWith("/p/") ? from : null;
+  const checkoutReturn = resolveCheckoutReturnPath(from);
 
   return (
     <div className="checkout-root min-h-dvh text-text flex flex-col">
@@ -58,10 +59,13 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
             <nav className="-mx-1 mb-4 flex gap-1 overflow-x-auto pb-1" aria-label="Account">
               {ACCOUNT_NAV.map((item) => {
                 const active = item.href === "/account" ? pathname === "/account" : pathname.startsWith(item.href);
+                const href = checkoutReturn
+                  ? `${item.href}?from=${encodeURIComponent(checkoutReturn)}`
+                  : item.href;
                 return (
                   <Link
                     key={item.href}
-                    href={item.href}
+                    href={href}
                     className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${
                       active ? "bg-primary text-primary-foreground" : "bg-surface-inset text-text-muted"
                     }`}

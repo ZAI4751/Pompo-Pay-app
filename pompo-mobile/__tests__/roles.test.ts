@@ -12,4 +12,9 @@ describe("mode switching", () => {
     expect(canUseMerchantMode("merchant_owner")).toBe(true);
     expect(canUseMerchantMode("cashier")).toBe(true);
   });
+
+  test("customer accounts cannot keep a merchant override", () => {
+    expect(canUseMerchantMode("customer")).toBe(false);
+    expect(canUseMerchantMode("customer", "m1")).toBe(false);
+  });
 });

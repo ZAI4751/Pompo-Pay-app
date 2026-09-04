@@ -240,6 +240,33 @@ describe("PompoApi", () => {
     expect(await store.getRefreshToken()).toBe("refresh-new");
   });
 
+  it("clears local tokens before waiting for logout network", async () => {
+    const store = memoryStore({ access: "access-old", refresh: "refresh-old" });
+    let finishLogout: ((value: Response) => void) | undefined;
+    const fetchImpl = jest.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/auth/logout")) {
+        return await new Promise<Response>((settle) => {
+          finishLogout = settle;
+        });
+      }
+      return jsonResponse({ detail: "no" }, 404);
+    }) as typeof fetch;
+    const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
+    const pending = api.logout();
+    await new Promise<void>((resolve) => {
+      const timer = setInterval(() => {
+        if (finishLogout) {
+          clearInterval(timer);
+          resolve();
+        }
+      }, 5);
+    });
+    expect(await store.getAccessToken()).toBeNull();
+    expect(await store.getRefreshToken()).toBeNull();
+    finishLogout?.(new Response(null, { status: 204 }));
+    await pending;
+  });
+
   it("sends an idempotency key with from-qr", async () => {
     const store = memoryStore({ access: "access-1" });
     const fetchImpl = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

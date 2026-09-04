@@ -149,15 +149,20 @@ export class PompoApi {
 
   async logout(): Promise<void> {
     const refresh = await this.deps.store.getRefreshToken();
-    if (refresh) {
+    await this.deps.store.clear();
+    if (!refresh) {
+      return;
+    }
+    try {
       await this.request<void>("/auth/logout", {
         method: "POST",
         body: { refresh_token: refresh },
         auth: false,
         acceptEmpty: true,
       });
+    } catch {
+      // Local session is already cleared. Revocation is best-effort.
     }
-    await this.deps.store.clear();
   }
 
   async me(): Promise<ApiResult<AuthenticatedUser>> {

@@ -15,9 +15,11 @@ PostgreSQL on host port 5432 will shadow the container's published port).
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import AsyncGenerator
 
 from httpx import AsyncClient
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import pytest
@@ -37,10 +39,6 @@ async def seeded_user(db_session: AsyncSession) -> AsyncGenerator[User, None]:
     violate `roles.code`'s unique constraint against data left over from
     the first.
     """
-    import uuid
-
-    from sqlalchemy import delete
-
     hasher = PasswordHasher()
     unique = uuid.uuid4().hex[:8]
     role = Role(code=f"cashier_api_test_{unique}", name="Cashier")
@@ -346,4 +344,230 @@ async def test_deactivate_account_revokes_access_and_refresh(
     )
     assert login_again.status_code == 403
     assert "deactivated" in login_again.json()["detail"].lower()
+
+
+@pytest.fixture
+async def platform_admin(db_session: AsyncSession) -> AsyncGenerator[User, None]:
+    hasher = PasswordHasher()
+    unique = uuid.uuid4().hex[:8]
+    role = await db_session.scalar(select(Role).where(Role.code == "platform_admin"))
+    created_role = False
+    if role is None:
+        role = Role(code="platform_admin", name="Platform administrator", is_system_role=True)
+        db_session.add(role)
+        await db_session.flush()
+        created_role = True
+    user = User(
+        role=role,
+        email=f"admin-login-{unique}@pompo.mw",
+        full_name="Auth API Platform Admin",
+        hashed_password=hasher.hash("correct-horse-battery-staple"),
+        is_active=True,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    yield user
+    await db_session.execute(delete(User).where(User.id == user.id))
+    if created_role:
+        await db_session.execute(delete(Role).where(Role.id == role.id))
+    await db_session.commit()
+
+
+@pytest.fixture
+async def merchant_user(db_session: AsyncSession) -> AsyncGenerator[User, None]:
+    hasher = PasswordHasher()
+    unique = uuid.uuid4().hex[:8]
+    role = await db_session.scalar(select(Role).where(Role.code == "merchant_owner"))
+    created_role = False
+    if role is None:
+        role = Role(code="merchant_owner", name="Merchant owner")
+        db_session.add(role)
+        await db_session.flush()
+        created_role = True
+    user = User(
+        role=role,
+        email=f"merchant-login-{unique}@shop.mw",
+        full_name="Auth API Merchant",
+        hashed_password=hasher.hash("correct-horse-battery-staple"),
+        is_active=True,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    yield user
+    await db_session.execute(delete(User).where(User.id == user.id))
+    if created_role:
+        await db_session.execute(delete(Role).where(Role.id == role.id))
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_admin_login_rejects_customer_without_tokens(
+    client: AsyncClient, seeded_user: User
+) -> None:
+    response = await client.post(
+        "/api/v1/auth/admin/login",
+        json={"email": seeded_user.email, "password": "correct-horse-battery-staple"},
+    )
+    assert response.status_code == 403
+    body = response.json()
+    assert body["detail"] == "This account cannot access Master Admin."
+    assert "access_token" not in body
+    assert "refresh_token" not in body
+
+    customer_login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": seeded_user.email, "password": "correct-horse-battery-staple"},
+    )
+    assert customer_login.status_code == 200
+    token = customer_login.json()["access_token"]
+    forbidden = await client.get(
+        "/api/v1/system/config",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert forbidden.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_admin_login_rejects_merchant_without_tokens(
+    client: AsyncClient, merchant_user: User
+) -> None:
+    response = await client.post(
+        "/api/v1/auth/admin/login",
+        json={"email": merchant_user.email, "password": "correct-horse-battery-staple"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "This account cannot access Master Admin."
+    assert "access_token" not in response.json()
+
+
+@pytest.mark.asyncio
+async def test_admin_login_unknown_email_returns_generic_401(client: AsyncClient) -> None:
+    response = await client.post(
+        "/api/v1/auth/admin/login",
+        json={"email": "nobody@pompo.mw", "password": "whatever"},
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Incorrect email or password"
+
+
+@pytest.mark.asyncio
+async def test_admin_login_wrong_password_returns_generic_401(
+    client: AsyncClient, platform_admin: User
+) -> None:
+    response = await client.post(
+        "/api/v1/auth/admin/login",
+        json={"email": platform_admin.email, "password": "wrong-password"},
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Incorrect email or password"
+
+
+@pytest.mark.asyncio
+async def test_admin_login_issues_session_for_platform_admin(
+    client: AsyncClient, platform_admin: User
+) -> None:
+    response = await client.post(
+        "/api/v1/auth/admin/login",
+        json={"email": platform_admin.email, "password": "correct-horse-battery-staple"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["token_type"] == "bearer"
+    token = body["access_token"]
+    me = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.status_code == 200
+    assert me.json()["role_code"] == "platform_admin"
+    config = await client.get(
+        "/api/v1/system/config",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert config.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_admin_logout_then_fresh_admin_login(
+    client: AsyncClient, platform_admin: User
+) -> None:
+    first = await client.post(
+        "/api/v1/auth/admin/login",
+        json={"email": platform_admin.email, "password": "correct-horse-battery-staple"},
+    )
+    assert first.status_code == 200
+    refresh = first.json()["refresh_token"]
+    logout = await client.post("/api/v1/auth/logout", json={"refresh_token": refresh})
+    assert logout.status_code == 204
+    replay = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh})
+    assert replay.status_code == 401
+    second = await client.post(
+        "/api/v1/auth/admin/login",
+        json={"email": platform_admin.email, "password": "correct-horse-battery-staple"},
+    )
+    assert second.status_code == 200
+    me = await client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {second.json()['access_token']}"},
+    )
+    assert me.status_code == 200
+    assert me.json()["email"] == platform_admin.email
+
+
+@pytest.mark.asyncio
+async def test_customer_jwt_cannot_access_admin_endpoints(
+    client: AsyncClient, seeded_user: User
+) -> None:
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": seeded_user.email, "password": "correct-horse-battery-staple"},
+    )
+    assert login.status_code == 200
+    token = login.json()["access_token"]
+    response = await client.get(
+        "/api/v1/system/config",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_rejected_admin_login_does_not_block_customer_login(
+    client: AsyncClient, seeded_user: User
+) -> None:
+    denied = await client.post(
+        "/api/v1/auth/admin/login",
+        json={"email": seeded_user.email, "password": "correct-horse-battery-staple"},
+    )
+    assert denied.status_code == 403
+    allowed = await client.post(
+        "/api/v1/auth/login",
+        json={"email": seeded_user.email, "password": "correct-horse-battery-staple"},
+    )
+    assert allowed.status_code == 200
+    assert allowed.json()["access_token"]
+
+
+@pytest.mark.asyncio
+async def test_logout_then_fresh_login_issues_new_tokens(
+    client: AsyncClient, seeded_user: User
+) -> None:
+    first = await client.post(
+        "/api/v1/auth/login",
+        json={"email": seeded_user.email, "password": "correct-horse-battery-staple"},
+    )
+    assert first.status_code == 200
+    refresh_token = first.json()["refresh_token"]
+    logout = await client.post("/api/v1/auth/logout", json={"refresh_token": refresh_token})
+    assert logout.status_code == 204
+    second = await client.post(
+        "/api/v1/auth/login",
+        json={"email": seeded_user.email, "password": "correct-horse-battery-staple"},
+    )
+    assert second.status_code == 200
+    assert second.json()["access_token"]
+    assert second.json()["refresh_token"] != refresh_token
+    me = await client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {second.json()['access_token']}"},
+    )
+    assert me.status_code == 200
+    assert me.json()["email"] == seeded_user.email
 

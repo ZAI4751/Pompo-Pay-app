@@ -40,6 +40,8 @@
   "exclude": [
     "node_modules",
     "src/lib/checkout/publicCheckout.test.ts",
-    "src/lib/customer/customerAccount.test.ts"
+    "src/lib/customer/customerAccount.test.ts",
+    "src/lib/customer/sessionStore.test.ts",
+    "src/lib/auth/adminEligibility.test.ts"
   ]
 }

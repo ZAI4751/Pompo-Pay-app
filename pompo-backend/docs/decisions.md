@@ -414,3 +414,48 @@ and operators must not retry after timeout without a status query.
 Exactly-once business outcomes still depend on PostgreSQL uniqueness plus
 explicit status reconciliation (later).
 
+---
+
+## 2026-09-04 — Master Admin authentication boundary
+
+**Decision:** Master Admin authenticates through `POST /auth/admin/login`.
+`POST /auth/login` remains the customer/merchant/mobile endpoint and does
+not grant a Master Admin session.
+
+**Why:** Sharing `/auth/login` let an ordinary customer obtain stored admin
+UI tokens and then collect 403s. Eligibility (`role.code == platform_admin`)
+is checked after password verification and **before** tokens are issued.
+Unknown email and wrong password stay the generic 401. Non-admin accounts
+with a correct password receive 403 `"This account cannot access Master
+Admin."` without tokens. Deactivated platform admins still receive the
+deactivation 403 so reactivation can start. Customer JWTs continue to be
+rejected by `require_platform_admin` on admin APIs. JWT `aud` was not added
+in this change because existing admin APIs authorize by role, not audience.
+
+Customer web sessions persist in `localStorage` (`pompo_customer_session`)
+so a later visit can continue payment while the refresh session is valid.
+Admin sessions remain `sessionStorage`. Public checkout stores an
+allowlisted `/p/<id>` return path so login from payment returns to the
+same QR instead of Account Profile.
+
+## 2026-09-04 — Future transaction PIN (not implemented)
+
+**Decision:** Do not introduce a POMPO payment PIN in this sprint.
+
+A future PIN must be a **transaction authorization factor**, not a login
+password replacement and not a substitute for provider authentication
+(Airtel/TNM/card 3-D Secure). Requirements when it is built:
+
+- Store only a salted one-way hash (or an HSM/KMS-backed verifier). Never
+  store plaintext PINs. Never log PINs.
+- Bind verification to the signed-in customer and the payment attempt.
+  A PIN must not bypass instrument eligibility, QR validity, amount
+  rules, or provider authorization.
+- Rate-limit guesses per account and per payment; lock or step-up after
+  repeated failures. Do not allow unlimited guessing.
+- Keep PIN distinct from account password, email verification, and
+  provider OTP/USSD confirmation.
+- Do not put the PIN in JWTs, QR payloads, or client-side recoverable
+  storage.
+
+

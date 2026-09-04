@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { canUseMerchantMode, defaultMode } from "@/domain/roles";
 import { useAuth } from "@/state/AuthProvider";
@@ -16,6 +16,10 @@ export function ModeProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const roleCode = user?.role_code ?? "customer";
   const [override, setOverride] = useState<AppMode | null>(null);
+
+  useEffect(() => {
+    setOverride(null);
+  }, [user?.id]);
   const mode = override ?? defaultMode(roleCode);
   const canSwitch = canUseMerchantMode(roleCode, user?.merchant_id);
 

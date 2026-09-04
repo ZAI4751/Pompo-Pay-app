@@ -13,6 +13,10 @@ export const authService = {
     return apiRequest<TokenResponse>("/auth/login", { method: "POST", body: payload });
   },
 
+  adminLogin(payload: LoginRequest): Promise<ApiResult<TokenResponse>> {
+    return apiRequest<TokenResponse>("/auth/admin/login", { method: "POST", body: payload });
+  },
+
   registerCustomer(payload: {
     email: string;
     password: string;

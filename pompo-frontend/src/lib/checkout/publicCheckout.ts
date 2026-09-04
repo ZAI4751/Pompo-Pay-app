@@ -220,4 +220,23 @@ export function formatReceiptTimestamp(iso: string | null | undefined): string |
   }).format(date);
 }
 
+/** Allowlisted return path for public checkout. Rejects open redirects. */
+export function safeCheckoutReturnPath(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const pathOnly = value.trim().split(/[?#]/, 1)[0] ?? "";
+  if (!/^\/p\/[A-Za-z0-9._~-]+$/.test(pathOnly)) return null;
+  return pathOnly;
+}
+
+export function checkoutPathForPublicId(publicId: string): string | null {
+  return safeCheckoutReturnPath(`/p/${publicId.trim().toUpperCase()}`);
+}
+
+export function catalogMethodKey(item: {
+  provider_code: string;
+  instrument_type: string;
+}): string {
+  return `${item.provider_code}:${item.instrument_type}`;
+}
+
 export const PUBLIC_CHECKOUT_ORIGIN = "https://pay.pompo.mw";

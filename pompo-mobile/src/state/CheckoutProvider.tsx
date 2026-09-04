@@ -1,6 +1,7 @@
 import { randomUUID } from "expo-crypto";
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { useAuth } from "@/state/AuthProvider";
 import type { Payment, QrInspect } from "@/types";
 
 export interface CheckoutSession {
@@ -24,7 +25,20 @@ interface CheckoutState {
 const CheckoutContext = createContext<CheckoutState | null>(null);
 
 export function CheckoutProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [session, setSession] = useState<CheckoutSession | null>(null);
+  const hadUser = useRef(false);
+
+  useEffect(() => {
+    if (user) {
+      hadUser.current = true;
+      return;
+    }
+    if (hadUser.current) {
+      setSession(null);
+      hadUser.current = false;
+    }
+  }, [user]);
 
   const begin = useCallback((raw: string, inspect: QrInspect, amount: string) => {
     const trimmed = raw.trim();

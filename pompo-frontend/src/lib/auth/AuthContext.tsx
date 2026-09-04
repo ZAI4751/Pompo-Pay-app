@@ -5,11 +5,12 @@
  * "session expired -> redirect to /login". API call sites report success/
  * error; this context is the only place that ends a session.
  *
- * Tokens live in memory plus sessionStorage (not localStorage, not cookies).
+ * Tokens live in memory plus sessionStorage (not localStorage). Customer
+ * web sessions are separate (`pompo_customer_session`).
  *
  * Effective permissions are loaded from GET /rbac/roles/{role_id}
  * (permission_codes). /auth/me does not expose them. If that call is
- * forbidden, permissionCodes stays null and the UI does not invent grants.
+ * forbidden, permissionCodes stays null and hasPermission is fail-closed.
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
@@ -17,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { authService } from "@/lib/api/services/auth";
 import { apiRequest } from "@/lib/api/client";
 import { USE_MOCKS } from "@/lib/api/config";
+import { isPlatformAdminRole } from "@/lib/auth/adminEligibility";
 import { isCustomerWebSurface, setAccessToken, setUnauthorizedHandler } from "@/lib/api/session";
 import { getDemoAdminUser, mockRoleDetails } from "@/mocks/data";
 import type { AuthenticatedUser } from "@/lib/types/auth";
@@ -196,6 +198,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void (async () => {
       const meResult = await authService.me(stored.accessToken);
       if (meResult.status === "success") {
+        if (!isPlatformAdminRole(meResult.data.role_code)) {
+          await authService.logout(stored.refreshToken);
+          clearSession();
+          return;
+        }
         const codes = await loadRolePermissionCodes(meResult.data.role_id, stored.accessToken);
         setSession(stored);
         setAccessToken(stored.accessToken);
@@ -217,6 +224,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
         const retriedMe = await authService.me(nextSession.accessToken);
         if (retriedMe.status === "success") {
+          if (!isPlatformAdminRole(retriedMe.data.role_code)) {
+            await authService.logout(nextSession.refreshToken);
+            clearSession();
+            return;
+          }
           const codes = await loadRolePermissionCodes(retriedMe.data.role_id, nextSession.accessToken);
           setSession(nextSession);
           storeSession(nextSession);
@@ -246,7 +258,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return activateDemoSession();
       }
 
-      const result = await authService.login({
+      const result = await authService.adminLogin({
         email: email.trim().toLowerCase(),
         password,
       });
@@ -266,12 +278,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
       const meResult = await authService.me(nextSession.accessToken);
       if (meResult.status === "error") {
+        await authService.logout(nextSession.refreshToken);
         return {
           ok: false,
           error: `Signed in, but could not load your profile. ${meResult.message}`,
           kind: meResult.kind,
           httpStatus: meResult.httpStatus,
           requestId: meResult.requestId,
+        };
+      }
+      if (!isPlatformAdminRole(meResult.data.role_code)) {
+        await authService.logout(nextSession.refreshToken);
+        return {
+          ok: false,
+          error: "This account cannot access Master Admin.",
+          kind: "forbidden",
+          httpStatus: 403,
         };
       }
       const codes = await loadRolePermissionCodes(meResult.data.role_id, nextSession.accessToken);

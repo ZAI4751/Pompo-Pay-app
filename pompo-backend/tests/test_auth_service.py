@@ -17,6 +17,8 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.security.exceptions import (
+    AccountDeactivatedError,
+    AdminAccessDeniedError,
     InactiveUserError,
     InvalidCredentialsError,
     InvalidTokenError,
@@ -28,6 +30,7 @@ from app.core.security.password import PasswordHasher
 from app.models import Role, User
 from app.models.auth import RefreshSession
 from app.models.base import Base
+from app.models.enums import AccountLifecycleStatus
 from app.services.auth import AuthService, _hash_token
 
 
@@ -395,3 +398,156 @@ async def test_logout_is_idempotent(auth_service: AuthService, active_user: User
     tokens, _user = await auth_service.login("grace@chikondi.mw", "correct-horse-battery-staple")
     await auth_service.logout(tokens.refresh_token)
     await auth_service.logout(tokens.refresh_token)  # must not raise second time
+
+
+@pytest.mark.asyncio
+async def test_logout_then_fresh_login_issues_a_new_session(
+    session: AsyncSession, auth_service: AuthService, active_user: User
+) -> None:
+    first, _user = await auth_service.login("grace@chikondi.mw", "correct-horse-battery-staple")
+    await auth_service.logout(first.refresh_token)
+    second, user = await auth_service.login("grace@chikondi.mw", "correct-horse-battery-staple")
+    assert user.id == active_user.id
+    assert second.access_token
+    assert second.refresh_token != first.refresh_token
+    resolved = await auth_service.get_current_user(second.access_token)
+    assert resolved.id == active_user.id
+
+
+@pytest.fixture
+async def platform_admin_user(session: AsyncSession, hasher: PasswordHasher) -> User:
+    role = Role(code="platform_admin", name="Platform administrator", is_system_role=True)
+    user = User(
+        role=role,
+        email="admin@pompo.mw",
+        full_name="Platform Admin",
+        hashed_password=hasher.hash("correct-horse-battery-staple"),
+        is_active=True,
+    )
+    session.add_all([role, user])
+    await session.commit()
+    return user
+
+
+@pytest.fixture
+async def customer_user(session: AsyncSession, hasher: PasswordHasher) -> User:
+    role = Role(code="customer", name="Customer")
+    user = User(
+        role=role,
+        email="customer@chikondi.mw",
+        full_name="Customer User",
+        hashed_password=hasher.hash("correct-horse-battery-staple"),
+        is_active=True,
+    )
+    session.add_all([role, user])
+    await session.commit()
+    return user
+
+
+@pytest.fixture
+async def merchant_user(session: AsyncSession, hasher: PasswordHasher) -> User:
+    role = Role(code="merchant_owner", name="Merchant owner")
+    user = User(
+        role=role,
+        email="owner@shop.mw",
+        full_name="Merchant Owner",
+        hashed_password=hasher.hash("correct-horse-battery-staple"),
+        is_active=True,
+    )
+    session.add_all([role, user])
+    await session.commit()
+    return user
+
+
+@pytest.mark.asyncio
+async def test_admin_login_issues_tokens_for_platform_admin(
+    auth_service: AuthService, platform_admin_user: User
+) -> None:
+    tokens, user = await auth_service.admin_login(
+        "admin@pompo.mw", "correct-horse-battery-staple"
+    )
+    assert user.id == platform_admin_user.id
+    assert user.role.code == "platform_admin"
+    assert tokens.access_token
+    assert tokens.refresh_token
+    resolved = await auth_service.get_current_user(tokens.access_token)
+    assert resolved.id == platform_admin_user.id
+
+
+@pytest.mark.asyncio
+async def test_admin_login_rejects_customer_without_issuing_tokens(
+    session: AsyncSession, auth_service: AuthService, customer_user: User
+) -> None:
+    with pytest.raises(AdminAccessDeniedError):
+        await auth_service.admin_login("customer@chikondi.mw", "correct-horse-battery-staple")
+    from sqlalchemy import select
+
+    stored = (await session.execute(select(RefreshSession))).scalars().all()
+    assert stored == []
+
+
+@pytest.mark.asyncio
+async def test_admin_login_rejects_merchant_without_issuing_tokens(
+    session: AsyncSession, auth_service: AuthService, merchant_user: User
+) -> None:
+    with pytest.raises(AdminAccessDeniedError):
+        await auth_service.admin_login("owner@shop.mw", "correct-horse-battery-staple")
+    from sqlalchemy import select
+
+    stored = (await session.execute(select(RefreshSession))).scalars().all()
+    assert stored == []
+
+
+@pytest.mark.asyncio
+async def test_admin_login_unknown_email_is_invalid_credentials(
+    auth_service: AuthService,
+) -> None:
+    with pytest.raises(InvalidCredentialsError):
+        await auth_service.admin_login("nobody@pompo.mw", "whatever-password")
+
+
+@pytest.mark.asyncio
+async def test_admin_login_wrong_password_is_invalid_credentials(
+    auth_service: AuthService, platform_admin_user: User
+) -> None:
+    with pytest.raises(InvalidCredentialsError):
+        await auth_service.admin_login("admin@pompo.mw", "wrong-password")
+
+
+@pytest.mark.asyncio
+async def test_admin_login_deactivated_customer_is_denied_not_reactivated(
+    session: AsyncSession, auth_service: AuthService, customer_user: User
+) -> None:
+    customer_user.account_status = AccountLifecycleStatus.DEACTIVATED.value
+    await session.commit()
+    with pytest.raises(AdminAccessDeniedError):
+        await auth_service.admin_login("customer@chikondi.mw", "correct-horse-battery-staple")
+
+
+@pytest.mark.asyncio
+async def test_admin_login_deactivated_platform_admin_raises_deactivated(
+    session: AsyncSession, auth_service: AuthService, platform_admin_user: User
+) -> None:
+    platform_admin_user.account_status = AccountLifecycleStatus.DEACTIVATED.value
+    await session.commit()
+    with pytest.raises(AccountDeactivatedError):
+        await auth_service.admin_login("admin@pompo.mw", "correct-horse-battery-staple")
+
+
+@pytest.mark.asyncio
+async def test_customer_login_does_not_become_admin_session(
+    auth_service: AuthService, customer_user: User, platform_admin_user: User
+) -> None:
+    customer_tokens, customer = await auth_service.login(
+        "customer@chikondi.mw", "correct-horse-battery-staple"
+    )
+    assert customer.role.code == "customer"
+    admin_tokens, admin = await auth_service.admin_login(
+        "admin@pompo.mw", "correct-horse-battery-staple"
+    )
+    assert admin.role.code == "platform_admin"
+    assert customer_tokens.refresh_token != admin_tokens.refresh_token
+    resolved_customer = await auth_service.get_current_user(customer_tokens.access_token)
+    resolved_admin = await auth_service.get_current_user(admin_tokens.access_token)
+    assert resolved_customer.id == customer_user.id
+    assert resolved_admin.id == platform_admin_user.id

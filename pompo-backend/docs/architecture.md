@@ -235,7 +235,8 @@ area rather than one giant file:
   `get_current_user`. All business logic; no FastAPI imports.
 - `app/schemas/auth.py` — `LoginRequest`, `RefreshRequest`, `LogoutRequest`,
   `TokenResponse`, `AuthenticatedUserResponse`.
-- `app/api/v1/auth.py` — `POST /auth/login`, `POST /auth/refresh`,
+- `app/api/v1/auth.py` — `POST /auth/login`, `POST /auth/admin/login`,
+  `POST /auth/refresh`,
   `POST /auth/logout`, `GET /auth/me`.
 - `app/api/deps.py` — extended with `AuthServiceDep`, `get_current_user`
   (Bearer-token dependency), `CurrentUserDep`.

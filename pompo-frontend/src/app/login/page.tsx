@@ -10,6 +10,7 @@ import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { PompoMark } from "@/components/brand/PompoMark";
 import { AnimatedPage } from "@/components/motion/AnimatedPage";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { isDeactivatedLoginMessage } from "@/lib/auth/adminEligibility";
 import { USE_MOCKS } from "@/lib/api/config";
 import { messageIn } from "@/lib/motion";
 
@@ -36,9 +37,14 @@ export default function LoginPage() {
     setSubmitting(false);
     if (!result.ok) {
       if (result.httpStatus === 403 || result.kind === "forbidden") {
-        setError("Your POMPO account is deactivated. Use reactivation to restore access.");
+        if (isDeactivatedLoginMessage(result.error)) {
+          setError("Your POMPO account is deactivated. Use reactivation to restore access.");
+          setErrorReference(result.requestId ?? null);
+          router.push("/reactivate");
+          return;
+        }
+        setError(result.error ?? "This account cannot access Master Admin.");
         setErrorReference(result.requestId ?? null);
-        router.push("/reactivate");
         return;
       }
       setError(result.error ?? "Sign in failed. Check your credentials and try again.");

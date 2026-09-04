@@ -2,13 +2,16 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   catalogMethodCopy,
+  catalogMethodKey,
   catalogMethodPresentation,
+  checkoutPathForPublicId,
   checkoutPhaseFromPayment,
   formatMoney,
   humanizeCustomerError,
   isTerminalPaymentStatus,
   paymentCtaLabel,
   sanitizeAmountInput,
+  safeCheckoutReturnPath,
   shouldShowAppInvitation,
   sortCatalogMethods,
   validateStaticAmount,
@@ -94,5 +97,15 @@ describe("public checkout helpers", () => {
       paymentCtaLabel({ authenticated: false, currency: "MWK", amount: null, qrType: "static" }),
       "Continue",
     );
+  });
+
+  it("allowlists checkout return paths and rejects open redirects", () => {
+    assert.equal(safeCheckoutReturnPath("/p/QR123"), "/p/QR123");
+    assert.equal(checkoutPathForPublicId("qr123"), "/p/QR123");
+    assert.equal(safeCheckoutReturnPath("/account/profile"), null);
+    assert.equal(safeCheckoutReturnPath("https://evil.example/p/QR123"), null);
+    assert.equal(safeCheckoutReturnPath("/p/QR123/../admin"), null);
+    assert.equal(safeCheckoutReturnPath("/p/QR123?next=https://evil.example"), "/p/QR123");
+    assert.equal(catalogMethodKey({ provider_code: "airtel_money", instrument_type: "mobile_money" }), "airtel_money:mobile_money");
   });
 });

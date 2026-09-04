@@ -5,8 +5,8 @@
  *
  * Codes come from GET /rbac/roles/{role_id} (permission_codes) after login.
  * /auth/me does not return permissions. When the role call is forbidden,
- * permissionCodes is null: hasPermission returns true so we do not hide
- * capabilities we cannot prove the user lacks.
+ * permissionCodes is null: hasPermission returns false so a non-admin
+ * session cannot appear fully unlocked while APIs return 403.
  */
 
 import { useCallback } from "react";
@@ -17,7 +17,7 @@ export function usePermissions() {
 
   const hasPermission = useCallback(
     (code: string) => {
-      if (permissionCodes === null) return true;
+      if (permissionCodes === null) return false;
       return permissionCodes.includes(code);
     },
     [permissionCodes],

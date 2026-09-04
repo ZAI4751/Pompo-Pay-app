@@ -24,7 +24,9 @@ import type { Payment } from "@/lib/types/payment";
 import {
   type CheckoutPhase,
   catalogMethodCopy,
+  catalogMethodKey,
   catalogMethodPresentation,
+  checkoutPathForPublicId,
   checkoutPhaseFromPayment,
   formatMoney,
   formatReceiptTimestamp,
@@ -36,6 +38,7 @@ import {
   sortCatalogMethods,
   validateStaticAmount,
 } from "@/lib/checkout/publicCheckout";
+import { clearCheckoutDraft, peekCheckoutDraft, writeCheckoutDraft } from "@/lib/customer/sessionStore";
 
 interface PageProps {
   params: Promise<{ publicIdentifier: string }>;
@@ -133,6 +136,12 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
 
         if (qrData.qr_type === "dynamic" && qrData.amount) {
           setAmountInput(qrData.amount);
+        } else {
+          const draft = peekCheckoutDraft();
+          const path = checkoutPathForPublicId(publicId);
+          if (qrData.qr_type === "static" && draft?.path === path && draft.amount) {
+            setAmountInput(draft.amount);
+          }
         }
 
         const catRes = await instrumentsService.catalog();
@@ -140,9 +149,20 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
         if (catRes.status === "success" && catRes.data) {
           const ordered = sortCatalogMethods(catRes.data);
           setCatalog(ordered);
+          const draft = peekCheckoutDraft();
+          const path = checkoutPathForPublicId(publicId);
+          const restored =
+            draft?.path === path && draft.methodKey
+              ? ordered.find(
+                  (method) =>
+                    catalogMethodKey(method) === draft.methodKey &&
+                    catalogMethodPresentation(method).selectable,
+                )
+              : undefined;
           const firstAvailable = ordered.find((method) => catalogMethodPresentation(method).selectable);
-          if (firstAvailable) {
-            setSelectedMethod(firstAvailable);
+          const nextMethod = restored ?? firstAvailable;
+          if (nextMethod) {
+            setSelectedMethod(nextMethod);
           }
         }
 
@@ -159,6 +179,28 @@ export default function PublicWebCheckoutPage({ params }: PageProps) {
       active = false;
     };
   }, [publicId, refreshKey]);
+
+  useEffect(() => {
+    const path = checkoutPathForPublicId(publicId);
+    if (!path) return;
+    if (
+      phase === "success" ||
+      phase === "not_found" ||
+      phase === "expired" ||
+      phase === "revoked" ||
+      phase === "consumed"
+    ) {
+      if (phase === "success") {
+        clearCheckoutDraft();
+      }
+      return;
+    }
+    writeCheckoutDraft({
+      path,
+      amount: amountInput || undefined,
+      methodKey: selectedMethod ? catalogMethodKey(selectedMethod) : undefined,
+    });
+  }, [publicId, amountInput, selectedMethod, phase]);
 
   const handleRetry = () => {
     setPhase("loading");

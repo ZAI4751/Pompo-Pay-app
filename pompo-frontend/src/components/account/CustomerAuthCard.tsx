@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { readCustomerNotice, writeCustomerNotice } from "@/lib/customer/sessionStore";
+import { readCustomerNotice, resolveCheckoutReturnPath, writeCustomerNotice } from "@/lib/customer/sessionStore";
 import { authService } from "@/lib/api/services/auth";
 import { useCustomerSession } from "@/lib/customer/CustomerSessionProvider";
 import { emailDeliveryCopy } from "@/lib/customer/customerAccount";
@@ -30,8 +30,9 @@ export function CustomerAuthCard({ returnTo }: { returnTo: string }) {
       setError("Signed in, but your profile could not be loaded.");
       return;
     }
-    if (returnTo.startsWith("/p/")) {
-      router.push(returnTo);
+    const target = resolveCheckoutReturnPath(returnTo);
+    if (target) {
+      router.replace(target);
     }
   };
 

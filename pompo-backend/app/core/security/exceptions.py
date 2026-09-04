@@ -23,6 +23,10 @@ class InvalidCredentialsError(AuthError):
     """Email/password combination did not authenticate."""
 
 
+class AdminAccessDeniedError(AuthError):
+    """Credentials were valid but the account cannot open Master Admin."""
+
+
 class InactiveUserError(AuthError):
     """The user account exists but is disabled."""
 

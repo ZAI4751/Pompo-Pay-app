@@ -114,10 +114,10 @@ export function CustomerSessionProvider({ children }: { children: React.ReactNod
 
   const signOut = useCallback(async () => {
     const stored = readCustomerSession();
+    clear();
     if (stored?.refreshToken) {
       await authService.logout(stored.refreshToken);
     }
-    clear();
   }, [clear]);
 
   const logoutAllSessions = useCallback(async () => {
