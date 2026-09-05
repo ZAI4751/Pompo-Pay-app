@@ -204,6 +204,10 @@ android {`,
 function hardenGradleProperties() {
   const file = path.join(androidDir, "gradle.properties");
   let text = fs.readFileSync(file, "utf8");
+  text = text.replace(
+    /^org\.gradle\.jvmargs=.*$/m,
+    "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=768m",
+  );
   text = text.replace(/EX_DEV_CLIENT_NETWORK_INSPECTOR=.*/g, "EX_DEV_CLIENT_NETWORK_INSPECTOR=false");
   text = text.replace(/reactNativeArchitectures=.*/g, "reactNativeArchitectures=armeabi-v7a,arm64-v8a");
   if (!text.includes("android.cmakeVersion")) {
