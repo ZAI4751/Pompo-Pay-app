@@ -61,4 +61,15 @@ describe("LoginScreen", () => {
     expect(await screen.findByText("Your POMPO account is deactivated.")).toBeTruthy();
     expect(mockPush).toHaveBeenCalledWith("/reactivate");
   });
+
+  it("shows the approval-required merchant onboarding entry", () => {
+    render(
+      <SafeAreaProvider>
+        <LoginScreen />
+      </SafeAreaProvider>,
+    );
+    expect(screen.getByText("Are you a business?")).toBeTruthy();
+    fireEvent.press(screen.getByText("Register as a Merchant"));
+    expect(mockPush).toHaveBeenCalledWith("/merchant-onboarding");
+  });
 });

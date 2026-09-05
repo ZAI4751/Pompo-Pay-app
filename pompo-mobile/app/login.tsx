@@ -87,6 +87,13 @@ export default function LoginScreen() {
         />
             <SecondaryButton label="Forgot password?" onPress={() => router.push("/forgot-password" as Href)} />
         <SecondaryButton label="Create a customer account" onPress={() => router.push("/register")} />
+            <View style={styles.businessEntry}>
+              <Text style={{ color: theme.muted, textAlign: "center" }}>Are you a business?</Text>
+              <SecondaryButton
+                label="Register as a Merchant"
+                onPress={() => router.push("/merchant-onboarding" as Href)}
+              />
+            </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -102,4 +109,5 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: "800" },
   fields: { borderWidth: 1, borderRadius: 20, padding: 12, gap: 10 },
   field: { marginBottom: 0 },
+  businessEntry: { marginTop: 4, gap: 2 },
 });
