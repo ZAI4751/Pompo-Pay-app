@@ -144,6 +144,67 @@ async def test_static_qr_creation_and_revoke(session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
+async def test_static_qr_creation_is_persistent_per_till(session: AsyncSession) -> None:
+    actor, merchant, branch, till = await _actor(
+        session, permissions=("qr:create", "qr:read")
+    )
+    service = QRService(session)
+    values = {"merchant_id": merchant.id, "branch_id": branch.id, "till_id": till.id}
+
+    first = await service.create_static_qr(actor, values)
+    second = await service.create_static_qr(actor, values)
+
+    assert second.id == first.id
+    assert second.public_identifier == first.public_identifier
+    assert second.status is QRStatus.ACTIVE
+
+
+@pytest.mark.asyncio
+async def test_static_qr_supports_three_successive_simulated_payments(
+    session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor, merchant, branch, till = await _actor(
+        session,
+        permissions=(
+            "qr:create",
+            "qr:read",
+            "transactions:create",
+            "transactions:read",
+            "transactions:update",
+        ),
+    )
+    service = QRService(session)
+    async def skip_notification_fanout(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(service._payments, "_notify_payment_status", skip_notification_fanout)
+    qr = await service.create_static_qr(
+        actor,
+        {"merchant_id": merchant.id, "branch_id": branch.id, "till_id": till.id},
+    )
+
+    payments = []
+    for amount in ("10.00", "20.00", "30.00"):
+        payment = await service.initiate_payment_from_qr(
+            actor,
+            {
+                "public_identifier": qr.public_identifier,
+                "amount": Decimal(amount),
+                "idempotency_key": f"static-repeat-{amount}",
+                "payment_method": "mobile_money",
+                "provider_code": "simulated",
+            },
+        )
+        payments.append(await service._payments.process_payment(actor, payment.reference))
+
+    assert [payment.status for payment in payments] == [TransactionStatus.SUCCESS] * 3
+    assert len({payment.reference for payment in payments}) == 3
+    refreshed = await service.inspect_qr(qr.public_identifier)
+    assert refreshed.status is QRStatus.ACTIVE
+
+
+@pytest.mark.asyncio
 async def test_dynamic_qr_links_payment_and_expires(session: AsyncSession) -> None:
     actor, merchant, branch, till = await _actor(
         session,

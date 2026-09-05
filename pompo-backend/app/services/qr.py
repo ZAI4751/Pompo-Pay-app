@@ -67,6 +67,10 @@ class QRService:
         merchant, branch, till = await self._validate_context(merchant_id, branch_id, till_id)
         await self._validate_scope(actor, merchant_id, branch_id)
 
+        existing = await self._qr_codes.list_active_static_for_till(till.id)
+        if existing:
+            return existing[0]
+
         public_id = self._new_public_id()
         encoded = self._payload.encode_static(public_identifier=public_id)
         qr = QRCode(
@@ -89,7 +93,14 @@ class QRService:
             None,
             {"public_identifier": public_id, "till_id": str(till_id)},
         )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except IntegrityError:
+            await self._session.rollback()
+            raced = await self._qr_codes.list_active_static_for_till(till.id)
+            if raced:
+                return raced[0]
+            raise
         await self._session.refresh(qr, attribute_names=["merchant", "branch", "till"])
         logger.info("qr_static_created", public_identifier=public_id, till_id=str(till_id))
         return qr

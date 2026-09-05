@@ -392,6 +392,15 @@ class QRCode(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "qr_codes"
     __table_args__ = (
         UniqueConstraint("public_identifier", name="uq_qr_codes_public_identifier"),
+        Index(
+            "uq_qr_codes_one_active_static_per_till",
+            "merchant_id",
+            "branch_id",
+            "till_id",
+            unique=True,
+            postgresql_where=text("qr_type = 'static' AND status = 'active'"),
+            sqlite_where=text("qr_type = 'static' AND status = 'active'"),
+        ),
     )
 
     public_identifier: Mapped[str] = mapped_column(String(32), nullable=False, index=True)

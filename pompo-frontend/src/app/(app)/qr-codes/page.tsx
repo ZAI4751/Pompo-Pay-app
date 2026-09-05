@@ -158,7 +158,7 @@ export default function QRCodesPage() {
       return;
     }
     upsertRecord(created.data);
-    push("Static QR created", "success");
+    push("Persistent static QR ready", "success");
   }
 
   async function onCreateDynamic(event?: FormEvent) {
@@ -229,7 +229,7 @@ export default function QRCodesPage() {
           {canCreate ? (
             <>
               <Button variant="secondary" disabled={saving || !tillId} onClick={() => void onCreateStatic()}>
-                Create static QR
+                Get persistent static QR
               </Button>
               <Button disabled={saving || !tillId} onClick={() => setDynamicOpen(true)}>
                 Create dynamic QR

@@ -70,10 +70,10 @@ class QRCodeRepository(BaseRepository[QRCode]):
 
     async def list_active_static_for_till(self, till_id: uuid.UUID) -> list[QRCode]:
         result = await self._session.execute(
-            select(QRCode).where(
+            self._base_query().where(
                 QRCode.till_id == till_id,
                 QRCode.qr_type == QRType.STATIC,
                 QRCode.status == QRStatus.ACTIVE,
-            )
+            ).order_by(QRCode.created_at.asc())
         )
-        return list(result.scalars().all())
+        return list(result.scalars().unique().all())

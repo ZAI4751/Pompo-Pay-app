@@ -25,6 +25,8 @@ export default function MerchantQrScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     const listed = await api.listQrs();
+    const rows = listed.ok ? listed.data : [];
+    const merchantId = user?.merchant_id;
     if (listed.ok) {
       setQrs(listed.data);
     } else if (listed.error.kind !== "forbidden") {
@@ -41,6 +43,22 @@ export default function MerchantQrScreen() {
         ) ?? access.tills.find((t) => t.branch_id === opBranchId) ?? access.tills[0];
 
         if (foundTill) {
+          if (
+            canCreate &&
+            merchantId &&
+            !rows.some((qr) => qr.qr_type === "static" && qr.status === "active")
+          ) {
+            const created = await api.createStaticQr({
+              merchant_id: merchantId,
+              branch_id: opBranchId,
+              till_id: foundTill.id,
+            });
+            if (created.ok) {
+              setQrs((current) => [created.data, ...current]);
+            } else {
+              setError({ message: created.error.message, requestId: created.error.requestId });
+            }
+          }
           setTillContext({
             branchId: opBranchId,
             till: {
@@ -81,13 +99,16 @@ export default function MerchantQrScreen() {
       }
     }
     setLoading(false);
-  }, [api, user?.branch_id, user?.merchant_id]);
+  }, [api, canCreate, user?.branch_id, user?.merchant_id]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const active = qrs.find((qr) => qr.status === "active") ?? qrs[0];
+  const active =
+    qrs.find((qr) => qr.qr_type === "static" && qr.status === "active") ??
+    qrs.find((qr) => qr.status === "active") ??
+    qrs[0];
 
   async function create(kind: "static" | "dynamic") {
     if (!user?.merchant_id || !tillContext || busy) {
@@ -122,8 +143,8 @@ export default function MerchantQrScreen() {
     <Screen padded={false}>
       <View style={{ flex: 1 }}>
         <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
-          <Title>QR</Title>
-          <Text style={{ color: theme.subtle, marginTop: 4 }}>Show this code. Keep the plate solid white.</Text>
+          <Title>Your POMPO QR</Title>
+          <Text style={{ color: theme.subtle, marginTop: 4 }}>Reusable for customer payments. Keep the plate solid white.</Text>
         </View>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           {error ? <ErrorBanner message={error.message} requestId={error.requestId} /> : null}
@@ -184,11 +205,18 @@ export default function MerchantQrScreen() {
               }
             />
           )}
-          {canCreate ? (
+          {canCreate && !qrs.some((qr) => qr.qr_type === "static" && qr.status === "active") ? (
             <View style={{ gap: 10 }}>
               <GlassInput value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
               <PrimaryButton label="New dynamic QR" loading={busy} onPress={() => void create("dynamic")} />
-              <SecondaryButton label="New static QR" onPress={() => void create("static")} />
+              <SecondaryButton label="Create your POMPO QR" onPress={() => void create("static")} />
+            </View>
+          ) : canCreate ? (
+            <View style={{ gap: 10 }}>
+              <Text style={{ color: theme.muted, textAlign: "center" }}>
+                Your POMPO QR is reusable for customer payments.
+              </Text>
+              <PrimaryButton label="New dynamic QR" loading={busy} onPress={() => void create("dynamic")} />
             </View>
           ) : (
             <Text style={{ color: theme.muted }}>Ask a merchant owner to generate QR codes.</Text>
