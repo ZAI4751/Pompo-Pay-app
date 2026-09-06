@@ -1,6 +1,6 @@
 import { Redirect, useRouter, type Href } from "expo-router";
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Atmosphere, FadeIn, GlassInput, HeroCard } from "@/components/glass";
 import { ErrorBanner, PrimaryButton, SecondaryButton, useTheme } from "@/components/ui";
@@ -33,6 +33,7 @@ export default function LoginScreen() {
       >
         <FadeIn>
           <HeroCard style={styles.hero}>
+            <Image source={require("../assets/icon.png")} style={styles.brandMark} resizeMode="contain" />
             <Text style={styles.brand}>POMPO</Text>
             <View>
               <Text style={styles.heroTitle}>Pay in a scan.</Text>
@@ -103,6 +104,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   inner: { flexGrow: 1, justifyContent: "center", padding: 24, gap: 14 },
   hero: { minHeight: 140, marginBottom: 8 },
+  brandMark: { width: 44, height: 44, marginBottom: 8 },
   brand: { color: "rgba(255,255,255,0.72)", fontSize: 12, fontWeight: "800", letterSpacing: 2 },
   heroTitle: { color: "#ffffff", fontSize: 26, fontWeight: "800", letterSpacing: -0.5 },
   heroHint: { color: "rgba(255,255,255,0.8)", fontSize: 13, fontWeight: "600", marginTop: 4 },
