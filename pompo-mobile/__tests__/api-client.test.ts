@@ -99,7 +99,7 @@ describe("PompoApi", () => {
         });
       }
       return jsonResponse({ detail: "missing" }, 404);
-    }) as typeof fetch;
+    }) as jest.MockedFunction<typeof fetch>;
 
     const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl, randomId: () => "rid" });
     const login = await api.login("customer@example.com", "secret");
@@ -121,9 +121,9 @@ describe("PompoApi", () => {
           request_id: "req-test",
           errors: [{ loc: ["body", "email"], msg: "value is not a valid email address", type: "value_error" }],
         },
-        422,
+        422
       );
-    }) as typeof fetch;
+    }) as unknown as jest.MockedFunction<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>;
     const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
     const result = await api.register({
       email: "not-an-email",
@@ -169,7 +169,7 @@ describe("PompoApi", () => {
         });
       }
       return jsonResponse({ detail: "no" }, 404);
-    }) as typeof fetch;
+    }) as jest.MockedFunction<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>;
 
     const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
     const me = await api.me();
@@ -185,7 +185,7 @@ describe("PompoApi", () => {
         return jsonResponse({ detail: "Invalid or expired refresh token" }, 401);
       }
       return jsonResponse({ detail: "expired" }, 401);
-    }) as typeof fetch;
+    }) as jest.MockedFunction<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>;
     const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
     const me = await api.me();
     expect(me.ok).toBe(false);
@@ -217,7 +217,7 @@ describe("PompoApi", () => {
         return new Response(null, { status: 204 });
       }
       return jsonResponse({ detail: "no" }, 404);
-    }) as typeof fetch;
+    }) as jest.MockedFunction<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>;
 
     const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
     const staleMe = api.me();
@@ -250,7 +250,7 @@ describe("PompoApi", () => {
         });
       }
       return jsonResponse({ detail: "no" }, 404);
-    }) as typeof fetch;
+    }) as jest.MockedFunction<typeof fetch>;
     const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
     const pending = api.logout();
     await new Promise<void>((resolve) => {
@@ -288,7 +288,7 @@ describe("PompoApi", () => {
         failure_reason: null,
         attempts: [],
       });
-    }) as typeof fetch;
+    }) as jest.MockedFunction<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>;
     const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
     const result = await api.payFromQr({
       payload: "POMPO:1:static:QRABC123456789:signaturelooks22charsx",
@@ -317,7 +317,7 @@ describe("PompoApi", () => {
         failure_reason: null,
         attempts: [],
       });
-    }) as typeof fetch;
+    }) as jest.MockedFunction<typeof fetch>;
     const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
     await api.payFromQr({ payload: "POMPO:1:dynamic:QRDYN123456789:x", idempotencyKey: randomUUID() });
     expect(fetchImpl).toHaveBeenCalled();
@@ -337,7 +337,7 @@ describe("PompoApi", () => {
         permissions: ["qr:create"],
         reason: null,
       });
-    }) as typeof fetch;
+    }) as unknown as jest.MockedFunction<typeof fetch>;
     const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
     const res = await api.getMerchantAccess();
     expect(res.ok).toBe(true);
@@ -358,7 +358,7 @@ describe("PompoApi", () => {
         return jsonResponse({ message: "If the email is registered, instructions have been sent." });
       }
       return jsonResponse({});
-    }) as typeof fetch;
+    }) as jest.MockedFunction<typeof fetch>;
     const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
     const verifyRes = await api.verifyEmail("token-123");
     expect(verifyRes.ok).toBe(true);
@@ -390,7 +390,7 @@ describe("PompoApi", () => {
         });
       }
       return jsonResponse({});
-    }) as typeof fetch;
+    }) as jest.MockedFunction<typeof fetch>;
     const api = new PompoApi({ baseUrl: "https://api.test/api/v1", store, fetchImpl });
     const deactivated = await api.deactivateAccount("secret", "DEACTIVATE");
     expect(deactivated.ok).toBe(true);

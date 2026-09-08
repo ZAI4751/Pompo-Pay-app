@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import { isTerminalPayment, mapPaymentStatus, paymentStatusLabel } from "@/domain/paymentStatus";
 
 describe("payment status mapping", () => {
@@ -13,6 +14,8 @@ describe("payment status mapping", () => {
 
   it("treats success failed and timeout as terminal", () => {
     expect(isTerminalPayment("success")).toBe(true);
+    expect(isTerminalPayment("failed")).toBe(true);
+    expect(isTerminalPayment("timeout")).toBe(true);
     expect(isTerminalPayment("pending")).toBe(false);
   });
 
@@ -20,3 +23,6 @@ describe("payment status mapping", () => {
     expect(paymentStatusLabel("cancelled")).toBe("Cancelled");
   });
 });
+
+
+

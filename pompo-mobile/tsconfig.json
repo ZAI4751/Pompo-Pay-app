@@ -1,8 +1,11 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
+    "types": [
+      "jest",
+      "node"
+    ],
     "strict": true,
-    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
       "@/*": [
@@ -16,6 +19,8 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "expo-env.d.ts",
-    ".expo/types/**/*.ts"
+    ".expo/types/**/*.ts",
+    "__tests__/**/*.ts",
+    "__tests__/**/*.tsx"
   ]
 }

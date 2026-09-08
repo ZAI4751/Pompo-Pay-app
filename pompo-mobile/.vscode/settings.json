@@ -1,0 +1,15 @@
+{
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "js/ts.preferences.importModuleSpecifier": "relative",
+  "jest.autoEnable": true,
+  "jest.runAllTestsFirst": false,
+  "jest.showCoverageOnLoad": false,
+  "typescript.tsserver.experimental.useVsCodeWatcher": true,
+  "files.exclude": {
+    "**/__tests__": true
+  },
+  "search.exclude": {
+    "**/__tests__": true
+  }
+}

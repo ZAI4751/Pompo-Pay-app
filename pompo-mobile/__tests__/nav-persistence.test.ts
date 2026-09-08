@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import fs from "fs";
 import path from "path";
 
@@ -20,9 +21,9 @@ describe("persistent bottom navigation architecture", () => {
     const customerLayout = fs.readFileSync(path.join(appDir, "customer", "_layout.tsx"), "utf8");
     const merchantLayout = fs.readFileSync(path.join(appDir, "merchant", "_layout.tsx"), "utf8");
     expect(customerLayout).toContain("<AppShell>");
-    expect(customerLayout).toContain("<Stack");
+    expect(customerLayout).toContain("<Stack>");
     expect(merchantLayout).toContain("<AppShell>");
-    expect(merchantLayout).toContain("<Stack");
+    expect(merchantLayout).toContain("<Stack>");
   });
 
   test("individual screens do not render BottomNav inside the animated stack", () => {
