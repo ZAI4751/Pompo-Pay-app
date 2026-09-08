@@ -4,7 +4,7 @@ import { StyleSheet } from "react-native";
 import { AppShell } from "@/components/AppShell";
 import { canUseMerchantMode } from "@/domain/roles";
 import { useAuth } from "@/state/AuthProvider";
-import { useTheme } from "@/theme";
+import { useTheme } from "@/theme"; // <Stack>
 
 export default function MerchantLayout() {
   const theme = useTheme();
@@ -17,13 +17,15 @@ export default function MerchantLayout() {
   }
   return (
     <AppShell>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          animation: "slide_from_right",
-          contentStyle: [styles.stackContent, { backgroundColor: theme.background }],
-        }}
-      />
+      <Stack>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: "slide_from_right",
+            contentStyle: [styles.stackContent, { backgroundColor: theme.background }],
+          }}
+        />
+      </Stack>
     </AppShell>
   );
 }
