@@ -1,7 +1,7 @@
 {
   "extends": "expo/tsconfig.base",
-  "ignoreDeprecations": "6.0",
   "compilerOptions": {
+    "ignoreDeprecations": "6.0",
     "types": [
       "jest",
       "node"
