@@ -222,3 +222,46 @@ async def test_payment_api_serializes_transaction() -> None:
         response = await client.get("/payments/PMP-API")
     assert response.status_code == 200
     assert response.json()["reference"] == "PMP-API"
+
+
+@pytest.mark.asyncio
+async def test_payment_reversal_transitions_success_to_refunded(
+    session: AsyncSession,
+) -> None:
+    actor, merchant, branch, till = await _fixture(session)
+    cancel_perm = Permission(code="transactions:cancel")
+    session.add(cancel_perm)
+    actor.role.permissions.append(RolePermission(permission=cancel_perm))
+    await session.commit()
+
+    service = PaymentService(session)
+    payment = await service.create_payment(actor, _values(merchant, branch, till, "rev-test-1"))
+
+    # Directly set to SUCCESS to simulate settled payment
+    payment.status = TransactionStatus.SUCCESS
+    await session.commit()
+
+    reversed_payment = await service.reverse_payment(
+        actor, payment.reference, reason="Defective item refund"
+    )
+    assert reversed_payment.status == TransactionStatus.REFUNDED
+    assert reversed_payment.failure_reason == "Defective item refund"
+    assert reversed_payment.completed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_payment_reversal_fails_for_non_success_payment(
+    session: AsyncSession,
+) -> None:
+    actor, merchant, branch, till = await _fixture(session)
+    cancel_perm = Permission(code="transactions:cancel")
+    session.add(cancel_perm)
+    actor.role.permissions.append(RolePermission(permission=cancel_perm))
+    await session.commit()
+
+    service = PaymentService(session)
+    payment = await service.create_payment(actor, _values(merchant, branch, till, "rev-test-2"))
+
+    # Payment is still CREATED
+    with pytest.raises(PaymentInvalidError, match="Only a successful payment can be reversed"):
+        await service.reverse_payment(actor, payment.reference, reason="Mistake")

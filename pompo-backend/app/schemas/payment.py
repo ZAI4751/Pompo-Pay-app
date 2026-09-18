@@ -92,6 +92,12 @@ class PaymentRepeatRequest(BaseModel):
     provider_code: str | None = Field(default=None, max_length=32)
 
 
+class PaymentReversalRequest(BaseModel):
+    """Optional body for POST /payments/{reference}/reverse."""
+
+    reason: str | None = Field(default=None, max_length=500)
+
+
 class PaymentReceiptResponse(BaseModel):
     title: str = "PAYMENT RECEIPT"
     receipt_number: str

@@ -451,6 +451,47 @@ class PaymentService:
         await self._require(actor, "transactions:cancel")
         return await self.transition_payment(actor, reference, TransactionStatus.CANCELLED)
 
+    async def reverse_payment(
+        self, actor: User, reference: str, reason: str | None = None
+    ) -> Transaction:
+        """Mark a successful transaction as REFUNDED (payment reversal).
+
+        Only merchants with ``transactions:cancel`` permission may reverse a payment.
+        The underlying payment rail reversal is handled offline/manually for the
+        demo; this endpoint records the intent and drives the state machine.
+        """
+        await self._require(actor, "transactions:cancel")
+        transaction = await self._transactions.get_active_by_reference(reference)
+        if transaction is None:
+            raise PaymentNotFoundError("Payment not found")
+        await self._assert_can_view_payment(actor, transaction)
+        if transaction.status is not TransactionStatus.SUCCESS:
+            raise PaymentInvalidError("Only a successful payment can be reversed")
+        try:
+            validate_transition(transaction.status, TransactionStatus.REFUNDED)
+        except InvalidTransactionTransition as exc:
+            raise PaymentInvalidError(str(exc)) from exc
+        before = transaction.status.value
+        transaction.status = TransactionStatus.REFUNDED
+        transaction.failure_reason = reason or "Merchant-initiated reversal"
+        transaction.completed_at = datetime.now(UTC)
+        await self._audit(
+            actor,
+            "payment_reversed",
+            transaction.id,
+            {"status": before},
+            {"status": TransactionStatus.REFUNDED.value, "reason": transaction.failure_reason},
+        )
+        await self._session.commit()
+        await self._session.refresh(transaction, attribute_names=["attempts", "merchant", "branch", "till"])
+        logger.info(
+            "payment_reversed",
+            reference=reference,
+            reason=transaction.failure_reason,
+            user_id=str(actor.id),
+        )
+        return transaction
+
     async def create_attempt(self, actor: User, reference: str) -> PaymentAttempt:
         await self._require(actor, "transactions:update")
         transaction = await self.get_payment(actor, reference)

@@ -239,4 +239,4 @@ export function catalogMethodKey(item: {
   return `${item.provider_code}:${item.instrument_type}`;
 }
 
-export const PUBLIC_CHECKOUT_ORIGIN = "https://pay.pompo.mw";
+export const PUBLIC_CHECKOUT_ORIGIN = "https://pompo-pay-app.vercel.app";

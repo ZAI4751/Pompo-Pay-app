@@ -2,11 +2,12 @@
 
 export const DEACTIVATION_CONFIRMATION = "DEACTIVATE";
 
-export type AccountSection = "profile" | "activity" | "receipts" | "security" | "care";
+export type AccountSection = "profile" | "activity" | "requests" | "receipts" | "security" | "care";
 
 export const ACCOUNT_NAV: Array<{ href: string; label: string; section: AccountSection }> = [
   { href: "/account", label: "Profile", section: "profile" },
   { href: "/account/activity", label: "Activity", section: "activity" },
+  { href: "/account/requests", label: "Requests", section: "requests" },
   { href: "/account/receipts", label: "Receipts", section: "receipts" },
   { href: "/account/security", label: "Security", section: "security" },
   { href: "/account/care", label: "Customer Care", section: "care" },

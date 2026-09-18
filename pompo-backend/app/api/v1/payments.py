@@ -23,6 +23,7 @@ from app.schemas.payment import (
     PaymentReceiptResponse,
     PaymentRepeatRequest,
     PaymentResponse,
+    PaymentReversalRequest,
     ProviderCatalogResponse,
     ProviderCatalogUpdate,
 )
@@ -308,6 +309,25 @@ async def cancel_payment(
 ) -> PaymentResponse:
     try:
         return _payment_response(await service.cancel_payment(current_user, reference))
+    except PaymentError as exc:
+        raise _error(exc) from exc
+
+
+@router.post(
+    "/{reference}/reverse",
+    response_model=PaymentResponse,
+    dependencies=[Depends(require_permission("transactions:cancel"))],
+)
+async def reverse_payment(
+    reference: str,
+    current_user: CurrentUserDep,
+    service: PaymentServiceDep,
+    payload: PaymentReversalRequest | None = None,
+) -> PaymentResponse:
+    """Initiate a merchant-side payment reversal (marks transaction REFUNDED)."""
+    reason = payload.reason if payload is not None else None
+    try:
+        return _payment_response(await service.reverse_payment(current_user, reference, reason))
     except PaymentError as exc:
         raise _error(exc) from exc
 

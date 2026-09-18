@@ -154,12 +154,22 @@ export default function MerchantQrScreen() {
             <FadeIn>
               <View style={[styles.frame, { backgroundColor: theme.glassFill, borderColor: theme.glassBorder }]}>
                 <View style={styles.plate}>
-                  <QRCode
-                    value={active.payment_url || `https://pay.pompo.mw/p/${active.public_identifier}`}
-                    size={200}
-                    backgroundColor="#ffffff"
-                    color="#0f172a"
-                  />
+                  {(() => {
+                    const paymentUrl =
+                      active.payment_url && !active.payment_url.includes("pay.pompo.mw")
+                        ? active.payment_url
+                        : `https://pompo-pay-app.vercel.app/p/${active.public_identifier}`;
+                    return (
+                      <>
+                        <QRCode
+                          value={paymentUrl}
+                          size={200}
+                          backgroundColor="#ffffff"
+                          color="#0f172a"
+                        />
+                      </>
+                    );
+                  })()}
                 </View>
                 <Text style={{ color: theme.text, fontWeight: "800", fontSize: 18 }}>{active.merchant_name}</Text>
                 {active.qr_type === "dynamic" ? (
@@ -174,7 +184,10 @@ export default function MerchantQrScreen() {
                 <SecondaryButton
                   label="Share"
                   onPress={() => {
-                    const shareUrl = active.payment_url || `https://pay.pompo.mw/p/${active.public_identifier}`;
+                    const shareUrl =
+                      active.payment_url && !active.payment_url.includes("pay.pompo.mw")
+                        ? active.payment_url
+                        : `https://pompo-pay-app.vercel.app/p/${active.public_identifier}`;
                     void Share.share({
                       message: `Pay ${active.merchant_name} with POMPO:\n${shareUrl}`,
                     });

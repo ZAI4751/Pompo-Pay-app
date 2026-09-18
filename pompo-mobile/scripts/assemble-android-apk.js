@@ -284,8 +284,14 @@ function hardenAndroidManifest() {
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="https" android:host="pay.pompo.mw" android:pathPrefix="/p/"/>
+        <data android:scheme="https" android:host="pompo-pay-app.vercel.app" android:pathPrefix="/p/"/>
       </intent-filter>`;
     text = text.replace("</activity>", `${filter}\n    </activity>`);
+  } else if (!text.includes('android:host="pompo-pay-app.vercel.app"')) {
+    text = text.replace(
+      '<data android:scheme="https" android:host="pay.pompo.mw" android:pathPrefix="/p/"/>',
+      '<data android:scheme="https" android:host="pay.pompo.mw" android:pathPrefix="/p/"/>\n        <data android:scheme="https" android:host="pompo-pay-app.vercel.app" android:pathPrefix="/p/"/>',
+    );
   }
   fs.writeFileSync(file, text);
 }
@@ -319,6 +325,9 @@ writeLocalProperties(toolchain.ANDROID_HOME);
 downloadGradleDistribution();
 hardenAndroidManifest();
 
+// Regenerate native Android launcher & adaptive icons directly from official 512x512 assets
+run(process.execPath, [path.join(root, "scripts", "generate-native-icons.js")]);
+
 const gradleEnv = {
   ...toolchain,
   EXPO_PUBLIC_API_BASE_URL: apiUrl,
@@ -341,7 +350,9 @@ if (!fs.existsSync(source)) {
 const destDir = path.join(root, "release");
 fs.mkdirSync(destDir, { recursive: true });
 const dest = path.join(destDir, `POMPO-${VERSION_NAME}.apk`);
+const prodDest = path.join(destDir, "POMPO-Production.apk");
 fs.copyFileSync(source, dest);
+fs.copyFileSync(source, prodDest);
 
 const bytes = fs.readFileSync(dest);
 const sha256 = crypto.createHash("sha256").update(bytes).digest("hex");

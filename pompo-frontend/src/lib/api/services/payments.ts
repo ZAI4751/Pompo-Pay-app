@@ -56,6 +56,20 @@ export const paymentsService = {
     });
   },
 
+  async reverse(reference: string, reason?: string): Promise<ApiResult<Payment>> {
+    if (USE_MOCKS) {
+      return {
+        status: "error",
+        kind: "unavailable",
+        message: "Demo mode cannot reverse payments. Sign in against the backend.",
+      };
+    }
+    return apiRequest<Payment>(`/payments/${encodeURIComponent(reference)}/reverse`, {
+      method: "POST",
+      body: reason ? { reason } : undefined,
+    });
+  },
+
   async process(reference: string): Promise<ApiResult<Payment>> {
     if (USE_MOCKS) {
       return {

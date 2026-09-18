@@ -51,11 +51,11 @@ export default function QRCodesPage() {
   const [stickerTarget, setStickerTarget] = useState<QRCodeRecord | null>(null);
 
   function getPaymentUrl(qr: QRCodeRecord): string {
-    if (qr.payment_url) return qr.payment_url;
+    if (qr.payment_url && !qr.payment_url.includes("pay.pompo.mw")) return qr.payment_url;
     if (typeof window !== "undefined") {
       return `${window.location.origin}/p/${qr.public_identifier}`;
     }
-    return `https://pay.pompo.mw/p/${qr.public_identifier}`;
+    return `https://pompo-pay-app.vercel.app/p/${qr.public_identifier}`;
   }
 
   async function onCopyUrl(qr: QRCodeRecord) {

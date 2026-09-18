@@ -33,7 +33,11 @@ export default function MerchantQrDetail() {
         <View style={[styles.frame, { backgroundColor: theme.glassFill, borderColor: theme.glassBorder }]}>
           <View style={styles.plate}>
             <QRCode
-              value={qr.payment_url || `https://pay.pompo.mw/p/${qr.public_identifier}`}
+              value={
+                qr.payment_url && !qr.payment_url.includes("pay.pompo.mw")
+                  ? qr.payment_url
+                  : `https://pompo-pay-app.vercel.app/p/${qr.public_identifier}`
+              }
               size={180}
               backgroundColor="#ffffff"
               color="#0f172a"
@@ -46,7 +50,10 @@ export default function MerchantQrDetail() {
           <SecondaryButton
             label="Share"
             onPress={() => {
-              const shareUrl = qr.payment_url || `https://pay.pompo.mw/p/${qr.public_identifier}`;
+              const shareUrl =
+                qr.payment_url && !qr.payment_url.includes("pay.pompo.mw")
+                  ? qr.payment_url
+                  : `https://pompo-pay-app.vercel.app/p/${qr.public_identifier}`;
               void Share.share({ message: `Pay with POMPO:\n${shareUrl}` });
             }}
           />

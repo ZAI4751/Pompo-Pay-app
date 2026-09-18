@@ -122,6 +122,7 @@ def test_extract_public_identifier_utility() -> None:
     assert extract_public_identifier("   POMPO-XYZ98765  ") == "POMPO-XYZ98765"
 
     # Universal HTTPS URL
+    assert extract_public_identifier("https://pompo-pay-app.vercel.app/p/POMPO-ABC12345") == "POMPO-ABC12345"
     assert extract_public_identifier("https://pay.pompo.mw/p/POMPO-ABC12345") == "POMPO-ABC12345"
     assert extract_public_identifier("https://pay.pompo.mw/p/POMPO-ABC12345/") == "POMPO-ABC12345"
     assert extract_public_identifier("https://pay.pompo.mw/p/POMPO-ABC12345?amount=10") == "POMPO-ABC12345"
@@ -248,7 +249,7 @@ async def test_universal_qr_api_endpoints(session: AsyncSession) -> None:
         assert static_data["merchant_name"] == "Lilongwe Fresh Mart"
         assert static_data["qr_type"] == "static"
         assert static_data["amount"] is None
-        assert static_data["payment_url"] == f"https://pay.pompo.mw/p/{static_qr.public_identifier}"
+        assert static_data["payment_url"] == f"https://pompo-pay-app.vercel.app/p/{static_qr.public_identifier}"
 
         # Public inspection of dynamic QR
         dyn_resp = await client.get(f"/api/v1/qr/{dynamic_qr.public_identifier}")
@@ -258,7 +259,7 @@ async def test_universal_qr_api_endpoints(session: AsyncSession) -> None:
         assert dyn_data["qr_type"] == "dynamic"
         assert dyn_data["amount"] == "7500.00"
         assert dyn_data["currency"] == "MWK"
-        assert dyn_data["payment_url"] == f"https://pay.pompo.mw/p/{dynamic_qr.public_identifier}"
+        assert dyn_data["payment_url"] == f"https://pompo-pay-app.vercel.app/p/{dynamic_qr.public_identifier}"
 
         # Public inspection of unknown QR -> 404
         unknown_resp = await client.get("/api/v1/qr/POMPO-NOTFOUND99")

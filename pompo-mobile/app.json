@@ -49,6 +49,11 @@
               "scheme": "https",
               "host": "pay.pompo.mw",
               "pathPrefix": "/p/"
+            },
+            {
+              "scheme": "https",
+              "host": "pompo-pay-app.vercel.app",
+              "pathPrefix": "/p/"
             }
           ],
           "category": ["BROWSABLE", "DEFAULT"]
