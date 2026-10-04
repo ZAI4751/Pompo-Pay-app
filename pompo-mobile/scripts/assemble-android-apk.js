@@ -351,14 +351,16 @@ const destDir = path.join(root, "release");
 fs.mkdirSync(destDir, { recursive: true });
 const dest = path.join(destDir, `POMPO-${VERSION_NAME}.apk`);
 const prodDest = path.join(destDir, "POMPO-Production.apk");
+const finalDest = path.join(destDir, "POMPO-Production-Final.apk");
 fs.copyFileSync(source, dest);
 fs.copyFileSync(source, prodDest);
+fs.copyFileSync(source, finalDest);
 
-const bytes = fs.readFileSync(dest);
+const bytes = fs.readFileSync(finalDest);
 const sha256 = crypto.createHash("sha256").update(bytes).digest("hex");
 const info = {
-  filename: path.basename(dest),
-  path: dest,
+  filename: path.basename(finalDest),
+  path: finalDest,
   package: PACKAGE_ID,
   version: VERSION_NAME,
   versionCode: 1,
@@ -367,7 +369,10 @@ const info = {
   sha256,
   sizeBytes: bytes.length,
 };
-fs.writeFileSync(path.join(destDir, "POMPO-1.0.0.json"), `${JSON.stringify(info, null, 2)}\n`);
+fs.writeFileSync(path.join(destDir, "POMPO-Production-Final.json"), `${JSON.stringify(info, null, 2)}\n`);
+fs.writeFileSync(path.join(destDir, "POMPO-Production-Final.sha256"), `${sha256}  ${path.basename(finalDest)}\n`);
+// Also keep legacy filenames for compatibility
+fs.writeFileSync(path.join(destDir, "POMPO-1.0.0.json"), `${JSON.stringify({ ...info, filename: path.basename(dest), path: dest }, null, 2)}\n`);
 fs.writeFileSync(path.join(destDir, "POMPO-1.0.0.sha256"), `${sha256}  ${path.basename(dest)}\n`);
-console.log(`APK written to ${dest}`);
+console.log(`APK written to ${finalDest}`);
 console.log(`package=${PACKAGE_ID} version=${VERSION_NAME} api=${apiUrl} sha256=${sha256}`);

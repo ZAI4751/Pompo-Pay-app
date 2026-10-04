@@ -17,15 +17,13 @@ export default function MerchantLayout() {
   }
   return (
     <AppShell>
-      <Stack>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            animation: "slide_from_right",
-            contentStyle: [styles.stackContent, { backgroundColor: theme.background }],
-          }}
-        />
-      </Stack>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: "slide_from_right",
+          contentStyle: [styles.stackContent, { backgroundColor: theme.background }],
+        }}
+      />
     </AppShell>
   );
 }
