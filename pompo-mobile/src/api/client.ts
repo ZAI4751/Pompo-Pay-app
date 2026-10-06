@@ -178,7 +178,10 @@ export class PompoApi {
     publicIdentifier?: string;
     idempotencyKey: string;
     amount?: string;
+    paymentMethod?: string;
+    providerCode?: string;
     paymentInstrumentId?: string;
+    customerPhone?: string;
   }): Promise<ApiResult<Payment>> {
     return this.request<Payment>("/payments/from-qr", {
       method: "POST",
@@ -189,7 +192,10 @@ export class PompoApi {
           : {}),
         idempotency_key: input.idempotencyKey,
         ...(input.amount ? { amount: input.amount } : {}),
+        ...(input.paymentMethod ? { payment_method: input.paymentMethod } : {}),
+        ...(input.providerCode ? { provider_code: input.providerCode } : {}),
         ...(input.paymentInstrumentId ? { payment_instrument_id: input.paymentInstrumentId } : {}),
+        ...(input.customerPhone ? { customer_phone: input.customerPhone } : {}),
       },
     });
   }

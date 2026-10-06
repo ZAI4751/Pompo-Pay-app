@@ -35,7 +35,9 @@ export default function ProcessingScreen() {
         publicIdentifier: session.payload ? undefined : session.publicIdentifier,
         idempotencyKey: session.idempotencyKey,
         amount,
-        paymentInstrumentId: session.paymentMethodId ?? undefined,
+        paymentMethod: session.paymentMethod?.instrument_type,
+        providerCode: session.paymentMethod?.provider_code,
+        customerPhone: session.customerPhone.trim() || undefined,
       });
       if (cancelled) {
         return;

@@ -1,4 +1,4 @@
-import { catalogOfferLabel, paymentMethodChargeable, paymentMethodStateLabel } from "@/domain/paymentMethod";
+import { catalogMethodSelectable, catalogOfferLabel, paymentMethodChargeable, paymentMethodStateLabel } from "@/domain/paymentMethod";
 import type { PaymentMethod, PaymentMethodCatalogItem } from "@/types";
 
 const method: PaymentMethod = {
@@ -29,7 +29,7 @@ describe("payment method labels", () => {
     );
   });
 
-  it("labels unavailable catalog offers as coming soon", () => {
+  it("labels unavailable catalog offers using the backend state", () => {
     const item: PaymentMethodCatalogItem = {
       provider_code: "tnm_mpamba",
       instrument_type: "mobile_money",
@@ -39,6 +39,22 @@ describe("payment method labels", () => {
       reason: "Live contract is not ready",
       authorization_state: "unsupported",
     };
-    expect(catalogOfferLabel(item)).toBe("Live contract is not ready");
+    expect(catalogMethodSelectable(item)).toBe(false);
+    expect(catalogOfferLabel(item)).toBe("Coming soon");
+  });
+
+  it("allows only available catalog methods that need no authorization", () => {
+    const sandbox: PaymentMethodCatalogItem = {
+      provider_code: "simulated",
+      instrument_type: "mobile_money",
+      label: "POMPO Demo Mobile Money (Sandbox)",
+      available: true,
+      is_sandbox: true,
+      reason: null,
+      authorization_state: "not_required",
+    };
+    expect(catalogMethodSelectable(sandbox)).toBe(true);
+    expect(catalogOfferLabel(sandbox)).toBe("AVAILABLE · SANDBOX");
+    expect(catalogMethodSelectable({ ...sandbox, authorization_state: "required" })).toBe(false);
   });
 });

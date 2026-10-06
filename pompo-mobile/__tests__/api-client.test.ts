@@ -274,6 +274,10 @@ describe("PompoApi", () => {
       const body = JSON.parse(String(init?.body));
       expect(body.idempotency_key).toBe("pay-1");
       expect(body.payload).toContain("POMPO:");
+      expect(body.payment_method).toBe("mobile_money");
+      expect(body.provider_code).toBe("simulated");
+      expect(body.customer_phone).toBe("+265888000000");
+      expect(body.payment_instrument_id).toBeUndefined();
       return jsonResponse({
         id: "p1",
         reference: "PMP-1",
@@ -294,6 +298,9 @@ describe("PompoApi", () => {
       payload: "POMPO:1:static:QRABC123456789:signaturelooks22charsx",
       idempotencyKey: "pay-1",
       amount: "10.00",
+      paymentMethod: "mobile_money",
+      providerCode: "simulated",
+      customerPhone: "+265888000000",
     });
     expect(result.ok).toBe(true);
   });

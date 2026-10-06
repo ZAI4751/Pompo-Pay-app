@@ -1,11 +1,12 @@
-import { render, screen, waitFor } from "@testing-library/react-native";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { catalogMethodSelectable } from "@/domain/paymentMethod";
 import PreviewScreen from "../app/customer/preview";
 import ConfirmScreen from "../app/customer/confirm";
 import ResultScreen from "../app/customer/result";
 import type { CheckoutSession } from "@/state/CheckoutProvider";
-import type { QrInspect } from "@/types";
+import type { PaymentMethodCatalogItem, QrInspect } from "@/types";
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ replace: jest.fn(), push: jest.fn(), back: jest.fn() }),
@@ -25,6 +26,32 @@ const inspect: QrInspect = {
   expires_at: null,
 };
 
+const sandboxMobileMoney: PaymentMethodCatalogItem = {
+  provider_code: "simulated",
+  instrument_type: "mobile_money",
+  label: "POMPO Demo Mobile Money (Sandbox)",
+  available: true,
+  is_sandbox: true,
+  reason: null,
+  authorization_state: "not_required",
+};
+
+const sandboxVisa: PaymentMethodCatalogItem = {
+  ...sandboxMobileMoney,
+  instrument_type: "visa",
+  label: "Sandbox Visa",
+};
+
+const unavailableAirtel: PaymentMethodCatalogItem = {
+  provider_code: "airtel_money",
+  instrument_type: "mobile_money",
+  label: "Airtel Money",
+  available: false,
+  is_sandbox: false,
+  reason: "Coming soon",
+  authorization_state: "unsupported",
+};
+
 function session(overrides: Partial<CheckoutSession> = {}): CheckoutSession {
   return {
     payload: "POMPO:1:dynamic:QRABC123456789:body:sig",
@@ -33,21 +60,24 @@ function session(overrides: Partial<CheckoutSession> = {}): CheckoutSession {
     amount: "150.00",
     idempotencyKey: "idemp-1",
     payment: null,
-    paymentMethodId: "PIM-TEST",
+    paymentMethod: sandboxMobileMoney,
+    customerPhone: "",
     ...overrides,
   };
 }
 
 let mockCheckout: CheckoutSession | null = session();
-const mockListPaymentMethods = jest.fn();
+const mockPaymentMethodCatalog = jest.fn();
 const mockSelectPaymentMethod = jest.fn();
-const mockApi = { listPaymentMethods: mockListPaymentMethods };
+const mockSetCustomerPhone = jest.fn();
+const mockApi = { paymentMethodCatalog: mockPaymentMethodCatalog };
 
 jest.mock("@/state/CheckoutProvider", () => ({
   useCheckout: () => ({
     session: mockCheckout,
     begin: jest.fn(),
     selectPaymentMethod: mockSelectPaymentMethod,
+    setCustomerPhone: mockSetCustomerPhone,
     setPayment: jest.fn(),
     clear: jest.fn(),
   }),
@@ -59,27 +89,16 @@ jest.mock("@/state/AuthProvider", () => ({
   }),
 }));
 
-const chargeableMethod = {
-  id: "PIM-TEST",
-  provider_code: "simulated",
-  provider_display_name: "Simulated sandbox",
-  instrument_type: "mobile_money",
-  display_name: "Test Airtel Money",
-  masked_identifier: "+265 88•• ••21",
-  status: "active",
-  authorization_state: "completed",
-  is_default: true,
-  is_sandbox: true,
-  last_used_at: null,
-  created_at: "2026-09-03T00:00:00Z",
-};
-
 describe("QR and payment screens", () => {
   beforeEach(() => {
     mockCheckout = session();
-    mockListPaymentMethods.mockReset();
+    mockPaymentMethodCatalog.mockReset();
     mockSelectPaymentMethod.mockReset();
-    mockListPaymentMethods.mockResolvedValue({ ok: true, data: [chargeableMethod] });
+    mockSetCustomerPhone.mockReset();
+    mockPaymentMethodCatalog.mockResolvedValue({
+      ok: true,
+      data: [sandboxMobileMoney, sandboxVisa, unavailableAirtel],
+    });
   });
 
   it("shows merchant preview from backend inspect data", () => {
@@ -100,13 +119,29 @@ describe("QR and payment screens", () => {
     );
     expect(await screen.findByText("How would you like to pay?")).toBeTruthy();
     expect(screen.getAllByText("Chikondi Shop").length).toBeGreaterThan(0);
-    expect(await screen.findByText("Test Airtel Money")).toBeTruthy();
+    expect(await screen.findByText("POMPO Demo Mobile Money (Sandbox)")).toBeTruthy();
+    expect(screen.getAllByText("AVAILABLE · SANDBOX").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("Sandbox Visa")).toBeTruthy();
+    expect(screen.getByText("Airtel Money")).toBeTruthy();
+    expect(catalogMethodSelectable(sandboxMobileMoney)).toBe(true);
+    expect(catalogMethodSelectable(unavailableAirtel)).toBe(false);
   });
 
-  it("shows a retryable error when payment methods fail to load", async () => {
-    mockListPaymentMethods.mockResolvedValue({
+  it("selects a sandbox option from the backend catalog", async () => {
+    render(
+      <SafeAreaProvider>
+        <ConfirmScreen />
+      </SafeAreaProvider>,
+    );
+    const visaOption = await screen.findByRole("button", { name: "Sandbox Visa sandbox" });
+    fireEvent.press(visaOption);
+    expect(mockSelectPaymentMethod).toHaveBeenCalledWith(sandboxVisa);
+  });
+
+  it("shows a retryable error when the backend catalog fails to load", async () => {
+    mockPaymentMethodCatalog.mockResolvedValue({
       ok: false,
-      error: { message: "Unable to load payment methods", requestId: "req-1" },
+      error: { message: "Unable to load catalog", requestId: "req-1" },
     });
     render(
       <SafeAreaProvider>
@@ -115,36 +150,32 @@ describe("QR and payment screens", () => {
     );
     expect(await screen.findByText("Retry")).toBeTruthy();
     expect(screen.getByText(/Payment methods could not be loaded/)).toBeTruthy();
-    expect(screen.queryByText("Add a payment method")).toBeNull();
-    expect(screen.queryByText("+ Add payment method")).toBeNull();
-    expect(screen.queryByText("Loading methods…")).toBeNull();
+    expect(screen.queryByText("No payment methods available")).toBeNull();
+    expect(screen.queryByText("Loading payment options…")).toBeNull();
     expect(screen.getByRole("button", { name: "PAY MWK 150.00" })).toBeDisabled();
   });
 
-  it("shows an empty add-method state only after a successful empty load", async () => {
-    mockListPaymentMethods.mockResolvedValue({ ok: true, data: [] });
+  it("shows the unavailable state only after a successful catalog load", async () => {
+    mockPaymentMethodCatalog.mockResolvedValue({ ok: true, data: [unavailableAirtel] });
     render(
       <SafeAreaProvider>
         <ConfirmScreen />
       </SafeAreaProvider>,
     );
-    expect(await screen.findByText("+ Add payment method")).toBeTruthy();
-    expect(screen.getByText("Add a payment method")).toBeTruthy();
+    expect(await screen.findByText("No payment methods available")).toBeTruthy();
     expect(screen.queryByText("Retry")).toBeNull();
   });
 
-  it("does not keep Pay enabled when the selected method is not chargeable", async () => {
-    mockListPaymentMethods.mockResolvedValue({
-      ok: true,
-      data: [{ ...chargeableMethod, status: "revoked" }],
-    });
+  it("disables sandbox options rejected by the backend catalog state", async () => {
+    const unavailableSandbox = { ...sandboxMobileMoney, authorization_state: "unsupported" };
+    mockCheckout = session({ paymentMethod: unavailableSandbox });
+    mockPaymentMethodCatalog.mockResolvedValue({ ok: true, data: [unavailableSandbox] });
     render(
       <SafeAreaProvider>
         <ConfirmScreen />
       </SafeAreaProvider>,
     );
-    expect(await screen.findByText("Test Airtel Money")).toBeTruthy();
-    expect(await screen.findByText("Add a payment method")).toBeTruthy();
+    expect(await screen.findByText("POMPO Demo Mobile Money (Sandbox)")).toBeTruthy();
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "PAY MWK 150.00" })).toBeDisabled();
     });

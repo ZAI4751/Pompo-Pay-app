@@ -8,6 +8,11 @@ const AUTH_REQUIRED = new Set([
   "otp_required",
 ]);
 
+export function catalogMethodSelectable(item: PaymentMethodCatalogItem): boolean {
+  const state = item.authorization_state.toLowerCase();
+  return item.available && !AUTH_REQUIRED.has(state) && state !== "revoked" && state !== "unsupported";
+}
+
 export function paymentMethodChargeable(row: PaymentMethod): boolean {
   if (row.status !== "active") {
     return false;
@@ -41,8 +46,15 @@ export function paymentMethodStateLabel(row: PaymentMethod): string {
 }
 
 export function catalogOfferLabel(item: PaymentMethodCatalogItem): string {
-  if (!item.available) {
-    return item.reason ?? "Coming soon";
+  const state = item.authorization_state.toLowerCase();
+  if (/coming soon/i.test(item.reason ?? "") || state === "unsupported") {
+    return "Coming soon";
+  }
+  if (!catalogMethodSelectable(item)) {
+    if (AUTH_REQUIRED.has(state)) {
+      return "Requires authorization";
+    }
+    return item.reason ?? "Not available for this payment";
   }
   if (item.is_sandbox) {
     return "AVAILABLE · SANDBOX";

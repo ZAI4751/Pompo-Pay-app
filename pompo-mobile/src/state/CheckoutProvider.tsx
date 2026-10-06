@@ -2,7 +2,7 @@ import { randomUUID } from "expo-crypto";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { useAuth } from "@/state/AuthProvider";
-import type { Payment, QrInspect } from "@/types";
+import type { Payment, PaymentMethodCatalogItem, QrInspect } from "@/types";
 
 export interface CheckoutSession {
   payload: string | null;
@@ -11,13 +11,15 @@ export interface CheckoutSession {
   amount: string;
   idempotencyKey: string;
   payment: Payment | null;
-  paymentMethodId: string | null;
+  paymentMethod: PaymentMethodCatalogItem | null;
+  customerPhone: string;
 }
 
 interface CheckoutState {
   session: CheckoutSession | null;
   begin: (raw: string, inspect: QrInspect, amount: string) => void;
-  selectPaymentMethod: (id: string | null) => void;
+  selectPaymentMethod: (method: PaymentMethodCatalogItem | null) => void;
+  setCustomerPhone: (phone: string) => void;
   setPayment: (payment: Payment) => void;
   clear: () => void;
 }
@@ -52,18 +54,29 @@ export function CheckoutProvider({ children }: { children: ReactNode }) {
         amount,
         idempotencyKey: sameQr && current ? current.idempotencyKey : randomUUID(),
         payment: null,
-        paymentMethodId: sameQr && current ? current.paymentMethodId : null,
+        paymentMethod: sameQr ? current?.paymentMethod ?? null : null,
+        customerPhone: sameQr ? current?.customerPhone ?? "" : "",
       };
     });
   }, []);
 
-  const selectPaymentMethod = useCallback((id: string | null) => {
+  const selectPaymentMethod = useCallback((method: PaymentMethodCatalogItem | null) => {
     setSession((current) => {
-      if (!current || current.paymentMethodId === id) {
+      if (!current) {
         return current;
       }
-      return { ...current, paymentMethodId: id };
+      if (
+        current.paymentMethod?.provider_code === method?.provider_code &&
+        current.paymentMethod?.instrument_type === method?.instrument_type
+      ) {
+        return current.paymentMethod === method ? current : { ...current, paymentMethod: method };
+      }
+      return { ...current, paymentMethod: method };
     });
+  }, []);
+
+  const setCustomerPhone = useCallback((phone: string) => {
+    setSession((current) => (current ? { ...current, customerPhone: phone } : current));
   }, []);
 
   const setPayment = useCallback((payment: Payment) => {
@@ -79,10 +92,11 @@ export function CheckoutProvider({ children }: { children: ReactNode }) {
       session,
       begin,
       selectPaymentMethod,
+      setCustomerPhone,
       setPayment,
       clear,
     }),
-    [session, begin, selectPaymentMethod, setPayment, clear],
+    [session, begin, selectPaymentMethod, setCustomerPhone, setPayment, clear],
   );
 
   return <CheckoutContext.Provider value={value}>{children}</CheckoutContext.Provider>;
