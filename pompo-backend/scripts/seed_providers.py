@@ -1,6 +1,7 @@
 """Idempotently seed sandbox payment-provider catalog rows.
 
-Refuses to run when APP_ENV is production. Does not store secrets.
+Production seeding is allowed only when sandbox payments are explicitly enabled.
+Does not store secrets.
 
     docker compose exec backend python scripts/seed_providers.py
 """
@@ -28,7 +29,10 @@ from app.payments.catalog import (
 
 async def seed_providers() -> None:
     settings = get_settings()
-    ensure_non_production_catalog_seed(settings.app_env)
+    ensure_non_production_catalog_seed(
+        settings.app_env,
+        sandbox_payments_enabled=settings.sandbox_payments_enabled,
+    )
 
     engine = create_engine(settings)
     factory = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)

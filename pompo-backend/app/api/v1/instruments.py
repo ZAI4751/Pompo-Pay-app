@@ -7,7 +7,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import CurrentUserDep, DbSessionDep, require_permission
+from app.models.enums import SANDBOX_PROVIDER_CODES
 from app.models.payment import PaymentInstrument
+from app.payments.catalog import CATALOG_BY_CODE
 from app.schemas.instrument import (
     PaymentMethodCatalogItem,
     PaymentMethodCreate,
@@ -47,12 +49,27 @@ def _error(exc: InstrumentError) -> HTTPException:
 def _response(row: PaymentInstrument, *, include_customer: bool = False) -> PaymentMethodResponse:
     provider = row.provider
     customer = getattr(row, "customer", None)
+    is_sandbox_provider = provider.is_simulated or provider.code in SANDBOX_PROVIDER_CODES
+    sandbox_names = {
+        "mobile_money": "POMPO Demo Mobile Money (Sandbox)",
+        "visa": "Sandbox Visa",
+        "mastercard": "Sandbox Mastercard",
+    }
+    provider_definition = CATALOG_BY_CODE.get(provider.code)
     return PaymentMethodResponse(
         id=row.public_identifier,
         provider_code=provider.code.value,
-        provider_display_name=provider.display_name,
+        provider_display_name=(
+            provider_definition.display_name
+            if is_sandbox_provider and provider_definition is not None
+            else provider.display_name
+        ),
         instrument_type=row.instrument_type.value,
-        display_name=row.display_name,
+        display_name=(
+            sandbox_names.get(row.instrument_type.value, "POMPO Demo/Sandbox")
+            if is_sandbox_provider
+            else row.display_name
+        ),
         masked_identifier=row.masked_identifier,
         status=row.status.value,
         authorization_state=row.authorization_state.value,

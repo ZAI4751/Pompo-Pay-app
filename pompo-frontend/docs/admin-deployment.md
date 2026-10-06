@@ -33,7 +33,7 @@ with that prefix.
 
 | Variable | Required | Development | Preview | Production |
 |----------|----------|-------------|---------|------------|
-| `NEXT_PUBLIC_API_BASE_URL` | Preview + Production | `http://localhost:8000/api/v1` | Staging HTTPS API URL | Production HTTPS API URL |
+| `NEXT_PUBLIC_API_BASE_URL` | Yes | `http://localhost:8000/api/v1` | Staging HTTPS API URL | `https://pompo-pay-app.onrender.com/api/v1` |
 | `NEXT_PUBLIC_USE_MOCKS` | No | `false` (or `true` for UI-only demo) | `false` (or `true` for demo deploys) | **`false` or unset** (build fails if `true`) |
 
 ### Local development
@@ -77,10 +77,10 @@ you do — mock mode bypasses real login and must never ship on a public admin U
 Logic lives in `src/lib/api/config.ts`:
 
 - **`DEPLOY_ENV`**: `local` | `preview` | `production` (from `VERCEL_ENV`)
-- **`API_BASE_URL`**: from `NEXT_PUBLIC_API_BASE_URL`, with `http://localhost:8000/api/v1` fallback **only** on local builds
+- **`API_BASE_URL`**: from the required `NEXT_PUBLIC_API_BASE_URL` setting in every environment
 - **`USE_MOCKS`**: `true` only when env is `"true"` **and** deploy is not production
 
-On Vercel Preview/Production, `NEXT_PUBLIC_API_BASE_URL` is **mandatory**.
+`NEXT_PUBLIC_API_BASE_URL` is **mandatory** in every environment.
 Production URLs must use **HTTPS** and must not point at `localhost`.
 
 ---

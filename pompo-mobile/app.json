@@ -104,7 +104,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "apiBaseUrl": "https://pompo-api-production.up.railway.app/api/v1"
+      "apiBaseUrl": "https://pompo-pay-app.onrender.com/api/v1"
     }
   }
 }

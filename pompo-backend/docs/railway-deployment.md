@@ -157,7 +157,9 @@ reference variables from the plugins.
 7. Health: monitored via API `/api/v1/health` Celery component (worker inspect ping)
 
 Current production-critical Celery usage: **health verification only**
-(`app.tasks.sample.ping_task`). No payment/webhook async jobs yet.
+(`app.tasks.sample.ping_task`). Payment notifications are persisted inline
+with payment state changes; their inbox records do not depend on Celery or
+QStash. There is no push-notification delivery provider configured.
 
 ---
 

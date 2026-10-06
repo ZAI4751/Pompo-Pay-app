@@ -71,9 +71,13 @@ describe("public checkout helpers", () => {
 
     const ordered = sortCatalogMethods([
       { available: false, authorization_state: "unsupported", label: "TNM Mpamba" },
-      { available: true, authorization_state: "not_required", label: "Test Airtel Money" },
+      {
+        available: true,
+        authorization_state: "not_required",
+        label: "POMPO Demo Mobile Money (Sandbox)",
+      },
     ]);
-    assert.equal(ordered[0].label, "Test Airtel Money");
+    assert.equal(ordered[0].label, "POMPO Demo Mobile Money (Sandbox)");
   });
 
   it("shows the app invitation only after success", () => {

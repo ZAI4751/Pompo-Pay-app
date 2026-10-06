@@ -178,6 +178,12 @@ async def test_payment_api_requires_authentication() -> None:
 @pytest.mark.asyncio
 async def test_payment_api_serializes_transaction() -> None:
     merchant_id = uuid.uuid4()
+    provider = PaymentProvider(
+        id=uuid.uuid4(),
+        code=ProviderCode.SIMULATED,
+        display_name="Airtel Money",
+        is_simulated=True,
+    )
     transaction = Transaction(
         id=uuid.uuid4(),
         merchant_id=merchant_id,
@@ -190,10 +196,12 @@ async def test_payment_api_serializes_transaction() -> None:
         currency="MWK",
         payment_method="mobile_money",
         status=TransactionStatus.CREATED,
+        provider_id=provider.id,
+        provider=provider,
         attempts=[
             PaymentAttempt(
                 id=uuid.uuid4(),
-                provider_id=uuid.uuid4(),
+                provider_id=provider.id,
                 attempt_number=1,
                 status="initiated",
                 initiated_at=datetime.now(UTC),
@@ -221,7 +229,11 @@ async def test_payment_api_serializes_transaction() -> None:
     ) as client:
         response = await client.get("/payments/PMP-API")
     assert response.status_code == 200
-    assert response.json()["reference"] == "PMP-API"
+    body = response.json()
+    assert body["reference"] == "PMP-API"
+    assert body["provider_code"] == "simulated"
+    assert body["provider_display_name"] == "POMPO Demo/Sandbox (Success)"
+    assert body["is_sandbox"] is True
 
 
 @pytest.mark.asyncio

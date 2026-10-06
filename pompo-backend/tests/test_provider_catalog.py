@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncGenerator
+from types import SimpleNamespace
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -14,10 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.api import deps
 from app.api.v1 import providers as providers_api
 from app.api.v1.payments import get_provider_catalog_service, router
-from app.core.config.base import AppEnvironment
+from app.core.config.base import AppEnvironment, get_settings
 from app.models import Permission, Role, RolePermission, User
 from app.models.base import Base
-from app.models.enums import ProviderCode
+from app.models.enums import ProviderCode, ProviderHealthState
 from app.models.payment import PaymentProvider
 from app.payments.catalog import (
     PROVIDER_CATALOG,
@@ -83,6 +84,7 @@ async def test_provider_seed_is_idempotent_and_matches_registry_codes(
     assert simulated.is_active is True
     assert simulated.is_simulated is True
     assert simulated.environment == "sandbox"
+    assert simulated.display_name == "POMPO Demo/Sandbox (Success)"
     airtel = next(row for row in catalog if row.code is ProviderCode.AIRTEL_MONEY)
     assert airtel.is_active is False
     assert airtel.is_simulated is False
@@ -96,6 +98,16 @@ async def test_provider_seed_is_idempotent_and_matches_registry_codes(
     assert standard.display_name == "Standard Bank Malawi"
     assert "card" in (standard.supported_payment_methods or [])
     assert {row.code.value for row in catalog} >= {"simulated"}
+    assert all(
+        "POMPO Demo/Sandbox" in row.display_name
+        for row in catalog
+        if row.code in {
+            ProviderCode.SIMULATED,
+            ProviderCode.SIMULATED_PENDING,
+            ProviderCode.SIMULATED_FAILURE,
+            ProviderCode.SIMULATED_TIMEOUT,
+        }
+    )
     assert "simulated" in service.adapter_codes()
     assert "airtel_money" in service.adapter_codes()
     assert "tnm_mpamba" in service.adapter_codes()
@@ -128,6 +140,27 @@ async def test_seed_restores_simulated_priority_on_incomplete_stub(
     assert simulated.priority == 1
     assert pending is not None
     assert pending.priority == 2
+
+
+@pytest.mark.asyncio
+async def test_production_seed_keeps_demo_providers_disabled(
+    session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.payments.catalog.get_settings",
+        lambda: SimpleNamespace(sandbox_payments_enabled=False),
+    )
+
+    await seed_provider_catalog(session)
+    await session.commit()
+    demo_provider = await session.scalar(
+        select(PaymentProvider).where(PaymentProvider.code == ProviderCode.SIMULATED)
+    )
+
+    assert demo_provider is not None
+    assert demo_provider.is_active is False
+    assert demo_provider.health_state is ProviderHealthState.DISABLED
 
 
 @pytest.mark.asyncio
@@ -239,11 +272,30 @@ def test_catalog_codes_are_provider_code_values() -> None:
     assert ProviderRegistry().get("simulated").code == "simulated"
 
 
-def test_sandbox_seed_refuses_production() -> None:
+def test_sandbox_seed_requires_explicit_production_enablement() -> None:
     with pytest.raises(ProductionCatalogSeedError):
         ensure_non_production_catalog_seed(AppEnvironment.PRODUCTION)
+    ensure_non_production_catalog_seed(
+        AppEnvironment.PRODUCTION,
+        sandbox_payments_enabled=True,
+    )
     ensure_non_production_catalog_seed(AppEnvironment.DEVELOPMENT)
     ensure_non_production_catalog_seed(AppEnvironment.TESTING)
+
+
+def test_sandbox_settings_default_off_in_demo_staging_and_production(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SANDBOX_PAYMENTS_ENABLED", raising=False)
+    try:
+        for app_env in ("demo", "staging", "production"):
+            monkeypatch.setenv("APP_ENV", app_env)
+            get_settings.cache_clear()
+            settings = get_settings()
+            assert settings.sandbox_payments_enabled is False
+            assert settings.app_env.value == app_env
+    finally:
+        get_settings.cache_clear()
 
 
 @pytest.mark.asyncio
@@ -317,11 +369,10 @@ async def test_platform_admin_can_enable_and_disable_simulated(session: AsyncSes
     enabled = await service.enable_provider(admin, "simulated")
     assert enabled.is_active is True
     assert enabled.health_state.value == "active"
-    with pytest.raises(ProviderCatalogConflictError, match="outside production"):
+    with pytest.raises(ProviderCatalogForbiddenError, match="identity cannot be changed"):
+        await service.update_catalog_entry(admin, "simulated", {"display_name": "Airtel Money"})
+    with pytest.raises(ProviderCatalogConflictError, match="must remain on the sandbox rail"):
         await service.update_catalog_entry(admin, "simulated", {"environment": "live"})
-    await service.update_catalog_entry(admin, "simulated", {"is_active": False, "environment": "live"})
-    with pytest.raises(ProviderCatalogConflictError, match="outside production"):
-        await service.enable_provider(admin, "simulated")
 
 
 @pytest.mark.asyncio

@@ -98,9 +98,9 @@ The operator should not need these commands during the demonstration.
    - Amount: Read-only for dynamic QR, or enter amount for static QR.
 6. Tap **Continue** to proceed to payment confirmation.
 7. Select a payment method:
-   - **Airtel Money Sandbox** (`...0999`, Default)
-   - **TNM Mpamba Sandbox** (`...0888`)
-8. Tap **Pay with Airtel Money Sandbox** (or TNM).
+   - **POMPO Demo Mobile Money (Sandbox)** (default demo method)
+   - **Sandbox Visa** or **Sandbox Mastercard** (optional card scenarios)
+8. Tap **Pay** with the selected POMPO demo/sandbox method.
 9. The simulated transaction processes through the backend, transitions state, and renders **Payment Successful** with real transaction reference (`PMP-...`).
 
 ### Step C: Customer Zero-Install Web Checkout (No App Required)
@@ -116,7 +116,8 @@ Use the **same** QR as Step A. Do not generate a second demo QR.
    - Merchant: **POMPO Demo Merchant**
    - Till: **POMPO Demo Branch · POMPO Demo Till**
    - Amount: Read-only (dynamic QR) or customer-entered (static QR).
-7. Select payment method (**Airtel Money** / **TNM Mpamba**).
+7. Select **POMPO Demo Mobile Money (Sandbox)**. Airtel Money, TNM Mpamba,
+   and bank rails are not used by this demonstration.
 8. Enter phone number (or login/register inline with minimum friction). Demo customer: `demo.customer@pompo.mw`.
 9. Tap **Pay MWK ...**.
 10. The browser invokes the real backend payment engine, polls for final settlement status, and displays the authentic green success confirmation with transaction reference.
@@ -146,13 +147,18 @@ Use the **same** QR as Step A. Do not generate a second demo QR.
 
 The demonstration environment includes deterministic simulation providers to test edge cases without real money:
 
-- **SUCCESS**: Provider `simulated` (Priority 1) returns guaranteed `SUCCESS`.
-- **FAILED**: Provider `simulated_failure` returns deterministic `REJECTED/FAILED`.
-- **PENDING**: Provider `simulated_pending` returns `PENDING` (allowing polling verification).
-- **TIMEOUT**: Provider `simulated_timeout` tests timeout recovery and retry safety.
+- **SUCCESS**: Provider `simulated` (`POMPO Demo/Sandbox (Success)`) returns guaranteed `SUCCESS`.
+- **FAILED**: Provider `simulated_failure` (`POMPO Demo/Sandbox (Failure)`) returns deterministic `REJECTED/FAILED`.
+- **PENDING**: Provider `simulated_pending` (`POMPO Demo/Sandbox (Pending)`) returns `PENDING`; a signed provider webhook can then advance it through the normal payment state machine.
+- **TIMEOUT**: Provider `simulated_timeout` (`POMPO Demo/Sandbox (Timeout)`) tests timeout recovery and retry safety.
 - **IDEMPOTENT REPLAY**: Repeating a payment submission with the same idempotency key safely returns the existing transaction without duplicate charges. Modifying the payload with the same key is strictly rejected by the backend.
 
-Simulated rails are labeled sandbox/test. Airtel, TNM, Standard Bank, NBS, National Bank, and First Capital are **not** live production rails.
+Demo rails are labeled **POMPO Demo/Sandbox** and cannot be presented as
+Airtel, TNM, or a bank. Demo, staging, and production disable sandbox payments
+by default; set `SANDBOX_PAYMENTS_ENABLED=true` only for an explicitly approved
+demo, and select a sandbox provider explicitly on each payment in every
+environment. Airtel, TNM, Standard Bank, NBS, National Bank, and First Capital
+are **not** live production rails.
 
 ---
 
@@ -163,4 +169,3 @@ Customer JWT cannot: create merchant QR, read merchant ledger, read settlements,
 Merchant JWT can only generate QR for authorized branch/till.
 
 Public QR inspect cannot change merchant, cannot override a dynamic amount, cannot bypass expiry or revocation.
-

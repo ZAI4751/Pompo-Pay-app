@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from structlog.contextvars import get_contextvars
 
+from app.core.config.base import get_settings
 from app.core.logging import get_logger
 from app.integrations.scopes import CREATE_PAYMENT_SCOPES, READ_PAYMENT_SCOPES, has_scope
 from app.models import (
@@ -32,7 +33,14 @@ from app.models import (
     Transaction,
     User,
 )
-from app.models.enums import PaymentAttemptStatus, QRStatus, QRType, TERMINAL_TRANSACTION_STATUSES, TransactionStatus
+from app.models.enums import (
+    SANDBOX_PROVIDER_CODES,
+    TERMINAL_TRANSACTION_STATUSES,
+    PaymentAttemptStatus,
+    QRStatus,
+    QRType,
+    TransactionStatus,
+)
 from app.payments.providers import ProviderError, ProviderOutcome, ProviderPaymentRequest
 from app.payments.registry import ProviderRegistry
 from app.payments.retry import should_open_new_attempt
@@ -158,6 +166,7 @@ class PaymentService:
             cashier_id=actor.id if actor is not None else None,
             api_client_id=api_client.id if api_client is not None else None,
             provider_id=provider.id,
+            provider=provider,
             reference=f"PMP-{uuid.uuid4().hex.upper()}",
             idempotency_key=values["idempotency_key"],
             request_fingerprint=fingerprint,
@@ -529,6 +538,16 @@ class PaymentService:
         provider = await self._session.get(PaymentProvider, transaction.provider_id)
         if provider is None or not provider.is_active:
             raise PaymentInvalidError("Payment provider is unavailable")
+        if (
+            (provider.is_simulated or provider.code in SANDBOX_PROVIDER_CODES)
+            and (
+                not get_settings().sandbox_payments_enabled
+                or provider.environment != "sandbox"
+            )
+        ):
+            raise PaymentInvalidError(
+                "Sandbox payments are disabled or misconfigured in this environment"
+            )
         adapter = self._registry.get(provider.code.value)
         if not adapter.live_contract_ready:
             raise PaymentInvalidError("Payment provider is unavailable")
@@ -1044,7 +1063,11 @@ class PaymentService:
 
     async def bind_instrument(self, actor: User, transaction: Transaction, public_id: str) -> Transaction:
         from app.models.enums import PaymentAttemptStatus as AttemptStatus
-        from app.services.instrument import InstrumentError, PaymentInstrumentService, payment_method_for
+        from app.services.instrument import (
+            InstrumentError,
+            PaymentInstrumentService,
+            payment_method_for,
+        )
 
         try:
             instrument = await PaymentInstrumentService(

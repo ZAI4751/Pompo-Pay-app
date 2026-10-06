@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Badge } from "@/components/ui/Badge";
 import { MonoId, Table, TableBody, TableHead, Td, Th, Tr } from "@/components/ui/Table";
 import { MockDataBadge } from "@/components/ui/MockDataBadge";
 import { paymentsService } from "@/lib/api/services/payments";
@@ -112,6 +113,7 @@ export default function PaymentsPage() {
               <Th>Amount</Th>
               <Th>Status</Th>
               <Th>Method</Th>
+              <Th>Provider</Th>
               <Th>Attempts</Th>
               <Th>Created</Th>
             </TableHead>
@@ -134,6 +136,16 @@ export default function PaymentsPage() {
                     <StatusBadge status={asTxnStatus(row.status)} />
                   </Td>
                   <Td>{row.payment_method}</Td>
+                  <Td>
+                    {row.is_sandbox ? (
+                      <>
+                        <Badge tone="info">POMPO DEMO / SANDBOX</Badge>
+                        <div className="text-xs text-text-subtle">{row.provider_code}</div>
+                      </>
+                    ) : (
+                      row.provider_display_name ?? row.provider_code ?? "—"
+                    )}
+                  </Td>
                   <Td>{row.attempts?.length ?? 0}</Td>
                   <Td>{row.created_at ? new Date(row.created_at).toLocaleString() : "—"}</Td>
                 </Tr>
@@ -180,7 +192,7 @@ export default function PaymentsPage() {
             <StatusBadge status={asTxnStatus(result.data.status)} />
           </CardHeader>
           <CardBody className="space-y-3">
-            <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+            <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-4">
               <div>
                 <dt className="text-text-subtle">Amount</dt>
                 <dd className="font-semibold tabular-nums">{formatMwk(result.data.amount)}</dd>
@@ -192,6 +204,19 @@ export default function PaymentsPage() {
               <div>
                 <dt className="text-text-subtle">Failure</dt>
                 <dd>{result.data.failure_reason ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-text-subtle">Provider</dt>
+                <dd>
+                  {result.data.is_sandbox ? (
+                    <>
+                      <Badge tone="info">POMPO DEMO / SANDBOX</Badge>
+                      <p className="text-xs text-text-subtle">{result.data.provider_code}</p>
+                    </>
+                  ) : (
+                    result.data.provider_display_name ?? result.data.provider_code ?? "—"
+                  )}
+                </dd>
               </div>
             </dl>
             <div className="flex gap-2">

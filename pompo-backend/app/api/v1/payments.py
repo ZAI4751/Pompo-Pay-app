@@ -4,18 +4,20 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import inspect as sa_inspect
 
 from app.api.deps import CurrentUserDep, DbSessionDep, require_permission
+from app.api.v1.provider_views import catalog_response
+from app.models.enums import SANDBOX_PROVIDER_CODES
+from app.models.payment import Transaction
+from app.payments.catalog import CATALOG_BY_CODE
 from app.payments.customer_status import customer_status_detail, customer_status_label
 from app.payments.providers import ProviderError
 from app.payments.registry import ProviderRegistry
-from app.api.v1.provider_views import catalog_response
-from app.models.payment import Transaction
 from app.schemas.payment import (
     MerchantPaymentSummaryResponse,
     PaymentAttemptResponse,
@@ -28,7 +30,6 @@ from app.schemas.payment import (
     ProviderCatalogUpdate,
 )
 from app.schemas.qr import PaymentFromQRRequest
-from app.services.qr import QRError as QRServiceError, QRService
 from app.services.payment import (
     PaymentConflictError,
     PaymentError,
@@ -45,11 +46,13 @@ from app.services.providers import (
     ProviderCatalogNotFoundError,
     ProviderCatalogService,
 )
+from app.services.qr import QRError as QRServiceError
+from app.services.qr import QRService
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
 
-def _loaded_rel(instance: object, name: str):
+def _loaded_rel(instance: object, name: str) -> Any | None:
     """Return a relationship only if it is already loaded — never lazy-load."""
     inspector = sa_inspect(instance, raiseerr=False)
     if inspector is None:
@@ -78,11 +81,41 @@ def _payment_response(transaction: Transaction) -> PaymentResponse:
     merchant = _loaded_rel(transaction, "merchant")
     branch = _loaded_rel(transaction, "branch")
     till = _loaded_rel(transaction, "till")
+    provider = _loaded_rel(transaction, "provider")
     instrument = _loaded_rel(transaction, "payment_instrument")
+    provider_code_value = getattr(provider, "code", None)
+    provider_code = (
+        getattr(provider_code_value, "value", provider_code_value)
+        if provider_code_value is not None
+        else None
+    )
+    if provider_code is not None:
+        provider_code = str(provider_code)
+    is_sandbox = bool(
+        provider is not None
+        and (
+            provider.is_simulated
+            or provider_code_value in SANDBOX_PROVIDER_CODES
+        )
+    )
+    provider_definition = (
+        CATALOG_BY_CODE.get(provider_code_value) if provider_code_value is not None else None
+    )
+    provider_display_name = None
+    if provider is not None:
+        if is_sandbox:
+            provider_display_name = (
+                provider_definition.display_name
+                if provider_code_value in SANDBOX_PROVIDER_CODES
+                and provider_definition is not None
+                else "POMPO Demo/Sandbox"
+            )
+        else:
+            provider_display_name = provider.display_name
     authorization_state = None
     if instrument is not None:
         state = getattr(instrument, "authorization_state", None)
-        authorization_state = state.value if hasattr(state, "value") else state
+        authorization_state = getattr(state, "value", state)
     return PaymentResponse(
         id=transaction.id,
         reference=transaction.reference,
@@ -93,6 +126,9 @@ def _payment_response(transaction: Transaction) -> PaymentResponse:
         currency=transaction.currency,
         payment_method=transaction.payment_method,
         status=transaction.status.value if hasattr(transaction.status, "value") else str(transaction.status),
+        provider_code=provider_code,
+        provider_display_name=provider_display_name,
+        is_sandbox=is_sandbox,
         description=transaction.description,
         failure_reason=transaction.failure_reason,
         attempts=attempts,

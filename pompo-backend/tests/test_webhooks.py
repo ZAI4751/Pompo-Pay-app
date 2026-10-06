@@ -8,6 +8,7 @@ import uuid
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
@@ -18,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.api import deps
 from app.api.v1.webhooks import get_webhook_service, router
 from app.models import (
+    AppNotification,
     Branch,
     Merchant,
     PaymentAttempt,
@@ -47,6 +49,7 @@ WEBHOOK_SECRET_ENV = "SIMULATED_WEBHOOK_SECRET"
 @pytest.fixture(autouse=True)
 def webhook_secret_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PROVIDER_SIMULATED_WEBHOOK_SECRET_REF", WEBHOOK_SECRET_ENV)
+    monkeypatch.setenv("PROVIDER_SIMULATED_PENDING_WEBHOOK_SECRET_REF", WEBHOOK_SECRET_ENV)
     monkeypatch.setenv(WEBHOOK_SECRET_ENV, WEBHOOK_SECRET)
 
 
@@ -61,7 +64,10 @@ async def session() -> AsyncGenerator[AsyncSession, None]:
     await engine.dispose()
 
 
-async def _fixture(session: AsyncSession) -> tuple[User, Transaction, PaymentProvider]:
+async def _fixture(
+    session: AsyncSession,
+    provider_code: ProviderCode = ProviderCode.SIMULATED,
+) -> tuple[User, Transaction, PaymentProvider]:
     read_perm = Permission(code="webhooks:read")
     role = Role(code=f"webhook_admin_{uuid.uuid4().hex}", name="Webhook admin")
     role.permissions.append(RolePermission(permission=read_perm))
@@ -80,7 +86,7 @@ async def _fixture(session: AsyncSession) -> tuple[User, Transaction, PaymentPro
         full_name="Admin",
         hashed_password="hash",
     )
-    provider = PaymentProvider(code=ProviderCode.SIMULATED, display_name="Simulated")
+    provider = PaymentProvider(code=provider_code, display_name="POMPO Demo/Sandbox")
     session.add_all([read_perm, role, merchant, branch, till, actor, provider])
     await session.flush()
 
@@ -103,8 +109,10 @@ async def _fixture(session: AsyncSession) -> tuple[User, Transaction, PaymentPro
         provider_id=provider.id,
         attempt_number=1,
         status=PaymentAttemptStatus.PENDING,
-        provider_reference=f"simulated-{transaction.reference}",
-        provider_response={"provider_transaction_id": f"simulated-{transaction.reference}"},
+        provider_reference=f"{provider_code.value}-{transaction.reference}",
+        provider_response={
+            "provider_transaction_id": f"{provider_code.value}-{transaction.reference}"
+        },
         initiated_at=datetime.now(UTC),
     )
     session.add_all([transaction, attempt])
@@ -187,6 +195,82 @@ async def test_ingest_valid_webhook_updates_payment(session: AsyncSession) -> No
     assert 1 <= len(event.public_identifier) <= 40
     assert event.public_identifier.startswith("WHK-")
     assert transaction.status is TransactionStatus.SUCCESS
+
+
+@pytest.mark.asyncio
+async def test_sandbox_pending_payment_reaches_success_through_signed_webhook(
+    session: AsyncSession,
+) -> None:
+    _, transaction, _ = await _fixture(session, ProviderCode.SIMULATED_PENDING)
+    service = WebhookService(session, sync_processing=True)
+    body, headers = _signed_payload(
+        event_id="evt-pending-success",
+        event_type="payment.success",
+        payment_reference=transaction.reference,
+        provider_transaction_id=f"simulated_pending-{transaction.reference}",
+        outcome="success",
+    )
+
+    event = await service.ingest("simulated_pending", headers=headers, body=body)
+    await session.refresh(transaction)
+
+    assert event.processing_status is WebhookProcessingStatus.PROCESSED
+    assert transaction.status is TransactionStatus.SUCCESS
+
+
+@pytest.mark.asyncio
+async def test_sandbox_webhook_processes_inline_without_worker(
+    session: AsyncSession,
+) -> None:
+    customer, transaction, _ = await _fixture(session, ProviderCode.SIMULATED_PENDING)
+    service = WebhookService(session)
+    body, headers = _signed_payload(
+        event_id="evt-pending-success-inline",
+        event_type="payment.success",
+        payment_reference=transaction.reference,
+        provider_transaction_id=f"simulated_pending-{transaction.reference}",
+        outcome="success",
+    )
+
+    event = await service.ingest("simulated_pending", headers=headers, body=body)
+    await session.refresh(transaction)
+
+    assert event.processing_status is WebhookProcessingStatus.PROCESSED
+    assert transaction.status is TransactionStatus.SUCCESS
+    notification = await session.scalar(
+        select(AppNotification).where(
+            AppNotification.user_id == customer.id,
+            AppNotification.payment_reference == transaction.reference,
+            AppNotification.notification_type == "payment_success",
+        )
+    )
+    assert notification is not None
+
+
+@pytest.mark.asyncio
+async def test_production_disabled_sandbox_rejects_webhooks_without_payment_effect(
+    session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, transaction, _ = await _fixture(session)
+    monkeypatch.setattr(
+        "app.services.webhook.get_settings",
+        lambda: SimpleNamespace(sandbox_payments_enabled=False),
+    )
+    service = WebhookService(session, sync_processing=True)
+    body, headers = _signed_payload(
+        event_id="evt-sandbox-disabled",
+        event_type="payment.success",
+        payment_reference=transaction.reference,
+        outcome="success",
+    )
+
+    from app.services.webhook import WebhookInvalidError
+
+    with pytest.raises(WebhookInvalidError, match="Sandbox webhooks are disabled"):
+        await service.ingest("simulated", headers=headers, body=body)
+    await session.refresh(transaction)
+    assert transaction.status is TransactionStatus.PENDING
 
 
 @pytest.mark.asyncio

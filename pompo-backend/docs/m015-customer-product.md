@@ -31,7 +31,8 @@ provider is wired.
 - Pay Again: new payment, never a copy of the old transaction
 - Payment requests and bill splits as merchant-payment instructions
 - Payment receipts labelled PAYMENT RECEIPT, not tax invoices
-- In-app notifications (Celery delivery mark; no push vendor)
+- In-app payment notifications persisted with the payment transaction; no
+  push vendor or background delivery worker is required
 - Backend history search/filters
 - Lightweight support requests (not a ticketing platform)
 - Customer payment insights from completed transactions only
@@ -54,7 +55,12 @@ provider is wired.
 Registration uses `AuthService` session issuance.
 Repeat pay and request pay use `PaymentService.create_payment`.
 QR inspect/pay paths are unchanged.
-Notification rows use a unique `event_key` for delivery idempotency.
+Notification rows use a unique `event_key` for idempotency. Payment status
+notifications are recorded through `NotificationService` in the same database
+transaction as the payment state change. The previously enqueued Celery task
+only marked rows delivered; it did not send a notification, so payment
+processing no longer dispatches it. QStash is not needed until an actual
+external notification channel is introduced.
 Financial uniqueness remains PostgreSQL idempotency keys on payments.
 
 ## Authorization

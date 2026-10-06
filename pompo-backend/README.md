@@ -223,10 +223,49 @@ See [docs/architecture.md](docs/architecture.md) for detailed diagrams.
 | `REDIS_URL` | Redis connection string | — |
 | `CELERY_BROKER_URL` | Celery broker URL | — |
 | `JWT_SECRET_KEY` | JWT signing key (min 32 chars) | — |
+| `SANDBOX_PAYMENTS_ENABLED` | Enable deterministic demo-provider flows | `false`; local `.env.example` opts in |
 | `LOG_LEVEL` | Logging level | `INFO` |
 | `RATE_LIMIT_REQUESTS` | Max requests per window | `100` |
 
 See `.env.example` for the full list.
+
+## Demo / sandbox payments
+
+The payment sandbox uses the same provider adapter, payment state machine,
+attempt records, idempotency handling, and signed webhook processing as other
+payment rails. Catalog entries are explicitly named **POMPO Demo/Sandbox**;
+they are not Airtel Money, TNM Mpamba, or bank integrations.
+
+`SANDBOX_PAYMENTS_ENABLED` defaults to `false` in every environment except
+testing. The local `.env.example` explicitly opts development into simulation;
+demo, staging, and production remain disabled unless an operator opts in.
+Even when enabled, a sandbox provider must be named on each payment request in
+every environment. Automatic provider selection never falls back to a demo
+rail. A sandbox rail cannot be relabeled or moved to a live environment.
+Airtel/TNM/bank adapters continue to reject payments until their provider
+contract and required credentials are actually configured.
+
+For an explicitly approved Render production demo, keep `APP_ENV=production`
+and temporarily set `SANDBOX_PAYMENTS_ENABLED=true`; do not switch the public
+service to the less restrictive demo profile. Seed provider rows by running
+`python scripts/seed_providers.py` in the API service after setting the flag.
+That command refuses production seeding unless the flag is true. For signed
+pending-payment callbacks, store a random secret in Render as
+`POMPO_DEMO_WEBHOOK_SECRET` and set
+`PROVIDER_SIMULATED_PENDING_WEBHOOK_SECRET_REF=POMPO_DEMO_WEBHOOK_SECRET`.
+Never put the secret value in source control or logs. Sandbox callbacks are
+processed inline through the same verified state machine and do not require a
+Celery worker; other webhook jobs remain on the existing worker path.
+
+For an end-to-end success demonstration, seed the non-production provider
+catalog and demo environment, create or display a POMPO merchant QR, then pay
+it using **POMPO Demo Mobile Money (Sandbox)**. The payment is created and
+processed by the shared provider adapter and shown as successful with its
+normal POMPO payment reference. The adapter outcomes `simulated_pending`,
+`simulated_failure`, and `simulated_timeout` provide deterministic lifecycle
+tests. A pending payment becomes successful only through the existing
+signature-verified provider webhook/status-processing path; it is not marked
+paid by directly editing the transaction.
 
 ## Middleware
 

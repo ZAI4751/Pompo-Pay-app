@@ -22,6 +22,8 @@ class AppEnvironment(str, Enum):
 
     DEVELOPMENT = "development"
     TESTING = "testing"
+    DEMO = "demo"
+    STAGING = "staging"
     PRODUCTION = "production"
 
 
@@ -78,6 +80,7 @@ class BaseAppSettings(BaseSettings):
     rate_limit_auth_failures: int = Field(default=20, ge=1)
     outbound_webhook_timeout_seconds: int = Field(default=10, ge=1, le=60)
     outbound_webhook_max_attempts: int = Field(default=5, ge=1, le=20)
+    sandbox_payments_enabled: bool = False
 
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     log_json: bool = False
@@ -175,6 +178,7 @@ class TestingSettings(BaseAppSettings):
 
     app_env: AppEnvironment = AppEnvironment.TESTING
     debug: bool = True
+    sandbox_payments_enabled: bool = True
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "WARNING"
     log_json: bool = False
     allowed_hosts: str = "*"
@@ -186,6 +190,22 @@ class TestingSettings(BaseAppSettings):
     rate_limit_requests: int = Field(default=10000, ge=1)
 
 
+class DemoSettings(BaseAppSettings):
+    """Demo environment defaults."""
+
+    app_env: AppEnvironment = AppEnvironment.DEMO
+    debug: bool = False
+    log_json: bool = True
+
+
+class StagingSettings(BaseAppSettings):
+    """Staging environment defaults."""
+
+    app_env: AppEnvironment = AppEnvironment.STAGING
+    debug: bool = False
+    log_json: bool = True
+
+
 class ProductionSettings(BaseAppSettings):
     """Production environment overrides."""
 
@@ -195,6 +215,7 @@ class ProductionSettings(BaseAppSettings):
     log_json: bool = True
     database_echo: bool = False
     cors_origins: str = ",".join(CANONICAL_PRODUCTION_CORS_ORIGINS)
+    sandbox_payments_enabled: bool = False
 
 
 def _resolve_settings_class() -> type[BaseAppSettings]:
@@ -205,6 +226,8 @@ def _resolve_settings_class() -> type[BaseAppSettings]:
     mapping: dict[str, type[BaseAppSettings]] = {
         AppEnvironment.DEVELOPMENT.value: DevelopmentSettings,
         AppEnvironment.TESTING.value: TestingSettings,
+        AppEnvironment.DEMO.value: DemoSettings,
+        AppEnvironment.STAGING.value: StagingSettings,
         AppEnvironment.PRODUCTION.value: ProductionSettings,
     }
     return mapping.get(env, DevelopmentSettings)

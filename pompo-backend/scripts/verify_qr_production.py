@@ -16,7 +16,7 @@ except ImportError:
     sys.exit(1)
 
 API_BASE = os.getenv(
-    "POMPO_API_BASE", "https://pompo-api-production.up.railway.app/api/v1"
+    "POMPO_API_BASE", "https://pompo-pay-app.onrender.com/api/v1"
 ).rstrip("/")
 ADMIN_EMAIL = os.getenv("POMPO_ADMIN_EMAIL")
 ADMIN_PASSWORD = os.getenv("POMPO_ADMIN_PASSWORD")

@@ -10,9 +10,15 @@ from typing import Any
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.base import get_settings
 from app.core.logging import get_logger
 from app.models import AuditLog, PaymentProvider, User
-from app.models.enums import ProviderCode, ProviderHealthState, ProviderType
+from app.models.enums import (
+    SANDBOX_PROVIDER_CODES,
+    ProviderCode,
+    ProviderHealthState,
+    ProviderType,
+)
 from app.payments.catalog import CATALOG_BY_CODE
 from app.payments.config import provider_env_key, resolve_provider_runtime_config
 from app.payments.contracts import get_authoritative_mapper
@@ -90,7 +96,12 @@ class ProviderCatalogService:
         live_ready = adapter is not None and adapter.live_contract_ready
         provider = PaymentProvider(
             code=code,
-            display_name=values["display_name"],
+            display_name=(
+                definition.display_name
+                if definition is not None
+                and (definition.is_simulated or code in SANDBOX_PROVIDER_CODES)
+                else values["display_name"]
+            ),
             provider_type=provider_type,
             is_active=False,
             is_simulated=is_simulated,
@@ -130,8 +141,13 @@ class ProviderCatalogService:
         provider = await self._providers.get_by_code(code)
         if provider is None:
             raise ProviderCatalogNotFoundError("Provider not found")
+        is_sandbox_provider = provider.is_simulated or provider.code in SANDBOX_PROVIDER_CODES
+        if is_sandbox_provider and "display_name" in values:
+            raise ProviderCatalogForbiddenError("Sandbox provider identity cannot be changed")
         next_active = values["is_active"] if "is_active" in values else provider.is_active
         next_environment = values["environment"] if "environment" in values else provider.environment
+        if is_sandbox_provider and next_environment != "sandbox":
+            raise ProviderCatalogConflictError("Sandbox providers must remain on the sandbox rail")
         if next_active:
             original_environment = provider.environment
             provider.environment = next_environment
@@ -203,22 +219,23 @@ class ProviderCatalogService:
         return defaults
 
     def configuration_status(self, provider: PaymentProvider) -> dict[str, Any]:
+        is_sandbox_provider = provider.is_simulated or provider.code in SANDBOX_PROVIDER_CODES
         runtime = resolve_provider_runtime_config(
-            provider.code.value, simulated=provider.is_simulated
+            provider.code.value, simulated=is_sandbox_provider
         )
         adapter = self.adapter_for(provider.code.value)
         rail_environment = normalize_rail_environment(provider.environment)
         mapper = get_authoritative_mapper(provider.code.value, rail_environment)
-        contract_registered = provider.is_simulated or mapper is not None
+        contract_registered = is_sandbox_provider or mapper is not None
         production_permitted = production_rails_permitted()
         client_id_configured = bool(
             os.environ.get(provider_env_key(provider.code.value, "CLIENT_ID"), "").strip()
         )
         auth_configured = runtime.secrets_configured and (
-            provider.is_simulated or client_id_configured
+            is_sandbox_provider or client_id_configured
         )
-        if provider.is_simulated:
-            complete = True
+        if is_sandbox_provider:
+            complete = get_settings().sandbox_payments_enabled
         else:
             complete = (
                 runtime.configuration_complete
@@ -239,6 +256,12 @@ class ProviderCatalogService:
         }
 
     def _assert_can_enable(self, provider: PaymentProvider) -> None:
+        if (
+            provider.is_simulated or provider.code in SANDBOX_PROVIDER_CODES
+        ) and not get_settings().sandbox_payments_enabled:
+            raise ProviderCatalogConflictError(
+                "Sandbox payments are disabled in this environment"
+            )
         adapter = self.adapter_for(provider.code.value)
         if adapter is None:
             raise ProviderCatalogConflictError("Cannot enable a provider that has no adapter")

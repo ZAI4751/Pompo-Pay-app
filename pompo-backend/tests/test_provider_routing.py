@@ -5,10 +5,12 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncGenerator
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.core.config.base import AppEnvironment
 from app.models import (
     Branch,
     Merchant,
@@ -55,13 +57,24 @@ def _provider(**overrides) -> PaymentProvider:
     return PaymentProvider(**values)
 
 
-def test_routing_selects_lowest_priority_supported_provider() -> None:
+def test_routing_requires_explicit_sandbox_provider_selection() -> None:
     registry = ProviderRegistry()
     low = _provider(code=ProviderCode.SIMULATED, priority=20)
     high = _provider(code=ProviderCode.SIMULATED_PENDING, priority=5)
+    with pytest.raises(ProviderRoutingError, match="No provider supports"):
+        select_provider(
+            [low, high],
+            RoutingRequest(payment_method="mobile_money", currency="MWK"),
+            registry,
+        )
+
     selected = select_provider(
         [low, high],
-        RoutingRequest(payment_method="mobile_money", currency="MWK"),
+        RoutingRequest(
+            payment_method="mobile_money",
+            currency="MWK",
+            provider_code="simulated_pending",
+        ),
         registry,
     )
     assert selected.code is ProviderCode.SIMULATED_PENDING
@@ -126,9 +139,19 @@ def test_routing_skips_stub_rails_even_if_active() -> None:
         priority=1,
     )
     simulated = _provider(priority=50)
+    with pytest.raises(ProviderRoutingError, match="No provider supports"):
+        select_provider(
+            [stub, simulated],
+            RoutingRequest(payment_method="mobile_money", currency="MWK"),
+            registry,
+        )
     selected = select_provider(
         [stub, simulated],
-        RoutingRequest(payment_method="mobile_money", currency="MWK"),
+        RoutingRequest(
+            payment_method="mobile_money",
+            currency="MWK",
+            provider_code="simulated",
+        ),
         registry,
     )
     assert selected.code is ProviderCode.SIMULATED
@@ -143,9 +166,19 @@ def test_routing_skips_tnm_even_if_marked_active() -> None:
         priority=1,
     )
     simulated = _provider(priority=50)
+    with pytest.raises(ProviderRoutingError, match="No provider supports"):
+        select_provider(
+            [tnm, simulated],
+            RoutingRequest(payment_method="mobile_money", currency="MWK"),
+            registry,
+        )
     selected = select_provider(
         [tnm, simulated],
-        RoutingRequest(payment_method="mobile_money", currency="MWK"),
+        RoutingRequest(
+            payment_method="mobile_money",
+            currency="MWK",
+            provider_code="simulated",
+        ),
         registry,
     )
     assert selected.code is ProviderCode.SIMULATED
@@ -171,9 +204,19 @@ def test_routing_skips_standard_bank_even_if_marked_active() -> None:
         supported_payment_methods=["card"],
     )
     simulated = _provider(priority=50, supported_payment_methods=["card"])
+    with pytest.raises(ProviderRoutingError, match="No provider supports"):
+        select_provider(
+            [bank, simulated],
+            RoutingRequest(payment_method="card", currency="MWK"),
+            registry,
+        )
     selected = select_provider(
         [bank, simulated],
-        RoutingRequest(payment_method="card", currency="MWK"),
+        RoutingRequest(
+            payment_method="card",
+            currency="MWK",
+            provider_code="simulated",
+        ),
         registry,
     )
     assert selected.code is ProviderCode.SIMULATED
@@ -208,8 +251,57 @@ def test_routing_rejects_production_rail_outside_production() -> None:
         )
 
 
+def test_production_sandbox_is_explicit_and_disabled_by_default() -> None:
+    provider = _provider()
+    registry = ProviderRegistry()
+
+    with pytest.raises(ProviderRoutingError, match="Sandbox payments are disabled"):
+        select_provider(
+            [provider],
+            RoutingRequest("mobile_money", "MWK", provider_code="simulated"),
+            registry,
+            app_env=AppEnvironment.PRODUCTION,
+            sandbox_payments_enabled=False,
+        )
+
+    with pytest.raises(ProviderRoutingError, match="No provider supports"):
+        select_provider(
+            [provider],
+            RoutingRequest("mobile_money", "MWK"),
+            registry,
+            app_env=AppEnvironment.PRODUCTION,
+            sandbox_payments_enabled=True,
+        )
+
+    assert (
+        select_provider(
+            [provider],
+            RoutingRequest("mobile_money", "MWK", provider_code="simulated"),
+            registry,
+            app_env=AppEnvironment.PRODUCTION,
+            sandbox_payments_enabled=True,
+        )
+        is provider
+    )
+
+
+def test_sandbox_provider_cannot_be_routed_as_a_live_rail() -> None:
+    provider = _provider(environment="live")
+    with pytest.raises(ProviderRoutingError, match="sandbox rail"):
+        select_provider(
+            [provider],
+            RoutingRequest("mobile_money", "MWK", provider_code="simulated"),
+            ProviderRegistry(),
+            app_env=AppEnvironment.PRODUCTION,
+            sandbox_payments_enabled=True,
+        )
+
+
 @pytest.mark.asyncio
-async def test_payment_service_uses_router_when_provider_omitted(session: AsyncSession) -> None:
+async def test_payment_service_uses_router_when_provider_omitted(
+    session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     await seed_provider_catalog(session)
     permissions = [
         Permission(code=code)
@@ -236,22 +328,31 @@ async def test_payment_service_uses_router_when_provider_omitted(session: AsyncS
     await session.commit()
 
     service = PaymentService(session)
-    payment = await service.create_payment(
-        actor,
-        {
-            "merchant_id": merchant.id,
-            "branch_id": branch.id,
-            "till_id": till.id,
-            "amount": Decimal("10.00"),
-            "currency": "MWK",
-            "payment_method": "mobile_money",
-            "provider_code": None,
-            "idempotency_key": "route-1",
-        },
-    )
+    values = {
+        "merchant_id": merchant.id,
+        "branch_id": branch.id,
+        "till_id": till.id,
+        "amount": Decimal("10.00"),
+        "currency": "MWK",
+        "payment_method": "mobile_money",
+        "provider_code": None,
+        "idempotency_key": "route-1-implicit",
+    }
+    with pytest.raises(PaymentInvalidError, match="No provider supports"):
+        await service.create_payment(actor, values)
+
+    values["provider_code"] = "simulated"
+    values["idempotency_key"] = "route-1-explicit"
+    payment = await service.create_payment(actor, values)
     provider = await session.get(PaymentProvider, payment.provider_id)
     assert provider is not None
     assert provider.code is ProviderCode.SIMULATED
+    monkeypatch.setattr(
+        "app.services.payment.get_settings",
+        lambda: SimpleNamespace(sandbox_payments_enabled=False),
+    )
+    with pytest.raises(PaymentInvalidError, match="Sandbox payments are disabled"):
+        await service.process_payment(actor, payment.reference)
 
 
 @pytest.mark.asyncio

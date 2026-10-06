@@ -208,7 +208,7 @@ Mirrors the backend's own M003/M004 distinction:
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `NEXT_PUBLIC_API_BASE_URL` | No (defaults to `http://localhost:8000/api/v1`) | Base URL of the FastAPI backend |
+| `NEXT_PUBLIC_API_BASE_URL` | Yes (local `.env.local`; HTTPS on Vercel) | Base URL of the FastAPI backend |
 | `NEXT_PUBLIC_USE_MOCKS` | No (default live API) | `"true"` enables labeled demo fixtures and demo login |
 
 No secrets belong in either variable or anywhere else in this codebase —

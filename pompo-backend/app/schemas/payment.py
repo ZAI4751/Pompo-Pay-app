@@ -18,7 +18,7 @@ class PaymentCreate(BaseModel):
     payment_method: str = Field(min_length=1, max_length=32)
     customer_phone: str | None = Field(default=None, max_length=32)
     description: str | None = Field(default=None, max_length=500)
-    provider_code: str | None = Field(default="simulated", max_length=32)
+    provider_code: str | None = Field(default=None, max_length=32)
     payment_instrument_id: str | None = Field(default=None, max_length=40)
     idempotency_key: str = Field(min_length=1, max_length=128)
 
@@ -65,6 +65,9 @@ class PaymentResponse(BaseModel):
     currency: str
     payment_method: str
     status: str
+    provider_code: str | None = None
+    provider_display_name: str | None = None
+    is_sandbox: bool = False
     description: str | None
     failure_reason: str | None
     attempts: list[PaymentAttemptResponse] = Field(default_factory=list)

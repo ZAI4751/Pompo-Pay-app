@@ -1,4 +1,9 @@
-import { isUnsafeReleaseApiUrl, resolveDevApiBaseUrl } from "../src/config";
+import {
+  isUnsafeReleaseApiUrl,
+  PRODUCTION_API_BASE_URL,
+  PUBLIC_CHECKOUT_BASE_URL,
+  resolveDevApiBaseUrl,
+} from "../src/config";
 
 describe("resolveDevApiBaseUrl", () => {
   it("uses the Expo LAN host for physical devices", () => {
@@ -12,8 +17,14 @@ describe("resolveDevApiBaseUrl", () => {
 });
 
 describe("isUnsafeReleaseApiUrl", () => {
-  it("accepts the production Railway HTTPS API", () => {
-    expect(isUnsafeReleaseApiUrl("https://pompo-api-production.up.railway.app/api/v1")).toBe(false);
+  it("uses the Render production API and Vercel checkout host", () => {
+    expect(PRODUCTION_API_BASE_URL).toBe("https://pompo-pay-app.onrender.com/api/v1");
+    expect(PUBLIC_CHECKOUT_BASE_URL).toBe("https://pompo-pay-app.vercel.app");
+    expect(isUnsafeReleaseApiUrl(PRODUCTION_API_BASE_URL)).toBe(false);
+  });
+
+  it("rejects the retired Railway API in release builds", () => {
+    expect(isUnsafeReleaseApiUrl("https://pompo-api-production.up.railway.app/api/v1")).toBe(true);
   });
 
   it("rejects localhost and cleartext endpoints", () => {

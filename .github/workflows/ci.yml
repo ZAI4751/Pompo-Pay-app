@@ -97,7 +97,7 @@ jobs:
         working-directory: pompo-frontend
 
     env:
-      NEXT_PUBLIC_API_BASE_URL: https://pompo-api-production.up.railway.app/api/v1
+      NEXT_PUBLIC_API_BASE_URL: https://pompo-pay-app.onrender.com/api/v1
       NEXT_PUBLIC_USE_MOCKS: "false"
 
     steps:

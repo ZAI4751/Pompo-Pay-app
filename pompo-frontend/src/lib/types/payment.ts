@@ -22,6 +22,9 @@ export interface Payment {
   currency: string;
   payment_method: string;
   status: string;
+  provider_code: string | null;
+  provider_display_name: string | null;
+  is_sandbox: boolean;
   description: string | null;
   failure_reason: string | null;
   attempts: PaymentAttempt[];

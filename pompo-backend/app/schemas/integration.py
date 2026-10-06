@@ -129,7 +129,7 @@ class IntegrationPaymentCreate(BaseModel):
     payment_method: str = Field(default="mobile_money", min_length=1, max_length=32)
     customer_phone: str | None = Field(default=None, max_length=32)
     description: str | None = Field(default=None, max_length=500)
-    provider_code: str | None = Field(default="simulated", max_length=32)
+    provider_code: str | None = Field(default=None, max_length=32)
     idempotency_key: str = Field(min_length=1, max_length=128)
     generate_qr: bool = True
     expires_in_seconds: int = Field(default=900, ge=60, le=86400)

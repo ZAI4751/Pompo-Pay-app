@@ -15,7 +15,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const PRODUCTION_API = "https://pompo-api-production.up.railway.app/api/v1";
+const PRODUCTION_API = "https://pompo-pay-app.onrender.com/api/v1";
 const PACKAGE_ID = "mw.pompo.mobile";
 const VERSION_NAME = "1.0.0";
 const root = path.resolve(__dirname, "..");
@@ -23,7 +23,7 @@ const androidDir = path.join(root, "android");
 const credentialsDir = path.join(root, "credentials");
 const keystorePath = path.join(credentialsDir, "release.keystore");
 const keystorePropsPath = path.join(credentialsDir, "keystore.properties");
-const gradle = process.platform === "win32" ? "gradlew.bat" : "./gradlew";
+const gradle = process.platform === "win32" ? ".\\gradlew.bat" : "./gradlew";
 
 function resolveToolchainEnv(base) {
   const env = { ...base };
@@ -80,6 +80,7 @@ function assertSafeApiUrl(url) {
   }
   if (
     normalized.includes("localhost") ||
+    normalized.includes("pompo-api-production.up.railway.app") ||
     normalized.includes("127.0.0.1") ||
     normalized.includes("10.0.2.2") ||
     normalized.includes("0.0.0.0")

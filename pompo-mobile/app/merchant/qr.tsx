@@ -6,6 +6,7 @@ import QRCode from "react-native-qrcode-svg";
 
 import { AmountDisplay, FadeIn, GlassInput } from "@/components/glass";
 import { Card, EmptyState, ErrorBanner, formatMoney, PrimaryButton, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
+import { PUBLIC_CHECKOUT_BASE_URL } from "@/config";
 import { canCreateQr, canRevokeQr } from "@/domain/roles";
 import { useAuth } from "@/state/AuthProvider";
 import type { QrRecord, Till } from "@/types";
@@ -158,7 +159,7 @@ export default function MerchantQrScreen() {
                     const paymentUrl =
                       active.payment_url && !active.payment_url.includes("pay.pompo.mw")
                         ? active.payment_url
-                        : `https://pompo-pay-app.vercel.app/p/${active.public_identifier}`;
+                        : `${PUBLIC_CHECKOUT_BASE_URL}/p/${active.public_identifier}`;
                     return (
                       <>
                         <QRCode
@@ -187,7 +188,7 @@ export default function MerchantQrScreen() {
                     const shareUrl =
                       active.payment_url && !active.payment_url.includes("pay.pompo.mw")
                         ? active.payment_url
-                        : `https://pompo-pay-app.vercel.app/p/${active.public_identifier}`;
+                        : `${PUBLIC_CHECKOUT_BASE_URL}/p/${active.public_identifier}`;
                     void Share.share({
                       message: `Pay ${active.merchant_name} with POMPO:\n${shareUrl}`,
                     });

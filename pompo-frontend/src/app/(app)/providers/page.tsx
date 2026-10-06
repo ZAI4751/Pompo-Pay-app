@@ -64,7 +64,7 @@ export default function ProvidersPage() {
     >
       <p className="mb-4 max-w-2xl text-sm text-text-muted">
         Rails are never treated as live merely because they appear in the catalog.
-        Simulated sandbox is labeled SIMULATED. TNM Mpamba and Standard Bank stay
+        Demo rails are labeled POMPO Demo/Sandbox. TNM Mpamba and Standard Bank stay
         CONTRACT NOT READY until a live contract exists. Credentials are never shown.
       </p>
 

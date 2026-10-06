@@ -67,6 +67,16 @@ class ProviderCode(str, enum.Enum):
     SIMULATED_TIMEOUT = "simulated_timeout"
 
 
+SANDBOX_PROVIDER_CODES = frozenset(
+    {
+        ProviderCode.SIMULATED,
+        ProviderCode.SIMULATED_PENDING,
+        ProviderCode.SIMULATED_FAILURE,
+        ProviderCode.SIMULATED_TIMEOUT,
+    }
+)
+
+
 class ProviderType(str, enum.Enum):
     """High-level rail family. Distinct from operational health."""
 

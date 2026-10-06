@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncGenerator
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
@@ -13,19 +14,37 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.api import deps
-from app.api.v1.instruments import get_instrument_service, router as instruments_router
+from app.api.v1.instruments import get_instrument_service
+from app.api.v1.instruments import router as instruments_router
 from app.api.v1.payments import (
     get_payment_service,
+)
+from app.api.v1.payments import (
     get_qr_service as get_payment_qr_service,
+)
+from app.api.v1.payments import (
     router as payments_router,
 )
-from app.api.v1.qr import get_qr_service, router as qr_router
-from app.models import AuditLog, Branch, Merchant, PaymentInstrument, Permission, Role, RolePermission, Till, User
+from app.api.v1.qr import get_qr_service
+from app.api.v1.qr import router as qr_router
+from app.models import (
+    AppNotification,
+    AuditLog,
+    Branch,
+    Merchant,
+    PaymentInstrument,
+    Permission,
+    Role,
+    RolePermission,
+    Till,
+    User,
+)
 from app.models.base import Base
-from app.models.enums import PaymentInstrumentStatus, ProviderCode
+from app.models.enums import NotificationType, PaymentInstrumentStatus, ProviderCode
 from app.payments.catalog import seed_provider_catalog
 from app.payments.instrument_tokens import digest_token, reject_secret_fields
 from app.services.instrument import PaymentInstrumentService
+from app.services.notification import NotificationService
 from app.services.payment import PaymentService
 from app.services.qr import QRService
 
@@ -139,6 +158,22 @@ def test_reject_secret_fields() -> None:
     assert len(digest) == 64
 
 
+def test_sandbox_payment_methods_are_unavailable_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.instrument.get_settings",
+        lambda: SimpleNamespace(sandbox_payments_enabled=False),
+    )
+    service = object.__new__(PaymentInstrumentService)
+    catalog = service.catalog()
+    mobile_money = next(item for item in catalog if item["provider_code"] == "simulated")
+
+    assert mobile_money["available"] is False
+    assert mobile_money["is_sandbox"] is True
+    assert "disabled" in mobile_money["reason"].lower()
+
+
 @pytest.mark.asyncio
 async def test_enroll_list_default_revoke_and_no_secret_leak(session: AsyncSession) -> None:
     await _seed(session)
@@ -213,7 +248,7 @@ async def test_enroll_list_default_revoke_and_no_secret_leak(session: AsyncSessi
 
         method = await _enroll_airtel(client)
         assert method["is_sandbox"] is True
-        assert method["display_name"] == "Test Airtel Money"
+        assert method["display_name"] == "POMPO Demo Mobile Money (Sandbox)"
         assert "••" in method["masked_identifier"]
         assert method["is_default"] is True
         assert "token_reference" not in method
@@ -275,8 +310,18 @@ async def test_cross_customer_instrument_is_not_found(session: AsyncSession) -> 
 
 @pytest.mark.asyncio
 async def test_qr_checkout_derives_provider_and_rejects_revoked(
-    session: AsyncSession,
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    celery_dispatches: list[str] = []
+
+    def reject_celery_dispatch(notification_id: str) -> None:
+        celery_dispatches.append(notification_id)
+        raise AssertionError("Payment notifications must not require a Celery worker")
+
+    from app.tasks.notifications import deliver_notification
+
+    monkeypatch.setattr(deliver_notification, "delay", reject_celery_dispatch)
+
     merchant, branch, till = await _seed(session)
     staff = await _user(
         session,
@@ -337,6 +382,34 @@ async def test_qr_checkout_derives_provider_and_rejects_revoked(
         processed = await client.post(f"/api/v1/payments/{body['reference']}/process")
         assert processed.status_code == 200, processed.text
         assert processed.json()["status"] == "success"
+        notifications = list(
+            (
+                await session.scalars(
+                    select(AppNotification).where(AppNotification.user_id == customer.id)
+                )
+            ).all()
+        )
+        success_notifications = [
+            notification
+            for notification in notifications
+            if notification.payment_reference == body["reference"]
+            and notification.notification_type.value == "payment_success"
+        ]
+        assert success_notifications
+        notification = success_notifications[0]
+        duplicate = await NotificationService(session).record(
+            user_id=customer.id,
+            notification_type=NotificationType.PAYMENT_SUCCESS,
+            title="Payment successful",
+            body="Your POMPO payment completed successfully.",
+            event_key=f"payment_success:{body['reference']}:{customer.id}",
+            entity_type="payment",
+            entity_id=body["reference"],
+            payment_reference=body["reference"],
+        )
+        assert duplicate is not None
+        assert duplicate.id == notification.id
+        assert celery_dispatches == []
 
         replay = await client.post(
             "/api/v1/payments/from-qr",
@@ -408,6 +481,7 @@ async def test_dynamic_qr_binds_instrument(session: AsyncSession) -> None:
                 "branch_id": str(branch.id),
                 "till_id": str(till.id),
                 "amount": "100.00",
+                "provider_code": "simulated",
                 "idempotency_key": "dyn-qr-1",
             },
         )

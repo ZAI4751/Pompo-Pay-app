@@ -4,6 +4,7 @@ import { Share, StyleSheet, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 
 import { ErrorBanner, Screen, SecondaryButton, Title, useTheme } from "@/components/ui";
+import { PUBLIC_CHECKOUT_BASE_URL } from "@/config";
 import { useAuth } from "@/state/AuthProvider";
 import type { QrRecord } from "@/types";
 
@@ -36,7 +37,7 @@ export default function MerchantQrDetail() {
               value={
                 qr.payment_url && !qr.payment_url.includes("pay.pompo.mw")
                   ? qr.payment_url
-                  : `https://pompo-pay-app.vercel.app/p/${qr.public_identifier}`
+                  : `${PUBLIC_CHECKOUT_BASE_URL}/p/${qr.public_identifier}`
               }
               size={180}
               backgroundColor="#ffffff"
@@ -53,7 +54,7 @@ export default function MerchantQrDetail() {
               const shareUrl =
                 qr.payment_url && !qr.payment_url.includes("pay.pompo.mw")
                   ? qr.payment_url
-                  : `https://pompo-pay-app.vercel.app/p/${qr.public_identifier}`;
+                  : `${PUBLIC_CHECKOUT_BASE_URL}/p/${qr.public_identifier}`;
               void Share.share({ message: `Pay with POMPO:\n${shareUrl}` });
             }}
           />

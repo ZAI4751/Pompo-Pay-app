@@ -5,7 +5,7 @@ import type { PaymentProvider } from "@/lib/types/payment";
 
 const MOCK_SIMULATED: PaymentProvider = {
   code: "simulated",
-  display_name: "Simulated sandbox",
+  display_name: "POMPO Demo/Sandbox (Success)",
   provider_type: "simulated",
   is_active: true,
   is_simulated: true,
@@ -39,7 +39,7 @@ const MOCK_SIMULATED: PaymentProvider = {
     reachable: true,
     supports_health_check: true,
     contract_ready: true,
-    message: "Simulated adapter is local and deterministic",
+    message: "POMPO Demo/Sandbox adapter is local and deterministic",
   },
 };
 

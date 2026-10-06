@@ -60,7 +60,7 @@ async def main() -> int:
     parser = argparse.ArgumentParser(description="Verify M010 webhooks in production")
     parser.add_argument(
         "--api-base",
-        default="https://pompo-api-production.up.railway.app/api/v1",
+        default="https://pompo-pay-app.onrender.com/api/v1",
         help="Production API base URL",
     )
     parser.add_argument("--webhook-secret", help="Simulated webhook signing secret")

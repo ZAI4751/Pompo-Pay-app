@@ -15,22 +15,28 @@ from dataclasses import asdict, dataclass
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.base import AppEnvironment
-from app.models.enums import ProviderCode, ProviderHealthState, ProviderType
+from app.core.config.base import AppEnvironment, get_settings
+from app.models.enums import SANDBOX_PROVIDER_CODES, ProviderCode, ProviderHealthState, ProviderType
 from app.models.payment import PaymentProvider
 from app.payments.providers import ProviderCapabilities
 from app.payments.registry import ProviderRegistry
-from app.payments.tnm_mpamba import TNM_CAPABILITIES
 from app.payments.standard_bank import STANDARD_BANK_CAPABILITIES
+from app.payments.tnm_mpamba import TNM_CAPABILITIES
 
 
 class ProductionCatalogSeedError(RuntimeError):
     """Raised when sandbox catalog seeding is attempted in production."""
 
 
-def ensure_non_production_catalog_seed(app_env: AppEnvironment) -> None:
-    if app_env is AppEnvironment.PRODUCTION:
-        raise ProductionCatalogSeedError("Refusing to seed sandbox providers in production")
+def ensure_non_production_catalog_seed(
+    app_env: AppEnvironment,
+    *,
+    sandbox_payments_enabled: bool = False,
+) -> None:
+    if app_env is AppEnvironment.PRODUCTION and not sandbox_payments_enabled:
+        raise ProductionCatalogSeedError(
+            "Production sandbox catalog seeding requires SANDBOX_PAYMENTS_ENABLED=true"
+        )
 
 
 SANDBOX_CAPABILITIES = asdict(
@@ -91,7 +97,7 @@ def _refs(code: str) -> dict[str, str]:
 PROVIDER_CATALOG: tuple[ProviderCatalogDefinition, ...] = (
     ProviderCatalogDefinition(
         code=ProviderCode.SIMULATED,
-        display_name="Simulated sandbox",
+        display_name="POMPO Demo/Sandbox (Success)",
         provider_type=ProviderType.SIMULATED,
         is_active=True,
         is_simulated=True,
@@ -105,7 +111,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogDefinition, ...] = (
     ),
     ProviderCatalogDefinition(
         code=ProviderCode.SIMULATED_PENDING,
-        display_name="Simulated pending",
+        display_name="POMPO Demo/Sandbox (Pending)",
         provider_type=ProviderType.SIMULATED,
         is_active=True,
         is_simulated=True,
@@ -119,7 +125,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogDefinition, ...] = (
     ),
     ProviderCatalogDefinition(
         code=ProviderCode.SIMULATED_FAILURE,
-        display_name="Simulated failure",
+        display_name="POMPO Demo/Sandbox (Failure)",
         provider_type=ProviderType.SIMULATED,
         is_active=True,
         is_simulated=True,
@@ -133,7 +139,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogDefinition, ...] = (
     ),
     ProviderCatalogDefinition(
         code=ProviderCode.SIMULATED_TIMEOUT,
-        display_name="Simulated timeout",
+        display_name="POMPO Demo/Sandbox (Timeout)",
         provider_type=ProviderType.SIMULATED,
         is_active=True,
         is_simulated=True,
@@ -244,16 +250,37 @@ async def seed_provider_catalog(
     Returns the number of rows created.
     """
     registry = registry or ProviderRegistry()
+    sandbox_enabled = get_settings().sandbox_payments_enabled
     created = 0
     for definition in PROVIDER_CATALOG:
         existing = await session.scalar(
             select(PaymentProvider).where(PaymentProvider.code == definition.code)
         )
         if existing is not None:
-            if existing.is_simulated:
-                if existing.is_active != definition.is_active or existing.health_state != definition.health_state:
-                    existing.is_active = definition.is_active
-                    existing.health_state = definition.health_state
+            if existing.is_simulated or definition.code in SANDBOX_PROVIDER_CODES:
+                should_activate = definition.is_active and sandbox_enabled
+                existing.is_simulated = True
+                if existing.display_name != definition.display_name:
+                    existing.display_name = definition.display_name
+                if existing.provider_type != definition.provider_type:
+                    existing.provider_type = definition.provider_type
+                if existing.environment != definition.environment:
+                    existing.environment = definition.environment
+                if (
+                    existing.is_active != should_activate
+                    or existing.health_state
+                    != (
+                        ProviderHealthState.ACTIVE
+                        if should_activate
+                        else ProviderHealthState.DISABLED
+                    )
+                ):
+                    existing.is_active = should_activate
+                    existing.health_state = (
+                        ProviderHealthState.ACTIVE
+                        if should_activate
+                        else ProviderHealthState.DISABLED
+                    )
                 if existing.priority != definition.priority:
                     existing.priority = definition.priority
             methods = list(existing.supported_payment_methods or [])
@@ -275,19 +302,26 @@ async def seed_provider_catalog(
             continue
         adapter = registry.get_optional(definition.code.value)
         adapter_ready = adapter is not None and adapter.live_contract_ready
+        is_sandbox_provider = definition.is_simulated or definition.code in SANDBOX_PROVIDER_CODES
+        should_activate = definition.is_active and adapter_ready and (
+            sandbox_enabled or not is_sandbox_provider
+        )
+        health_state = (
+            ProviderHealthState.ACTIVE
+            if should_activate
+            else ProviderHealthState.DISABLED
+            if is_sandbox_provider
+            else definition.health_state
+        )
         session.add(
             PaymentProvider(
                 code=definition.code,
                 display_name=definition.display_name,
                 provider_type=definition.provider_type,
-                is_active=definition.is_active and adapter_ready,
+                is_active=should_activate,
                 is_simulated=definition.is_simulated,
                 environment=definition.environment,
-                health_state=(
-                    ProviderHealthState.ACTIVE
-                    if definition.is_active and adapter_ready
-                    else definition.health_state
-                ),
+                health_state=health_state,
                 priority=definition.priority,
                 supported_currencies=list(definition.supported_currencies),
                 supported_payment_methods=list(definition.supported_payment_methods),

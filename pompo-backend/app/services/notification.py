@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Any
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.customer import AppNotification, CustomerPreference
+from app.models.customer import AppNotification
 from app.models.enums import NotificationType
 from app.models.user import User
 from app.repositories.customer import AppNotificationRepository, CustomerPreferenceRepository
@@ -85,7 +84,6 @@ class NotificationService:
         )
         if commit:
             await self._session.commit()
-        self._enqueue_delivery(row.id)
         return row
 
     async def list_for_user(
@@ -118,7 +116,11 @@ class NotificationService:
         if row.delivered_at is None:
             row.delivered_at = datetime.now(UTC)
             await self._session.commit()
-        logger.info("notification_delivered", notification_id=str(notification_id), user_id=str(row.user_id))
+        logger.info(
+            "notification_delivered",
+            notification_id=str(notification_id),
+            user_id=str(row.user_id),
+        )
 
     async def _allowed(self, user_id: uuid.UUID, notification_type: NotificationType) -> bool:
         prefs = await self._preferences.get_by_user_id(user_id)
@@ -144,15 +146,3 @@ class NotificationService:
         }:
             return prefs.notify_payment_requests
         return True
-
-    @staticmethod
-    def _enqueue_delivery(notification_id: uuid.UUID) -> None:
-        try:
-            from app.tasks.notifications import deliver_notification
-
-            deliver_notification.delay(str(notification_id))
-        except Exception:
-            logger.info(
-                "notification_enqueue_skipped",
-                notification_id=str(notification_id),
-            )

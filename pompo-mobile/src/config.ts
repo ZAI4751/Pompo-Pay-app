@@ -2,7 +2,8 @@ import Constants from "expo-constants";
 
 const extra = (Constants.expoConfig?.extra ?? {}) as { apiBaseUrl?: string };
 
-export const PRODUCTION_API_BASE_URL = "https://pompo-api-production.up.railway.app/api/v1";
+export const PRODUCTION_API_BASE_URL = "https://pompo-pay-app.onrender.com/api/v1";
+export const PUBLIC_CHECKOUT_BASE_URL = "https://pompo-pay-app.vercel.app";
 
 /**
  * Resolve the API host for Expo Go / simulators.
@@ -39,6 +40,7 @@ export function isUnsafeReleaseApiUrl(url: string): boolean {
   }
   return (
     normalized.includes("localhost") ||
+    normalized.includes("pompo-api-production.up.railway.app") ||
     normalized.includes("127.0.0.1") ||
     normalized.includes("10.0.2.2") ||
     normalized.includes("0.0.0.0")

@@ -10,7 +10,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://pompo-api-production.up.railway.app/api/v1"
+        "EXPO_PUBLIC_API_BASE_URL": "https://pompo-pay-app.onrender.com/api/v1"
       }
     },
     "production": {
@@ -18,7 +18,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://pompo-api-production.up.railway.app/api/v1"
+        "EXPO_PUBLIC_API_BASE_URL": "https://pompo-pay-app.onrender.com/api/v1"
       }
     }
   }

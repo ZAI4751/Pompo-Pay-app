@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-
 from datetime import datetime
 from decimal import Decimal
 
@@ -22,6 +21,7 @@ class TransactionRepository(BaseRepository[Transaction]):
     def _detail_query(self):
         return select(Transaction).options(
             selectinload(Transaction.attempts),
+            selectinload(Transaction.provider),
             selectinload(Transaction.merchant),
             selectinload(Transaction.branch),
             selectinload(Transaction.till),

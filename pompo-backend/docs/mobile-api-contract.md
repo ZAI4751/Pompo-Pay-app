@@ -6,7 +6,7 @@ state, provider routing, webhooks, and settlement.
 
 Production base URL:
 
-`https://pompo-api-production.up.railway.app/api/v1`
+`https://pompo-pay-app.onrender.com/api/v1`
 
 Development: `EXPO_PUBLIC_API_BASE_URL` (typically `http://localhost:8000/api/v1`
 on iOS simulator, `http://10.0.2.2:8000/api/v1` on Android emulator).

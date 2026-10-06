@@ -9,9 +9,11 @@ from typing import Any
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.base import get_settings
 from app.core.logging import get_logger
-from app.models import AuditLog, PaymentAttempt, Transaction, User, WebhookEvent
+from app.models import AuditLog, PaymentAttempt, PaymentProvider, Transaction, User, WebhookEvent
 from app.models.enums import (
+    SANDBOX_PROVIDER_CODES,
     TERMINAL_TRANSACTION_STATUSES,
     PaymentAttemptStatus,
     TransactionStatus,
@@ -25,7 +27,11 @@ from app.payments.webhooks import (
     NormalizedWebhookEvent,
     sanitize_payload,
 )
-from app.repositories.payment import PaymentAttemptRepository, PaymentProviderRepository, TransactionRepository
+from app.repositories.payment import (
+    PaymentAttemptRepository,
+    PaymentProviderRepository,
+    TransactionRepository,
+)
 from app.repositories.rbac import AuthorizationRepository
 from app.repositories.webhook import WebhookEventRepository
 from app.services.authorization import AuthorizationService
@@ -94,6 +100,8 @@ class WebhookService:
         provider = await self._providers.get_by_code(provider_code)
         if provider is None:
             raise WebhookInvalidError("Unknown provider")
+        if not self._sandbox_provider_enabled(provider):
+            raise WebhookInvalidError("Sandbox webhooks are disabled in this environment")
         adapter = self._registry.get_optional(provider_code)
         if adapter is None or not hasattr(adapter, "verify_webhook") or not hasattr(adapter, "parse_webhook"):
             raise WebhookInvalidError("Provider does not support webhooks")
@@ -184,7 +192,7 @@ class WebhookService:
             provider=provider_code,
             provider_event_id=normalized.provider_event_id,
         )
-        await self._enqueue_processing(event.id)
+        await self._enqueue_processing(event.id, provider)
         return event
 
     async def process_event(self, event_id: uuid.UUID) -> WebhookEvent:
@@ -197,6 +205,14 @@ class WebhookService:
             WebhookProcessingStatus.DUPLICATE,
             WebhookProcessingStatus.REJECTED,
         }:
+            return event
+        if not self._sandbox_provider_enabled(event.provider):
+            event.processing_status = WebhookProcessingStatus.REJECTED
+            event.failure_category = WebhookFailureCategory.UNSUPPORTED_EVENT
+            event.failure_code = "sandbox_disabled"
+            event.processed = True
+            event.processed_at = datetime.now(UTC)
+            await self._session.commit()
             return event
 
         if event.processing_attempts >= WEBHOOK_MAX_PROCESSING_ATTEMPTS:
@@ -423,13 +439,29 @@ class WebhookService:
         )
         return event
 
-    async def _enqueue_processing(self, event_id: uuid.UUID) -> None:
-        if self._sync_processing:
+    async def _enqueue_processing(
+        self, event_id: uuid.UUID, provider: PaymentProvider
+    ) -> None:
+        is_sandbox_provider = provider.is_simulated or provider.code in SANDBOX_PROVIDER_CODES
+        if self._sync_processing or (
+            is_sandbox_provider and self._sandbox_provider_enabled(provider)
+        ):
             await self.process_event(event_id)
             return
         from app.tasks.webhooks import process_webhook_event
 
         process_webhook_event.delay(str(event_id))
+
+    @staticmethod
+    def _sandbox_provider_enabled(provider: PaymentProvider) -> bool:
+        is_sandbox = provider.is_simulated or provider.code in SANDBOX_PROVIDER_CODES
+        return (
+            not is_sandbox
+            or (
+                provider.environment == "sandbox"
+                and get_settings().sandbox_payments_enabled
+            )
+        )
 
     @staticmethod
     def _normalized_from_event(event: WebhookEvent) -> NormalizedWebhookEvent:

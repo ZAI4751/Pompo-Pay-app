@@ -16,6 +16,7 @@ from app.core.config.base import get_settings
 from app.core.logging import get_logger
 from app.models import AuditLog, PaymentInstrument, User
 from app.models.enums import (
+    SANDBOX_PROVIDER_CODES,
     PaymentInstrumentStatus,
     PaymentInstrumentType,
     ProviderAuthorizationState,
@@ -49,7 +50,7 @@ CATALOG: tuple[dict[str, Any], ...] = (
     {
         "provider_code": "simulated",
         "instrument_type": "mobile_money",
-        "label": "Test Airtel Money",
+        "label": "POMPO Demo Mobile Money (Sandbox)",
         "available": True,
         "is_sandbox": True,
         "reason": None,
@@ -167,7 +168,13 @@ class PaymentInstrumentService:
         self._registry = registry or ProviderRegistry()
 
     def catalog(self) -> list[dict[str, Any]]:
-        return [dict(item) for item in CATALOG]
+        entries = [dict(item) for item in CATALOG]
+        if not get_settings().sandbox_payments_enabled:
+            for item in entries:
+                if item["provider_code"] in SANDBOX_PROVIDER_CODES:
+                    item["available"] = False
+                    item["reason"] = "Sandbox payments are disabled in this environment"
+        return entries
 
     async def list_mine(self, actor: User) -> list[PaymentInstrument]:
         return await self._instruments.list_for_customer(actor.id)
@@ -205,6 +212,11 @@ class PaymentInstrumentService:
         )
         if offer is None:
             raise InstrumentInvalidError("That payment method is not offered")
+        if (
+            provider_code in SANDBOX_PROVIDER_CODES
+            and not get_settings().sandbox_payments_enabled
+        ):
+            raise InstrumentInvalidError("Sandbox payments are disabled in this environment")
         if not offer["available"]:
             raise InstrumentInvalidError(offer["reason"] or "Not available yet")
         try:
